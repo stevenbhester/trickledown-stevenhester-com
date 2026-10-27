@@ -157,18 +157,20 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
 .coin-svg { width: 100%; height: 100%; display: block; }
 
 /* The coin body: a milled edge, a raised rim, a field, and an inset centre. */
-.coin-edge { fill: #D9E1E4; stroke: #9FB0B8; stroke-width: 1; }
-.coin-reed { fill: none; stroke: #8EA3AC; stroke-width: 7; stroke-dasharray: 1.6 2.2; }
-.coin-rim { fill: #E6ECEE; stroke: #B6C4CA; stroke-width: 1; }
-.coin-field { fill: var(--paper); stroke: #C9D4D9; stroke-width: 1; }
-.coin-hole { fill: #E3E9EB; stroke: #B6C4CA; stroke-width: 1; }
-.coin-hole-inner { fill: var(--porcelain); stroke: #fff; stroke-width: 1; }
-.coin-edge.back { fill: #1C3340; stroke: #0B1A22; }
+.coin-edge { stroke: #8A9AA2; stroke-width: 1; }
+.coin-reed { fill: none; stroke: #7E929B; stroke-width: 7; stroke-dasharray: 1.6 2.2; }
+.coin-rim { stroke: #AEBBC1; stroke-width: 1; }
+.coin-field { stroke: #B8C4C9; stroke-width: 1.5; }
+.coin-hole { stroke: #A9B7BE; stroke-width: 1.5; }
+.coin-hole-inner { fill: none; stroke: #fff; stroke-opacity: 0.7; stroke-width: 1; }
+.coin-stamp { font-family: var(--display); font-weight: 900; font-size: 150px; fill: #0F2430; fill-opacity: 0.07; pointer-events: none; }
+.coin-edge.back { stroke: #0B1A22; }
 .coin-reed.back { stroke: #0B1A22; }
-.coin-rim.back { fill: #223B49; stroke: #0B1A22; }
-.coin-field.back { fill: var(--ink); stroke: #2B4654; }
-.coin-hole.back { fill: #1A2F3B; stroke: #2B4654; }
-.coin-hole-inner.back { fill: var(--ink); stroke: #2B4654; }
+.coin-rim.back { stroke: #2B4654; }
+.coin-field.back { stroke: #2B4654; }
+.coin-hole.back { stroke: #2B4654; }
+.coin-hole-inner.back { stroke: #3A5565; }
+.coin-stamp.back { fill: #CDE4EB; fill-opacity: 0.09; }
 .coin-empty-ring { fill: none; stroke: var(--line); stroke-width: 60; stroke-dasharray: 2 6; }
 .coin-empty-ring.back { stroke: #2B4654; }
 
@@ -236,14 +238,20 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
 
 .coin-caption {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  width: 100%; font-size: 14px; color: var(--mud); margin-bottom: 14px;
+  width: 100%; font-size: 14px; color: var(--ink); margin-bottom: 14px;
 }
-.coin-caption .streak { color: var(--ink); font-weight: 500; }
+.side-label b { font-family: var(--display); font-size: 18px; font-weight: 700; letter-spacing: 0.02em; margin-right: 4px; }
+.side-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  border-top: 2px solid var(--ink); padding-top: 10px; margin-bottom: 12px; font-size: 14px;
+}
+.side-head h2 { font-family: var(--display); font-weight: 900; font-size: 26px; letter-spacing: 0.01em; }
+.side-head b { color: var(--ink); }
 
 /* Carving a slice ------------------------------------------------------------- */
 
-.carve { border-top: 2px solid var(--ink); padding-top: 12px; margin-bottom: 18px; }
-.carve h2 { font-family: var(--display); font-weight: 700; font-size: 24px; margin-bottom: 6px; }
+.carve { border-top: 1px solid var(--line); padding-top: 12px; margin-bottom: 18px; }
+.carve h2 { font-family: var(--display); font-weight: 700; font-size: 22px; margin-bottom: 6px; }
 .carve .hint { font-size: 14px; color: var(--mud); margin-bottom: 10px; }
 .picker { position: relative; margin-bottom: 10px; }
 .picker .asset-list { position: absolute; left: 0; right: 0; top: 100%; z-index: 6; margin: 4px 0 0; box-shadow: 0 6px 16px rgba(15, 36, 48, 0.15); }
@@ -293,7 +301,7 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
   font-size: 14px; margin: 0 0 10px; color: var(--mud);
 }
 .quote-line b { color: var(--ink); font-family: var(--display); font-size: 18px; font-weight: 700; }
-.all-in { border-top: 2px solid var(--ink); padding: 12px 0 0; margin-bottom: 18px; }
+.all-in { border-top: 1px solid var(--line); padding: 12px 0 0; margin-bottom: 18px; }
 .all-in b { font-family: var(--display); font-weight: 700; font-size: 24px; display: block; }
 
 /* Positions legend ------------------------------------------------------------- */
@@ -344,6 +352,26 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
 .lobbyists.mini .more { font-size: 13px; }
 .lobby-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 8px 0 14px; }
 .lobby-row b { font-family: var(--display); font-weight: 900; font-size: 34px; line-height: 1; }
+.lobbyist.arriving { opacity: 0; }
+.billsvg { width: 15px; height: 30px; flex: none; }
+.billsvg rect { fill: var(--bill); stroke: var(--bill-deep); stroke-width: 1; }
+.billsvg .bill-inner { fill: none; stroke: var(--bill-light); stroke-opacity: 0.55; }
+.billsvg .bill-text { fill: var(--bill-light); font-family: var(--display); font-weight: 900; font-size: 14px; }
+.hire-row {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center;
+  border: 1.5px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 4px 0 12px; background: #fff;
+}
+.hire-side { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.hire-arrow { font-family: var(--display); font-weight: 900; font-size: 26px; color: var(--water); }
+.fest { font-size: 14px; color: var(--mud); border-left: 3px solid #C9A227; padding: 4px 12px; margin: 0 0 14px; }
+.fest-banner { border: 1.5px dashed #C9A227; border-radius: var(--radius); padding: 10px 12px; margin: 0 0 14px; font-size: 14px; }
+.fest-banner b { display: block; font-family: var(--display); font-weight: 700; font-size: 20px; }
+.fest-banner span { color: var(--mud); }
+
+/* Bills in flight, becoming people */
+.flyer { position: fixed; width: 15px; height: 30px; z-index: 60; pointer-events: none; perspective: 300px; }
+.flyer > span { position: absolute; inset: 0; display: block; backface-visibility: hidden; }
+.flyer .billsvg, .flyer .lobbyist { width: 15px; height: 30px; filter: drop-shadow(0 2px 2px rgba(15,36,48,.25)); }
 
 /* Back of the coin: records ----------------------------------------------------- */
 

@@ -103,6 +103,8 @@
   const tierFor = (inv, v) => { if (v <= 0) return 'Rest in peace'; const p = (v - inv) / inv; return p < 0 ? 'Paper cut' : p < 0.1 ? 'Pocket change' : p < 0.25 ? 'Respectable' : p < 0.5 ? 'Nice' : p < 1 ? 'Heater' : 'Legend'; };
   const settle = (inv, v) => { const profit = round2(v - inv); const tax = profit > 0 ? round2(profit * RULES.tax_rate) : 0; return { profit, tax, net: round2(v - tax), tier: tierFor(inv, v) }; };
   const resetsAt = () => { const d = new Date(); d.setHours(24, 0, 0, 0); return d.toISOString(); };
+  // Lobbyfest: local midnight at the start of the next quarter.
+  const quarterEndsAt = () => { const d = new Date(); const m = Math.floor(d.getMonth() / 3) * 3 + 3; return new Date(d.getFullYear(), m, 1, 0, 0, 0).toISOString(); };
   const fail = (msg, status = 400) => { const e = new Error(msg); e.status = status; throw e; };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -116,10 +118,11 @@
       const picks = [['NVDA', 'Nvidia', 9], ['BTC', 'Bitcoin', 5], ['TSLA', 'Tesla', 4], ['DOGE', 'Dogecoin', 2], ['GLD', 'Gold (ETF)', 1]]
         .map(([symbol, name, buys]) => ({ symbol, name, buys, invested: buys * 60 }));
       const mine = donations.filter((d) => d.user === user.username);
-      const byCharity = CHARITIES.map((c) => ({ id: c.id, name: c.name, slug: c.slug, amount: round2(mine.filter((d) => d.charity_id === c.id).reduce((s, d) => s + d.amount, 0)), times: mine.filter((d) => d.charity_id === c.id).length }))
+      const byCharity = CHARITIES.map((c) => { const amt = round2(mine.filter((d) => d.charity_id === c.id).reduce((s, d) => s + d.amount, 0)); return { id: c.id, name: c.name, slug: c.slug, amount: amt, times: mine.filter((d) => d.charity_id === c.id).length, all_time: amt }; })
         .filter((c) => c.amount > 0).sort((a, b) => b.amount - a.amount);
       return {
-        user: publicUser(), day: { key: today, number: 12, quarter: '2026-Q4', resets_at: resetsAt(), tz: 'America/Chicago' },
+        user: { ...publicUser(), quarter_donated: round2(byCharity.reduce((s, c) => s + c.amount, 0)) },
+        day: { key: today, number: 12, quarter: '2026-Q4', resets_at: resetsAt(), quarter_ends_at: quarterEndsAt(), tz: 'America/Chicago' },
         allowance: null, rules: RULES, positions: open, history, donations_by_charity: byCharity,
         crowd: { picks, buys: 21, players: 9 },
         today_donated: history.filter((h) => h.closed_day === today).reduce((s, h) => s + h.tax, 0),
@@ -132,16 +135,17 @@
     if (path === '/trickle') {
       const totals = CHARITIES.map((c) => { const ds = donations.filter((d) => d.charity_id === c.id); const q = ds.reduce((s, d) => s + d.amount, 0); return { ...c, quarter_total: q, all_time: q + q * 1.8, quarter_donors: new Set(ds.map((d) => d.user)).size }; });
       const qt = totals.reduce((s, c) => s + c.quarter_total, 0); const pool = 140;
-      return { quarter: '2026-Q4', demo: true, pool_usd: pool, quarter_total: round2(qt), all_time: round2(totals.reduce((s, c) => s + c.all_time, 0)), quarter_donors: 5,
+      return { quarter: '2026-Q4', quarter_ends_at: quarterEndsAt(), demo: true, pool_usd: pool, quarter_total: round2(qt), all_time: round2(totals.reduce((s, c) => s + c.all_time, 0)), quarter_donors: 5,
         charities: totals.map((c) => ({ ...c, share: qt ? c.quarter_total / qt : 0, est_usd: qt ? round2(pool * c.quarter_total / qt) : 0 })).sort((a, b) => b.quarter_total - a.quarter_total) };
     }
     if (path === '/leaderboard') {
-      const all_time = [...otherPlayers, { username: user.username, donated: user.total_donated, realized_pnl: user.realized_pnl, streak: user.streak }]
-        .filter((r) => r.donated > 0).sort((a, b) => b.donated - a.donated);
+      const myQ = round2(donations.filter((d) => d.user === user.username).reduce((s, d) => s + d.amount, 0));
+      const all_time = [...otherPlayers.map((p) => ({ ...p, quarter: round2(p.donated * 0.6) })), { username: user.username, donated: user.total_donated, quarter: myQ, realized_pnl: user.realized_pnl, streak: user.streak }]
+        .filter((r) => r.donated > 0).sort((a, b) => b.quarter - a.quarter || b.donated - a.donated);
       const mine = positions.filter((p) => p.status === 'closed' && p.closed_day === today).map((p) => ({ username: user.username, symbol: p.symbol, invested: p.invested, proceeds: p.proceeds, gain_pct: (p.proceeds - p.invested) / p.invested, tier: p.tier }));
       const last_24h = [{ username: 'ravi_k', symbol: 'SOL', invested: 100, proceeds: 212, gain_pct: 1.12, tier: 'Legend' }, { username: 'erin', symbol: 'COST', invested: 50, proceeds: 63.5, gain_pct: 0.27, tier: 'Nice' }, ...mine,
         { username: 'bagholder_ben', symbol: 'GME', invested: 80, proceeds: 0, gain_pct: -1, tier: 'Rest in peace' }].sort((a, b) => b.gain_pct - a.gain_pct);
-      return { all_time, last_24h };
+      return { quarter: '2026-Q4', quarter_ends_at: quarterEndsAt(), all_time, last_24h };
     }
     fail('Not found.', 404);
   }

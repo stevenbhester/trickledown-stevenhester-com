@@ -65,6 +65,15 @@
     const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
     return h > 0 ? `${h}h ${m}m` : `${Math.max(1, m)}m`;
   }
+  // "64d 6h", "6h 12m", "12m"
+  function untilLong(iso) {
+    const ms = new Date(iso) - Date.now();
+    if (ms <= 0) return 'any minute now';
+    const d = Math.floor(ms / 86400000), h = Math.floor((ms % 86400000) / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    if (d > 0) return `${d}d ${h}h`;
+    return h > 0 ? `${h}h ${m}m` : `${Math.max(1, m)}m`;
+  }
+  const festDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 
   // Play-money tax hires lobbyists for a charity at a dollar a head. They are
   // not dollars, and the copy never pretends they are.
@@ -87,6 +96,15 @@
     if (whole > max) out += `<span class="more">+${whole - max}</span>`;
     if (frac > 0) out += LOBBYIST.replace('class="lobbyist"', `class="lobbyist frac" style="clip-path: inset(0 0 ${Math.round((1 - frac) * 100)}% 0)"`);
     return `<span class="lobbyists ${mini ? 'mini' : ''}" role="img" aria-label="${esc(lobby(n))}">${out}</span>`;
+  }
+  // A dollar, same footprint as a lobbyist so one can become the other.
+  const BILL = `<svg class="billsvg" viewBox="0 0 20 40" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="39" rx="2"/><rect x="3" y="3" width="14" height="34" rx="1" class="bill-inner"/><text x="10" y="25" text-anchor="middle" class="bill-text">$</text></svg>`;
+  function billsRow(n, { max = 24 } = {}) {
+    const whole = Math.floor(n + 1e-9), frac = round2(n - whole);
+    let out = BILL.repeat(Math.min(whole, max));
+    if (whole > max) out += `<span class="more">+${whole - max}</span>`;
+    if (frac > 0) out += BILL.replace('class="billsvg"', `class="billsvg frac" style="clip-path: inset(0 0 ${Math.round((1 - frac) * 100)}% 0)"`);
+    return `<span class="lobbyists" role="img" aria-label="${esc(money(n))}">${out}</span>`;
   }
 
   function toast(text, ms = 2800) {
@@ -208,8 +226,9 @@
 
   function coinBackMarkup() {
     const me = state.me;
-    const svg = Coin.back({ slices: me.donations_by_charity.map((c) => ({ name: c.name, amount: c.amount })) });
-    return `${svg}<div class="coin-center"><b>${esc(lobbyN(me.user.total_donated))}</b><span>lobbyist${round2(me.user.total_donated) === 1 ? '' : 's'} hired, all time</span></div><button class="coin-tap" type="button" aria-label="Flip the coin back"></button>`;
+    const q = me.user.quarter_donated || 0;
+    const svg = Coin.back({ slices: me.donations_by_charity.filter((c) => c.amount > 0).map((c) => ({ name: c.name, amount: c.amount })) });
+    return `${svg}<div class="coin-center"><b>${esc(lobbyN(q))}</b><span>lobbyist${round2(q) === 1 ? '' : 's'} this quarter<br>Lobbyfest in ${esc(untilLong(me.day.quarter_ends_at))}</span></div><button class="coin-tap" type="button" aria-label="Flip the coin back"></button>`;
   }
 
   // Redraw only the coin faces. Keeps the carve panel (and its focus) intact.
@@ -265,13 +284,19 @@
     }
   }
 
+  function captionMarkup() {
+    return state.flipped
+      ? `<div class="side-label"><b>Tails.</b> Your lobbyist army. <span class="muted">Heads is your portfolio.</span></div><button class="btn quiet small" id="btn-flip">Flip to portfolio</button>`
+      : `<div class="side-label"><b>Heads.</b> Your portfolio. <span class="muted">Tails is your lobbyist army.</span></div><button class="btn quiet small" id="btn-flip">Flip to lobbyists</button>`;
+  }
+
   function flip(to) {
     clearTimeout(state.flipTimer);
     state.flipped = to === undefined ? !state.flipped : to;
     const coin = $('#coin');
     if (coin) coin.classList.toggle('flipped', state.flipped);
-    const btn = $('#btn-flip');
-    if (btn) btn.textContent = state.flipped ? 'Flip it back' : 'Flip the coin';
+    const cap = $('.coin-caption');
+    if (cap) { cap.innerHTML = captionMarkup(); $('#btn-flip').onclick = () => flip(); }
     hideTip();
     renderUnder();
   }
@@ -308,10 +333,7 @@
     const me = state.me;
     if (!me) return;
     renderMasthead();
-    const { user, rules } = me;
-    const nextMoney = money(Math.min(rules.daily_cap, rules.daily_base + rules.streak_bonus * user.streak), { whole: true });
-    const streakLine = user.streak > 1 ? `${user.streak}-day streak. Tomorrow's coin: ${nextMoney}.` : `Tomorrow's coin: ${nextMoney}.`;
-    if (state.carve > user.cash) state.carve = 0;
+    if (state.carve > me.user.cash) state.carve = 0;
 
     $('#screen-today').innerHTML = `
       <div class="coin-stage">
@@ -321,10 +343,7 @@
             <div class="coin-face back" id="coin-back"></div>
           </div>
         </div>
-        <div class="coin-caption">
-          <span class="streak">${esc(streakLine)}</span>
-          <button class="btn quiet small" id="btn-flip">${state.flipped ? 'Flip it back' : 'Flip the coin'}</button>
-        </div>
+        <div class="coin-caption">${captionMarkup()}</div>
       </div>
       <div id="under"></div>`;
     paintCoin();
@@ -342,9 +361,15 @@
   // Front: pick → amount → buy, then the legend, crowd, share.
   function frontMarkup() {
     const me = state.me;
-    const { user, positions } = me;
+    const { user, positions, rules } = me;
     const canCarve = user.cash >= 0.01;
     const ready = positions.filter((p) => p.matured && !p.quote_error).length;
+    const nextMoney = money(Math.min(rules.daily_cap, rules.daily_base + rules.streak_bonus * user.streak), { whole: true });
+    const head = `
+      <div class="side-head">
+        <h2>Portfolio</h2>
+        <span class="muted">${money(user.cash)} free. ${positions.length} on the coin${ready ? `, ${ready} ready` : ''}. ${user.streak > 1 ? `${user.streak}-day streak, ` : ''}${nextMoney} tomorrow.</span>
+      </div>`;
     const carve = canCarve ? `
       <section class="carve">
         <h2>Buy something</h2>
@@ -377,7 +402,7 @@
         <ul class="positions">${positions.map(positionRow).join('')}</ul>
       </section>` : '';
 
-    return `${carve}${legend}${crowdStrip(me.crowd)}
+    return `${head}${carve}${legend}${crowdStrip(me.crowd)}
       <div class="row-actions">
         <button class="btn quiet small" id="btn-share">Share today</button>
         <a class="btn quiet small" href="#trickle">The lobby</a>
@@ -430,6 +455,7 @@
   function tickTimes() {
     $$('[data-ago]').forEach((el) => { el.textContent = ago(el.dataset.ago); });
     $$('[data-left]').forEach((el) => { el.textContent = left(el.dataset.left); });
+    $$('[data-fest]').forEach((el) => { el.textContent = untilLong(el.dataset.fest); });
   }
 
   function wireFront() {
@@ -557,24 +583,32 @@
     }
   }
 
-  // Back: lobbyists, rank, records.
+  // Back: this quarter's army, Lobbyfest, career rank, records.
   function backMarkup() {
     const me = state.me;
-    const { user, history, donations_by_charity: given } = me;
+    const { user, history, day } = me;
+    const given = me.donations_by_charity.filter((c) => c.amount > 0);
+    const q = user.quarter_donated || 0;
     const badges = user.badges, next = badges.next;
     const have = badges.earned.length ? badges.earned[badges.earned.length - 1] : null;
     const prevAt = have ? have.at : 0;
     const progress = next ? Math.min(100, ((user.total_donated - prevAt) / (next.at - prevAt)) * 100) : 100;
     return `
+      <div class="side-head">
+        <h2>Lobbyist army</h2>
+        <span class="muted">Lobbyfest in <b data-fest="${esc(day.quarter_ends_at)}">${esc(untilLong(day.quarter_ends_at))}</b>.</span>
+      </div>
       <section class="records">
-        <h2>Your lobbyists</h2>
-        <div class="lobby-row"><b>${esc(lobbyN(user.total_donated))}</b>${user.total_donated > 0 ? lobbyists(user.total_donated) : '<span class="muted">Nobody on the payroll yet.</span>'}</div>
-        <div class="rank"><b>${have ? esc(have.name) : 'No rank yet'}</b><span class="muted">${have ? 'is your rank.' : 'Collect a profit and the tax hires your first one.'}</span></div>
-        <div class="rank-bar"><i style="--w:${progress.toFixed(1)}%"></i></div>
-        <div class="rank-line">${next ? `${esc(next.name)} at ${next.at} lobbyists. ${lobbyN(next.at - user.total_donated)} to go.` : 'There is nothing above this.'}</div>
+        <div class="lobby-row"><b>${esc(lobbyN(q))}</b>${q > 0 ? lobbyists(q) : '<span class="muted">Nobody on the payroll yet this quarter.</span>'}</div>
+        <p class="fest">On ${esc(festDate(day.quarter_ends_at))} every lobbyist in the game marches off to Lobbyfest. They vote, the real money is split between the charities by headcount, and everyone's payroll resets to zero. Your rank stays.</p>
 
         ${given.length ? `<ul class="given">${given.map((c, i) => `
           <li><span><span class="sw" style="background:${CHARITY_COLORS[i % 6]}"></span>${esc(c.name)}</span><span>${lobbyists(c.amount, { mini: true, max: 12 })} <b>${esc(lobbyN(c.amount))}</b></span></li>`).join('')}</ul>` : ''}
+
+        <h2>Career</h2>
+        <div class="rank"><b>${have ? esc(have.name) : 'No rank yet'}</b><span class="muted">${have ? `is your rank, for ${esc(lobby(user.total_donated))} hired all time.` : 'Collect a profit and the tax hires your first one.'}</span></div>
+        <div class="rank-bar"><i style="--w:${progress.toFixed(1)}%"></i></div>
+        <div class="rank-line">${next ? `${esc(next.name)} at ${next.at} lobbyists. ${lobbyN(next.at - user.total_donated)} to go.` : 'There is nothing above this.'}</div>
 
         <h2>Records</h2>
         ${history.length ? `<ul class="history">${history.map((h) => `
@@ -625,7 +659,11 @@
         ${!win && s.profit < 0 ? `<li><span>Loss. Not taxed. That would be cruel.</span><b class="down">${money(s.profit)}</b></li>` : ''}
         <li class="total"><span>Back onto the coin as bills</span><b>${money(s.net)}</b></li>
       </ul>
-      ${win ? `<div class="lobby-row"><b>${esc(lobbyN(s.tax))}</b>${lobbyists(s.tax)}</div>` : ''}
+      ${win ? `<div class="hire-row">
+        <div class="hire-side"><span class="muted">${money(s.tax)} of tax</span>${billsRow(s.tax, { max: 12 })}</div>
+        <span class="hire-arrow" aria-hidden="true">→</span>
+        <div class="hire-side"><span class="muted">${esc(lobby(s.tax))}</span>${lobbyists(s.tax, { max: 12 })}</div>
+      </div>` : ''}
       ${win || (!mat && !bust) ? `<label class="field charity-pick"><span>${win ? `${esc(lobby(s.tax))} for` : 'If it lands as a profit when you tap, the tax hires lobbyists for'}</span><select id="sell-charity">${charityOptions}</select></label>` : ''}
       ${!mat && !bust ? `<p class="muted" style="font-size:13px">These numbers are a snapshot; the sale happens at whatever the market says when you tap. Or wait: in ${left(p.matures_at)} it matures at ${mult(p.multiplier)} and freezes at whatever ${esc(p.name)} is doing then.</p>` : ''}
       ${mat && !bust ? `<div class="ride-box">
@@ -674,7 +712,8 @@
       if (rc.tax > 0) {
         toast(`${rc.tier}. ${how}: ${money(rc.tax)} of tax hired ${lobby(rc.tax)} for ${rc.charity.name}.`, 4200);
         flip(true);
-        state.flipTimer = setTimeout(() => { if (state.flipped) flip(false); }, 4200);
+        await hireAnimation(rc.tax);
+        state.flipTimer = setTimeout(() => { if (state.flipped) flip(false); }, 3200);
       } else {
         toast(rc.busted ? `${rc.tier}. ${p.symbol} is in the ground.` : `${rc.tier}. ${how} for ${money(rc.net)}, back on the coin.`);
       }
@@ -682,6 +721,50 @@
       $('#sell-error').textContent = e.message; $('#sell-error').hidden = false;
       $('#sell-submit').disabled = false; $('#sell-submit').textContent = 'Try again';
     } finally { state.busy = false; }
+  }
+
+  // Bills fly out of the coin into the payroll row and turn into lobbyists on the way.
+  async function hireAnimation(n) {
+    const coin = $('#coin');
+    const row = $('#under .lobby-row .lobbyists');
+    if (!coin || !row) return;
+    const count = Math.min(12, Math.ceil(n - 1e-9));
+    const targets = $$('.lobbyist', row).slice(-count);
+    if (REDUCED || !targets.length) return;
+    targets.forEach((t) => t.classList.add('arriving'));
+    await new Promise((r) => setTimeout(r, 650)); // let the flip finish
+    const c = coin.getBoundingClientRect();
+    const x0 = c.left + c.width / 2 - 8, y0 = c.top + c.height / 2 - 16;
+    const flights = targets.map((t, i) => new Promise((resolve) => {
+      const r = t.getBoundingClientRect();
+      const fly = document.createElement('div');
+      fly.className = 'flyer';
+      fly.innerHTML = `<span class="fly-bill">${BILL}</span><span class="fly-person">${LOBBYIST}</span>`;
+      fly.style.left = `${x0}px`; fly.style.top = `${y0}px`;
+      document.body.appendChild(fly);
+      const dx = r.left - x0, dy = r.top - y0;
+      const delay = i * 70, dur = 950;
+      const path = fly.animate(
+        [
+          { transform: 'translate(0,0) scale(1.2)', opacity: 0, offset: 0 },
+          { transform: `translate(${dx * 0.1}px, ${dy * 0.1 - 40}px) scale(1.25)`, opacity: 1, offset: 0.12 },
+          { transform: `translate(${dx * 0.55}px, ${dy * 0.45 - 70}px) scale(1.1)`, opacity: 1, offset: 0.55 },
+          { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 1, offset: 1 },
+        ],
+        { duration: dur, delay, easing: 'cubic-bezier(.3,.1,.3,1)', fill: 'forwards' },
+      );
+      // Mid-flight: the bill folds away, the person unfolds.
+      fly.querySelector('.fly-bill').animate(
+        [{ transform: 'rotateY(0deg)', opacity: 1, offset: 0 }, { transform: 'rotateY(0deg)', opacity: 1, offset: 0.4 }, { transform: 'rotateY(90deg)', opacity: 0, offset: 0.58 }, { transform: 'rotateY(90deg)', opacity: 0, offset: 1 }],
+        { duration: dur, delay, fill: 'forwards' },
+      );
+      fly.querySelector('.fly-person').animate(
+        [{ transform: 'rotateY(-90deg)', opacity: 0, offset: 0 }, { transform: 'rotateY(-90deg)', opacity: 0, offset: 0.56 }, { transform: 'rotateY(0deg)', opacity: 1, offset: 0.74 }, { transform: 'rotateY(0deg)', opacity: 1, offset: 1 }],
+        { duration: dur, delay, fill: 'forwards' },
+      );
+      path.finished.then(() => { t.classList.remove('arriving'); fly.remove(); resolve(); }).catch(() => { t.classList.remove('arriving'); fly.remove(); resolve(); });
+    }));
+    await Promise.all(flights);
   }
 
   // --- share --------------------------------------------------------------------------------
@@ -723,6 +806,9 @@
           <div class="big">${esc(lobbyN(t.quarter_total))}</div>
           <div class="muted">lobbyists hired this quarter (${esc(t.quarter)}) by ${t.quarter_donors} player${t.quarter_donors === 1 ? '' : 's'}. Headcount decides the split below.</div>
         </div>
+        <div class="fest-banner">
+          <div><b>Lobbyfest in <span data-fest="${esc(t.quarter_ends_at)}">${esc(untilLong(t.quarter_ends_at))}</span></b><span>${esc(festDate(t.quarter_ends_at))} at midnight Central. Every lobbyist in the game marches off, the pool is split by headcount, and everyone starts the next quarter at zero.</span></div>
+        </div>
         <div class="pool">
           <div><b>${money(t.pool_usd, { whole: true })}</b><span>${t.demo ? 'pretend' : 'real'} ad money in this quarter's pool</span></div>
           <div><b>${esc(lobbyN(t.all_time))}</b><span>lobbyists hired since the game began</span></div>
@@ -761,12 +847,12 @@
       const rowCls = (u) => (u === meName ? 'me' : '');
       el.innerHTML = `
         <h1>Leaders</h1>
-        <h2 class="muted" style="font-size:15px;margin:14px 0 2px">Most lobbyists hired, all time</h2>
+        <h2 class="muted" style="font-size:15px;margin:14px 0 2px">Lobbyfest standings, ${esc(b.quarter)}. Marching in ${esc(untilLong(b.quarter_ends_at))}.</h2>
         ${b.all_time.length ? `
         <table class="board">
-          <thead><tr><th></th><th>Player</th><th class="num">Lobbyists</th><th class="num">Streak</th></tr></thead>
+          <thead><tr><th></th><th>Player</th><th class="num">This quarter</th><th class="num">Career</th><th class="num">Streak</th></tr></thead>
           <tbody>${b.all_time.map((r, i) => `
-            <tr><td class="rank">${i + 1}</td><td class="${rowCls(r.username)}">${esc(r.username)}</td><td class="num">${esc(lobbyN(r.donated))}</td><td class="num">${r.streak}</td></tr>`).join('')}
+            <tr><td class="rank">${i + 1}</td><td class="${rowCls(r.username)}">${esc(r.username)}</td><td class="num">${esc(lobbyN(r.quarter || 0))}</td><td class="num muted">${esc(lobbyN(r.donated))}</td><td class="num">${r.streak}</td></tr>`).join('')}
           </tbody>
         </table>` : `<p class="muted">Nobody has collected a profit yet. The board is yours.</p>`}
 
@@ -817,11 +903,11 @@
         <h2>Lobbyists</h2>
         <p>Every dollar of tax hires one lobbyist for a charity you pick. They are not dollars. You can hire a fraction of a lobbyist; it looks about how you'd expect. Flip the coin to see your payroll, your rank, and every cash-out on record.</p>
 
-        <h2>The real money</h2>
-        <p>The ads on this site earn real dollars. Every quarter, all of it is split between the charities on the Lobby page by headcount: a charity with a third of the lobbyists gets a third of the money. Your fake tax is a vote on where the real money goes. Nothing you do here costs you anything. That's the whole point.</p>
+        <h2>Lobbyfest</h2>
+        <p>At midnight Central on the last day of every quarter, every lobbyist in the game marches off to Lobbyfest. The ads on this site earn real dollars, and that's when all of it is split between the charities on the Lobby page by headcount: a charity with a third of the lobbyists gets a third of the money. Then every payroll resets to zero and the next quarter starts. Your fake tax is a vote on where the real money goes. Nothing you do here costs you anything. That's the whole point.</p>
 
         <h2>Ranks</h2>
-        <p>They're for how many lobbyists you've hired, all time.</p>
+        <p>Ranks are for your career: every lobbyist you've ever hired, across every Lobbyfest.</p>
         <ul class="badges">
           ${badgeList.map((b) => `<li class="${earned.includes(b.name) ? 'earned' : ''}"><b>${esc(b.name)}</b>${b.at} lobbyist${b.at === 1 ? '' : 's'}</li>`).join('')}
         </ul>

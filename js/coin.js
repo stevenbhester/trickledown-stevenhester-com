@@ -76,19 +76,38 @@ window.Coin = (function () {
     return out;
   }
 
-  // The coin body: milled edge, raised rim, the inset center.
+  // The coin body: silver (or gunmetal, on the back), a milled edge, a raised
+  // rim, the field the wedges sit on.
   function body(back) {
+    const id = back ? 'cb' : 'cf';
     const k = back ? ' back' : '';
+    const defs = back ? `
+      <radialGradient id="${id}-field" cx="38%" cy="32%" r="85%"><stop offset="0" stop-color="#2C4654"/><stop offset="0.65" stop-color="#15293A"/><stop offset="1" stop-color="#0A1820"/></radialGradient>
+      <linearGradient id="${id}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A6473"/><stop offset="0.5" stop-color="#1E3442"/><stop offset="1" stop-color="#0B1A22"/></linearGradient>` : `
+      <radialGradient id="${id}-field" cx="38%" cy="32%" r="85%"><stop offset="0" stop-color="#FDFEFE"/><stop offset="0.55" stop-color="#E9EEF0"/><stop offset="1" stop-color="#C3CDD2"/></radialGradient>
+      <linearGradient id="${id}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6F8F9"/><stop offset="0.5" stop-color="#C2CCD1"/><stop offset="1" stop-color="#98A8B0"/></linearGradient>`;
     return `
-      <circle cx="${CX}" cy="${CY}" r="159" class="coin-edge${k}"/>
+      <defs>${defs}<clipPath id="${id}-hole"><circle cx="${CX}" cy="${CY}" r="${RI - 3}"/></clipPath></defs>
+      <circle cx="${CX}" cy="${CY}" r="159" class="coin-edge${k}" fill="url(#${id}-rim)"/>
       <circle cx="${CX}" cy="${CY}" r="155" class="coin-reed${k}"/>
-      <circle cx="${CX}" cy="${CY}" r="150" class="coin-rim${k}"/>
-      <circle cx="${CX}" cy="${CY}" r="${R + 1}" class="coin-field${k}"/>`;
+      <circle cx="${CX}" cy="${CY}" r="150" class="coin-rim${k}" fill="url(#${id}-rim)"/>
+      <circle cx="${CX}" cy="${CY}" r="${R + 1}" class="coin-field${k}" fill="url(#${id}-field)"/>`;
   }
+
+  // A lobbyist, drawn once here for the back's watermark.
+  const LOBBYIST_PATHS = `<circle cx="9" cy="5.5" r="4.5"/><path d="M3 12 h12 l1.5 14 h-15 z"/><rect x="4.5" y="26" width="4" height="13" rx="0.5"/><rect x="9.5" y="26" width="4" height="13" rx="0.5"/><rect x="15" y="21" width="5" height="7" rx="0.8"/>`;
+
+  // The inset center, with a faint stamp under the number: a $ on heads, a
+  // lobbyist on tails, in the same spot, so the flip turns one into the other.
   function center(back) {
+    const id = back ? 'cb' : 'cf';
     const k = back ? ' back' : '';
-    return `<circle cx="${CX}" cy="${CY}" r="${RI}" class="coin-hole${k}"/>
-      <circle cx="${CX}" cy="${CY}" r="${RI - 3}" class="coin-hole-inner${k}"/>`;
+    const stamp = back
+      ? `<g class="coin-stamp${k}" transform="translate(${CX - 50} ${CY - 108}) scale(5.4)">${LOBBYIST_PATHS}</g>`
+      : `<text class="coin-stamp" x="${CX}" y="${CY + 46}" text-anchor="middle">$</text>`;
+    return `<circle cx="${CX}" cy="${CY}" r="${RI}" class="coin-hole${k}" fill="url(#${id}-field)"/>
+      <circle cx="${CX}" cy="${CY}" r="${RI - 3}" class="coin-hole-inner${k}"/>
+      <g clip-path="url(#${id}-hole)">${stamp}</g>`;
   }
 
   // positions: [{ id, symbol, invested, value, swing_pct, busted, quote_error, matured }]
@@ -148,7 +167,6 @@ window.Coin = (function () {
       ${body(true)}
       ${total > 0 ? wedges + labels : `<circle cx="${CX}" cy="${CY}" r="${RM}" class="coin-empty-ring back"/>`}
       ${center(true)}
-      <path class="back-emblem" transform="translate(${CX - 10} ${CY + 22}) scale(1.5)" d="M5 0 C5 4 1 6.5 1 9.5 a4 4 0 0 0 8 0 C9 6.5 5 4 5 0Z"/>
     </svg>`;
   }
 
