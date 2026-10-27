@@ -27,7 +27,7 @@
 
 <nav class="tabs" id="tabs" hidden aria-label="Sections">
   <a href="#today" data-tab="today">Today</a>
-  <a href="#trickle" data-tab="trickle">Trickle</a>
+  <a href="#trickle" data-tab="trickle">Lobby</a>
   <a href="#leaders" data-tab="leaders">Leaders</a>
   <a href="#how" data-tab="how">How</a>
 </nav>
@@ -51,37 +51,6 @@
     <button class="linkish" id="btn-signout">Sign out</button>
   </p>
 </footer>
-
-<!-- Buy sheet -->
-<dialog id="dlg-buy" class="sheet">
-  <form method="dialog" class="sheet-body" id="form-buy">
-    <div class="sheet-head">
-      <h2>Put money in</h2>
-      <button type="button" class="close" data-close aria-label="Close">×</button>
-    </div>
-    <label class="field">
-      <span>Stock, crypto, or fund</span>
-      <input type="search" id="buy-search" placeholder="Type a name or ticker" autocomplete="off" spellcheck="false">
-    </label>
-    <ul class="asset-list" id="asset-list" role="listbox"></ul>
-    <div class="quote-line" id="buy-quote" hidden></div>
-    <label class="field">
-      <span>Amount</span>
-      <div class="amount-row">
-        <span class="amount-prefix">$</span>
-        <input type="number" id="buy-amount" min="1" step="1" inputmode="decimal" placeholder="0">
-      </div>
-    </label>
-    <div class="chips" id="buy-chips">
-      <button type="button" data-amt="25">25</button>
-      <button type="button" data-amt="50">50</button>
-      <button type="button" data-amt="100">100</button>
-      <button type="button" data-amt="all">All of it</button>
-    </div>
-    <p class="form-error" id="buy-error" hidden></p>
-    <button type="submit" class="btn primary wide" id="buy-submit" disabled>Pick something first</button>
-  </form>
-</dialog>
 
 <!-- Lock-in sheet -->
 <dialog id="dlg-sell" class="sheet">
@@ -114,12 +83,10 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<!-- Droplet that runs down the pipe on lock-in -->
-<svg class="runner" id="runner" viewBox="0 0 10 14" aria-hidden="true" hidden><path d="M5 0 C5 4 1 6.5 1 9.5 a4 4 0 0 0 8 0 C9 6.5 5 4 5 0Z"/></svg>
-
 <script src="config.js"></script>
 <script src="js/demo-api.js"></script>
 <script src="js/api.js"></script>
+<script src="js/coin.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

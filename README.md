@@ -9,7 +9,8 @@ No build step. Plain HTML, CSS, and JS.
 index.html        the shell: masthead, tabs, screens, bottom sheets
 config.js         API_BASE and SITE_URL — the only thing you must edit
 css/style.css     the whole look; design tokens at the top
-js/app.js         screens, rendering, buy / lock-in / share flows
+js/coin.js        draws the coin (SVG): wedges, bills, the back's donut
+js/app.js         screens, carving, lock-in, flip, share, boards
 js/api.js         fetch wrapper with the auth token
 js/demo-api.js    in-memory fake API for demo mode (see below)
 favicon.svg       the droplet
@@ -44,10 +45,15 @@ loop in thirty seconds, and for working on the design without a server.
 - One accent colour (water blue), one display face (Big Shoulders Display) for
   the wordmark and money, one text face (Public Sans, the US government's
   typeface, which is the joke).
-- The Today screen is a single vertical pipe: reservoir → market → basin. On a
-  profitable lock-in a droplet runs down the pipe. That is the one piece of
-  non-essential motion on the site, and it answers a tap.
+- The Today screen is a coin. The front is a ring: open positions as wedges
+  sized by current value, uninvested cash as a fan of $10 bills. You carve a
+  slice (dollars or percent), pick what it buys, and the slice becomes a wedge.
+  Tap a wedge to lock it in. The back is your payroll: a donut of lobbyists by
+  charity, your rank, and the records. A profitable lock-in flips the coin.
+- Play-money tax hires lobbyists at a dollar a head; they are never shown as
+  dollars. Fractional lobbyists are drawn clipped to the fraction, head first.
 - Outcomes get a deadpan tier name (Pocket change, Nice, Heater, Legend, Paper
-  cut, Rest in peace). Tiers show on the receipt, in history, on the 24-hour
-  board, and in the share text.
+  cut, Rest in peace). Tiers show on the receipt, in the records, on the
+  24-hour board, and in the share text.
+- Ranks: Intern, Staffer, Consultant, Lobbyist, Fixer, Kingmaker, Shadow Cabinet.
 - The ad slot in the footer is a labelled placeholder until there's an ad network.

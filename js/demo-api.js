@@ -15,19 +15,20 @@
     ['DOGE', 'Dogecoin', 'crypto', 'Unhinged'], ['SHIB', 'Shiba Inu', 'crypto', 'Unhinged'],
   ].map(([symbol, name, type, mood]) => ({ symbol, name, type, mood, multiplier: type === 'crypto' ? 5 : 10 }));
 
+  // Made up on purpose. See src/charities.js in the backend for the same list.
   const CHARITIES = [
-    ['Doctors Without Borders', 'Medical', 'Emergency medical care where it is hardest to get.', 'https://www.doctorswithoutborders.org'],
-    ['GiveDirectly', 'Poverty', 'Sends cash straight to people living in extreme poverty.', 'https://www.givedirectly.org'],
-    ['Against Malaria Foundation', 'Health', 'Bed nets. One of the cheapest ways to save a life.', 'https://www.againstmalaria.com'],
-    ['Central Texas Food Bank', 'Hunger', 'Feeds Central Texas, including Austin and the Hill Country.', 'https://www.centraltexasfoodbank.org'],
-    ['World Central Kitchen', 'Hunger', 'Hot meals in the middle of disasters and wars.', 'https://wck.org'],
-    ['charity: water', 'Water', 'Clean water projects. Thematically appropriate.', 'https://www.charitywater.org'],
-    ['Khan Academy', 'Education', 'Free education for anyone, anywhere.', 'https://www.khanacademy.org'],
-    ['ASPCA', 'Animals', 'Rescues and protects animals across the US.', 'https://www.aspca.org'],
-  ].map(([name, category, blurb, url], i) => ({ id: i + 1, slug: name.toLowerCase().replace(/[^a-z]+/g, '-'), name, category, blurb, url }));
+    ['Society for Slightly Taller Trees', 'Forestry', "We can't make trees taller. We can make them feel taller."],
+    ['Pigeons With Dignity', 'Animals', 'Tiny hats. Big self-esteem.'],
+    ['Fund for Ducks Who Are Owed Bread', 'Animals', 'A debt generations in the making.'],
+    ['Left Sock Recovery Initiative', 'Household', "They're somewhere. We are going to find them."],
+    ['Hold Music Appreciation Trust', 'Arts', 'Someone wrote that. They deserve to know it mattered.'],
+    ['Puddle Preservation League', 'Water', 'Every puddle was once a cloud. Thematically appropriate.'],
+    ["Lighthouse Keepers' Lunch Program", 'Hunger', "It's a long way down for a sandwich."],
+    ['Umbrella Relief Fund for Umbrellas', 'Weather', 'You left it on the train. We take it from here.'],
+  ].map(([name, category, blurb], i) => ({ id: i + 1, slug: name.toLowerCase().replace(/[^a-z]+/g, '-'), name, category, blurb, url: '' }));
 
-  const RULES = { tax_rate: 0.25, daily_base: 100, streak_bonus: 10, daily_cap: 200 };
-  const BADGES = [[1, 'Dribble'], [10, 'Drip'], [50, 'Trickle'], [250, 'Stream'], [1000, 'River'], [5000, 'Flood'], [25000, 'Deluge']].map(([at, name]) => ({ at, name }));
+  const RULES = { tax_rate: 0.25, daily_base: 100, streak_bonus: 10, daily_cap: 200, demo: true };
+  const BADGES = [[1, 'Intern'], [10, 'Staffer'], [50, 'Consultant'], [250, 'Lobbyist'], [1000, 'Fixer'], [5000, 'Kingmaker'], [25000, 'Shadow Cabinet']].map(([at, name]) => ({ at, name }));
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
   function hash(s) { let h = 2166136261; for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; }
@@ -42,7 +43,7 @@
 
   // One player, seeded so the screen has something on it.
   const today = new Date().toISOString().slice(0, 10);
-  const user = { id: 1, username: 'guest_demo', is_guest: true, cash: 100, total_donated: 4.5, realized_pnl: 10.5, streak: 3, charity_id: 6 };
+  const user = { id: 1, username: 'guest_demo', is_guest: true, cash: 100, total_donated: 7.5, realized_pnl: 22.5, streak: 3, charity_id: 6 };
   let nextId = 10;
   const seedNvda = find('NVDA'), seedDoge = find('DOGE');
   const positions = [
@@ -52,7 +53,7 @@
     { id: 4, symbol: 'GME', name: 'GameStop', asset_type: 'stock', multiplier: 10, invested: 30, status: 'closed', proceeds: 0, profit: -30, tax: 0, tier: 'Rest in peace', charity_id: null, closed_day: '2026-10-26', closed_at: new Date(Date.now() - 86400e3).toISOString() },
   ];
   const donations = [
-    { charity_id: 6, amount: 4.5, user: 'guest_demo' },
+    { charity_id: 6, amount: 4.5, user: 'guest_demo' }, { charity_id: 4, amount: 2.1, user: 'guest_demo' }, { charity_id: 1, amount: 0.9, user: 'guest_demo' },
     { charity_id: 1, amount: 61.25, user: 'ravi_k' }, { charity_id: 2, amount: 48, user: 'ravi_k' }, { charity_id: 4, amount: 33.1, user: 'erin' },
     { charity_id: 3, amount: 12.75, user: 'erin' }, { charity_id: 6, amount: 20, user: 'bagholder_ben' }, { charity_id: 8, amount: 9.3, user: 'bagholder_ben' },
     { charity_id: 5, amount: 15.5, user: 'moonshot_mia' }, { charity_id: 7, amount: 2.25, user: 'moonshot_mia' },
@@ -85,9 +86,12 @@
         .map((p) => ({ ...p, charity_name: p.charity_id ? CHARITIES.find((c) => c.id === p.charity_id).name : null }));
       const picks = [['NVDA', 'Nvidia', 9], ['BTC', 'Bitcoin', 5], ['TSLA', 'Tesla', 4], ['DOGE', 'Dogecoin', 2], ['GLD', 'Gold (ETF)', 1]]
         .map(([symbol, name, buys]) => ({ symbol, name, buys, invested: buys * 60 }));
+      const mine = donations.filter((d) => d.user === user.username);
+      const byCharity = CHARITIES.map((c) => ({ id: c.id, name: c.name, slug: c.slug, amount: round2(mine.filter((d) => d.charity_id === c.id).reduce((s, d) => s + d.amount, 0)), times: mine.filter((d) => d.charity_id === c.id).length }))
+        .filter((c) => c.amount > 0).sort((a, b) => b.amount - a.amount);
       return {
         user: publicUser(), day: { key: today, number: 12, quarter: '2026-Q4', resets_at: resetsAt(), tz: 'America/Chicago' },
-        allowance: null, rules: RULES, positions: open, history,
+        allowance: null, rules: RULES, positions: open, history, donations_by_charity: byCharity,
         crowd: { picks, buys: 21, players: 9 },
         today_donated: history.filter((h) => h.closed_day === today).reduce((s, h) => s + h.tax, 0),
       };
@@ -99,7 +103,7 @@
     if (path === '/trickle') {
       const totals = CHARITIES.map((c) => { const ds = donations.filter((d) => d.charity_id === c.id); const q = ds.reduce((s, d) => s + d.amount, 0); return { ...c, quarter_total: q, all_time: q + q * 1.8, quarter_donors: new Set(ds.map((d) => d.user)).size }; });
       const qt = totals.reduce((s, c) => s + c.quarter_total, 0); const pool = 140;
-      return { quarter: '2026-Q4', pool_usd: pool, quarter_total: round2(qt), all_time: round2(totals.reduce((s, c) => s + c.all_time, 0)), quarter_donors: 5,
+      return { quarter: '2026-Q4', demo: true, pool_usd: pool, quarter_total: round2(qt), all_time: round2(totals.reduce((s, c) => s + c.all_time, 0)), quarter_donors: 5,
         charities: totals.map((c) => ({ ...c, share: qt ? c.quarter_total / qt : 0, est_usd: qt ? round2(pool * c.quarter_total / qt) : 0 })).sort((a, b) => b.quarter_total - a.quarter_total) };
     }
     if (path === '/leaderboard') {
@@ -116,13 +120,13 @@
   async function post(path, body = {}) {
     await sleep(160);
     if (path.startsWith('/auth/')) {
-      if (path === '/auth/claim' || path === '/auth/register') { if (!/^[A-Za-z0-9_]{3,20}$/.test(body.username || '')) fail('Usernames are 3–20 letters, numbers or underscores.'); user.username = body.username; user.is_guest = false; }
+      if (path === '/auth/claim' || path === '/auth/register') { if (!/^[A-Za-z0-9_]{3,20}$/.test(body.username || '')) fail('Usernames are 3–20 letters, numbers or underscores.'); donations.forEach((d) => { if (d.user === user.username) d.user = body.username; }); user.username = body.username; user.is_guest = false; }
       if (path === '/auth/login') { if (!body.username) fail('Wrong username or password.', 401); user.username = body.username; user.is_guest = false; }
       return { token: 'demo', user: publicUser() };
     }
     if (path === '/buy') {
       const a = find(body.symbol); const amount = round2(Number(body.amount));
-      if (!a) fail('Pick something from the list.'); if (!(amount >= 1)) fail('Invest at least $1.');
+      if (!a) fail('Pick something from the list.'); if (!(amount >= 0.01)) fail('Invest at least a penny.');
       if (amount > user.cash) fail(`You only have $${user.cash.toFixed(2)} to invest.`);
       const q = priceOf(a); user.cash = round2(user.cash - amount);
       const p = { id: nextId++, symbol: a.symbol, name: a.name, asset_type: a.type, multiplier: a.multiplier, invested: amount, entry_price: q.price, opened_day: today, status: 'open' };
@@ -130,6 +134,8 @@
     }
     if (path === '/sell') {
       const p = positions.find((x) => x.id === Number(body.position_id)); if (!p) fail('No such position.', 404); if (p.status !== 'open') fail('Already locked in.');
+      // In the demo, make the first lock-in on a seeded position pay off so the flip shows.
+      if (p.id <= 2 && valueOf(p, priceOf(find(p.symbol)).price).value <= p.invested) p.entry_price = priceOf(find(p.symbol)).price * (p.asset_type === 'crypto' ? 0.95 : 0.975);
       const live = valueOf(p, priceOf(find(p.symbol)).price); const s = settle(p.invested, live.value);
       let charity = null; if (s.tax > 0) { charity = CHARITIES.find((c) => c.id === Number(body.charity_id)); if (!charity) fail('Pick a charity for the tax.'); }
       Object.assign(p, { status: 'closed', closed_day: today, closed_at: new Date().toISOString(), proceeds: live.value, profit: s.profit, tax: s.tax, tier: s.tier, charity_id: charity ? charity.id : null });
@@ -145,7 +151,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const b = document.createElement('div');
     b.className = 'demo-banner';
-    b.textContent = 'Demo mode. Prices are invented and move fast. Nothing is saved.';
+    b.textContent = 'Demo. The prices are invented and move fast, the charities are made up, and nothing is saved.';
     document.body.prepend(b);
   });
 })();
