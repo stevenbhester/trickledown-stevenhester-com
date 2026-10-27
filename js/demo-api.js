@@ -74,7 +74,7 @@
     const matured = !!p.matured_at;
     const price = matured ? p.matured_price : priceOf(find(p.symbol)).price;
     const live = valueOf(p, price, matured ? new Date(p.matures_at).getTime() : Date.now()); if (matured) live.value = p.matured_value;
-    return { ...p, matured, seconds_left: matured ? 0 : Math.max(0, Math.round((new Date(p.matures_at) - Date.now()) / 1000)), price, quote_error: false, ...live, preview: settle(p.invested, live.value) };
+    return { ...p, matured, seconds_left: matured ? 0 : Math.max(0, Math.round((new Date(p.matures_at) - Date.now()) / 1000)), ride_count: p.ride_count || 0, origin_invested: p.origin_invested != null ? p.origin_invested : p.invested, price, quote_error: false, ...live, preview: settle(p.invested, live.value) };
   }
   const donations = [
     { charity_id: 6, amount: 4.5, user: 'guest_demo' }, { charity_id: 4, amount: 2.1, user: 'guest_demo' }, { charity_id: 1, amount: 0.9, user: 'guest_demo' },
@@ -161,15 +161,28 @@
       const p = { id: nextId++, symbol: a.symbol, name: a.name, asset_type: a.type, multiplier: a.multiplier, invested: amount, entry_price: q.price, opened_at: new Date().toISOString(), opened_day: today, matures_at: new Date(Date.now() + HOLD_MS).toISOString(), status: 'open' };
       positions.push(p); return { ok: true, position: shape(p), cash: user.cash, quote: q };
     }
+    if (path === '/ride') {
+      const p = positions.find((x) => x.id === Number(body.position_id)); if (!p) fail('No such position.', 404); if (p.status !== 'open') fail('Already collected.');
+      settleMatured();
+      if (!p.matured_at) fail("It hasn't matured yet. You can only let a matured position ride.");
+      if (!(p.matured_value >= 0.01)) fail("There's nothing left to ride.");
+      const q = priceOf(find(p.symbol)); const profit = round2(p.matured_value - p.invested);
+      Object.assign(p, { status: 'rolled', closed_day: today, closed_at: new Date().toISOString(), proceeds: p.matured_value, profit, tax: 0, tier: 'Let it ride' });
+      const n = { id: nextId++, symbol: p.symbol, name: p.name, asset_type: p.asset_type, multiplier: p.multiplier, invested: p.matured_value, entry_price: q.price, opened_at: new Date().toISOString(), opened_day: today, matures_at: new Date(Date.now() + HOLD_MS).toISOString(), status: 'open', rolled_from: p.id, ride_count: (p.ride_count || 0) + 1, origin_invested: p.origin_invested != null ? p.origin_invested : p.invested };
+      positions.push(n);
+      return { ok: true, position: shape(n), rolled: { from: p.id, value: p.matured_value, profit }, quote: q };
+    }
     if (path === '/sell') {
       const p = positions.find((x) => x.id === Number(body.position_id)); if (!p) fail('No such position.', 404); if (p.status !== 'open') fail('Already collected.');
       settleMatured();
-      // In the demo, make the first cash-out of a seeded position pay off so the flip shows.
-      if (!p.matured_at && p.id <= 2 && valueOf(p, priceOf(find(p.symbol)).price).value <= p.invested) p.entry_price = priceOf(find(p.symbol)).price * (p.asset_type === 'crypto' ? 0.9 : 0.95);
       const exitPrice = p.matured_at ? p.matured_price : priceOf(find(p.symbol)).price;
       const live = valueOf(p, exitPrice, p.matured_at ? new Date(p.matures_at).getTime() : Date.now()); if (p.matured_at) live.value = p.matured_value;
       const s = settle(p.invested, live.value);
-      let charity = null; if (s.tax > 0) { charity = CHARITIES.find((c) => c.id === Number(body.charity_id)); if (!charity) fail('Pick a charity for the tax.'); }
+      // A profit needs a charity; fall back to the player's usual one if none came through.
+      let charity = null;
+      if (s.tax > 0) {
+        charity = CHARITIES.find((c) => c.id === Number(body.charity_id)) || CHARITIES.find((c) => c.id === user.charity_id) || CHARITIES[0];
+      }
       Object.assign(p, { status: 'closed', closed_day: today, closed_at: new Date().toISOString(), proceeds: live.value, profit: s.profit, tax: s.tax, tier: s.tier, charity_id: charity ? charity.id : null, collected: !!p.matured_at });
       user.cash = round2(user.cash + s.net); user.total_donated = round2(user.total_donated + s.tax); user.realized_pnl = round2(user.realized_pnl + s.profit); if (charity) user.charity_id = charity.id;
       if (s.tax > 0) donations.push({ charity_id: charity.id, amount: s.tax, user: user.username });

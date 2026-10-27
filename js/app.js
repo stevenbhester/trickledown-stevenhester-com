@@ -228,9 +228,10 @@
     const line2 = `${money(p.invested)} in → <span class="tip-money">${money(p.value)}</span> <span class="${dir(p.swing_pct)}">${pct(p.swing_pct, 0)}</span>`;
     const line3 = `real ${pct(p.real_pct)} at ${mult(p.multiplier_now)}`;
     const line4 = p.matured
-      ? `<span class="ready">Matured. Ready to collect.</span>`
+      ? `<span class="ready">Matured. Collect it, or let it ride.</span>`
       : `<span class="time">${left(p.matures_at)} to maturity, when it hits ${mult(p.multiplier)} and freezes.</span>`;
-    return `${head}<br>${line2}<br>${line3}<br>${line4}`;
+    const ride = p.ride_count > 0 ? `<br><span class="time">Riding ×${p.ride_count}, started with ${money(p.origin_invested)}.</span>` : '';
+    return `${head}<br>${line2}<br>${line3}<br>${line4}${ride}`;
   }
 
   function showTip(html, ev) {
@@ -390,7 +391,8 @@
     else cls.push(dir(p.swing_pct));
     if (p.matured) cls.push('matured');
     let value, move, action;
-    const bought = `Bought at ${price(p.entry_price)}, <span data-ago="${esc(p.opened_at)}">${ago(p.opened_at)}</span>.`;
+    const riding = p.ride_count > 0 ? ` Riding ×${p.ride_count}, started with ${money(p.origin_invested)}.` : '';
+    const bought = `${p.ride_count > 0 ? 'Rode in' : 'Bought'} at ${price(p.entry_price)}, <span data-ago="${esc(p.opened_at)}">${ago(p.opened_at)}</span>.${riding}`;
     if (p.quote_error) {
       value = `${money(p.invested)} → <b>?</b>`;
       move = `${bought} Price unavailable right now; it's still on the coin.`;
@@ -401,8 +403,8 @@
       action = `<button class="btn small" data-sell="${p.id}">Bury it</button>`;
     } else if (p.matured) {
       value = `${money(p.invested)} → <b>${money(p.value)}</b> <span class="yours ${dir(p.swing_pct)}">${pct(p.swing_pct, 0)}</span>`;
-      move = `${bought} Matured <span data-ago="${esc(p.matured_at)}">${ago(p.matured_at)}</span> at ${price(p.price)}, ${mult(p.multiplier)}. <span class="ready">Ready to collect.</span>`;
-      action = `<button class="btn small primary" data-sell="${p.id}">Collect</button>`;
+      move = `${bought} Matured <span data-ago="${esc(p.matured_at)}">${ago(p.matured_at)}</span> at ${price(p.price)}, ${mult(p.multiplier)}. <span class="ready">Ready to collect, or let it ride.</span>`;
+      action = `<button class="btn small primary" data-sell="${p.id}">Collect</button> <button class="btn small" data-ride="${p.id}">Ride</button>`;
     } else {
       value = `${money(p.invested)} → <b>${money(p.value)}</b> <span class="yours ${dir(p.swing_pct)}">${pct(p.swing_pct, 0)}</span>`;
       move = `${bought} Real ${pct(p.real_pct)} at ${mult(p.multiplier_now)}. <span class="time"><span data-left="${esc(p.matures_at)}">${left(p.matures_at)}</span> to ${mult(p.multiplier)}.</span>`;
@@ -432,6 +434,7 @@
 
   function wireFront() {
     $$('[data-sell]').forEach((b) => { b.onclick = () => openSell(Number(b.dataset.sell)); });
+    $$('[data-ride]').forEach((b) => { b.onclick = () => ride(Number(b.dataset.ride)); });
     $('#btn-share').onclick = share;
     const search = $('#carve-search');
     if (!search) return;
@@ -622,14 +625,35 @@
         ${!win && s.profit < 0 ? `<li><span>Loss. Not taxed. That would be cruel.</span><b class="down">${money(s.profit)}</b></li>` : ''}
         <li class="total"><span>Back onto the coin as bills</span><b>${money(s.net)}</b></li>
       </ul>
-      ${win ? `<div class="lobby-row"><b>${esc(lobbyN(s.tax))}</b>${lobbyists(s.tax)}</div>
-      <label class="field charity-pick"><span>${esc(lobby(s.tax))} for</span><select id="sell-charity">${charityOptions}</select></label>` : ''}
-      ${!mat && !bust ? `<p class="muted" style="font-size:13px">Or wait. In ${left(p.matures_at)} it matures at ${mult(p.multiplier)} and freezes at whatever ${esc(p.name)} is doing then. Early sales use the current price and the current multiplier.</p>` : ''}
-      ${mat ? `<p class="muted" style="font-size:13px">This one is done moving. Collecting it just puts the money back on the coin.</p>` : ''}`;
+      ${win ? `<div class="lobby-row"><b>${esc(lobbyN(s.tax))}</b>${lobbyists(s.tax)}</div>` : ''}
+      ${win || (!mat && !bust) ? `<label class="field charity-pick"><span>${win ? `${esc(lobby(s.tax))} for` : 'If it lands as a profit when you tap, the tax hires lobbyists for'}</span><select id="sell-charity">${charityOptions}</select></label>` : ''}
+      ${!mat && !bust ? `<p class="muted" style="font-size:13px">These numbers are a snapshot; the sale happens at whatever the market says when you tap. Or wait: in ${left(p.matures_at)} it matures at ${mult(p.multiplier)} and freezes at whatever ${esc(p.name)} is doing then.</p>` : ''}
+      ${mat && !bust ? `<div class="ride-box">
+        <b>Or let it ride.</b>
+        <span>Put the whole ${money(p.value)} back on ${esc(p.name)} at today's price for another ${state.me.rules.hold_hours} hours. No tax, no lobbyists${win ? `, nobody gets hired` : ''}. The multiplier starts over at ${mult(state.me.rules.mult_floor)} and climbs again. It can still go to zero.</span>
+        <button type="button" class="btn small" id="sell-ride">Let it ride</button>
+      </div>` : ''}
+      ${mat && bust ? `<p class="muted" style="font-size:13px">Nothing left to ride. Burying it clears the spot.</p>` : ''}`;
     $('#sell-error').hidden = true;
     $('#sell-submit').disabled = false;
-    $('#sell-submit').textContent = bust ? 'Bury it' : mat ? `Collect ${money(s.net)}` : `Sell early for ${money(s.net)}`;
+    $('#sell-submit').textContent = bust ? 'Bury it' : mat ? `Collect ${money(s.net)}` : `Sell early for about ${money(s.net)}`;
+    const rideBtn = $('#sell-ride');
+    if (rideBtn) rideBtn.onclick = () => { $('#dlg-sell').close(); ride(p.id); };
     $('#dlg-sell').showModal();
+  }
+
+  async function ride(id) {
+    const p = state.me.positions.find((x) => x.id === id);
+    if (!p || state.busy) return;
+    state.busy = true;
+    try {
+      const r = await API.post('/ride', { position_id: id });
+      toast(`Riding. ${money(r.rolled.value)} back on ${p.name} at ${price(r.quote.price)} for another ${state.me.rules.hold_hours} hours. Nobody got hired.`, 4000);
+      await loadMe();
+      const row = $(`.position[data-id="${r.position.id}"]`);
+      if (row) row.classList.add('fresh');
+    } catch (e) { toast(e.message, 4000); }
+    finally { state.busy = false; }
   }
 
   async function submitSell(ev) {
@@ -787,8 +811,8 @@
         <h2>The ${rules.hold_hours} hours</h2>
         <p>Every buy lives ${rules.hold_hours} hours. It moves with the real market, and the longer it lives the harder it hits: the multiplier starts at ${mult(rules.mult_floor)} the moment you buy and climbs steadily to ${mult(10)} for stocks and ${mult(5)} for crypto at the ${rules.hold_hours}-hour mark. At that moment it matures: the value freezes at whatever the price is then, and it's ready to collect. Nvidia up 1.5% over the full day means your wedge is up 15%. A wedge can shrink to nothing. It cannot go below nothing. We checked.</p>
 
-        <h2>Collecting and selling early</h2>
-        <p>Tap a wedge. A matured one collects in full. A live one can be sold early at the current price and the current, smaller multiplier, if you'd rather not find out. A profit is taxed ${Math.round(rules.tax_rate * 100)}%. A loss isn't. Everything else turns back into bills on the coin.</p>
+        <h2>Collecting, riding, selling early</h2>
+        <p>Tap a wedge. A matured one collects in full: a profit is taxed ${Math.round(rules.tax_rate * 100)}%, a loss isn't, and the rest turns back into bills on the coin. Or let it ride: the whole frozen value goes back on the same stock at today's price for another ${rules.hold_hours} hours, untaxed, with the multiplier starting over. Nobody gets hired, and it can still go to zero. A live wedge can be sold early at the current price and the current, smaller multiplier, if you'd rather not find out.</p>
 
         <h2>Lobbyists</h2>
         <p>Every dollar of tax hires one lobbyist for a charity you pick. They are not dollars. You can hire a fraction of a lobbyist; it looks about how you'd expect. Flip the coin to see your payroll, your rank, and every cash-out on record.</p>

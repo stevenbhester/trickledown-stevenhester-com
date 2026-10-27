@@ -431,6 +431,14 @@ input:focus { border-color: var(--water); }
 .receipt li.total { border-top: 2px solid var(--ink); font-weight: 600; }
 .receipt li b { font-family: var(--display); font-weight: 700; font-size: 20px; white-space: nowrap; }
 .receipt .charity-pick { display: block; margin: 8px 0 14px; }
+.ride-box {
+  display: grid; grid-template-columns: 1fr auto; grid-template-areas: "head btn" "body btn"; gap: 2px 12px; align-items: center;
+  border: 1.5px dashed #C9A227; border-radius: var(--radius); padding: 10px 12px; margin: 4px 0 12px; font-size: 13px; color: var(--mud);
+}
+.ride-box b { grid-area: head; color: var(--ink); font-family: var(--display); font-size: 18px; font-weight: 700; }
+.ride-box span { grid-area: body; }
+.ride-box .btn { grid-area: btn; border-color: #C9A227; }
+.position .action .btn + .btn { margin-left: 6px; }
 
 /* Trickle page ----------------------------------------------------------------- */
 
