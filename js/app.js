@@ -156,7 +156,9 @@
           <button class="btn primary" id="btn-guest">Play as a guest</button>
           <button class="btn" id="btn-signin">Sign in</button>
         </div>
+        <button class="linkish" id="btn-orient" style="margin-top:14px">Watch the 60-second orientation</button>
       </div>`;
+    $('#btn-orient').onclick = () => Explainer.open();
     $('#btn-guest').onclick = async () => {
       try {
         const r = await API.post('/auth/guest');
@@ -175,6 +177,10 @@
       state.me = me;
       setSignedIn(true);
       renderToday();
+      if (!Explainer.seen() && !state.oriented) {
+        state.oriented = true;
+        setTimeout(() => Explainer.open({ rules: me.rules }), me.allowance && !REDUCED ? 1700 : 300);
+      }
       if (me.allowance) {
         tossCoin();
         const bonus = me.allowance.amount - me.rules.daily_base;
@@ -886,6 +892,7 @@
     ];
     $('#screen-how').innerHTML = `
       <h1>How it works</h1>
+      <button class="btn quiet small" id="btn-orient-how" style="margin:6px 0 10px">Replay the orientation</button>
       ${rules.demo ? `<div class="note warn">Demo. The charities are fictional and no real money moves. The game is real; the philanthropy isn't yet.</div>` : ''}
       <div class="rules">
         <h2>The coin</h2>
@@ -913,8 +920,9 @@
         </ul>
 
         <h2>Fine print</h2>
-        <p class="muted">Prices come from Finnhub and CoinGecko and can be a minute or so behind. Stocks don't trade on weekends; a stock bought Friday afternoon mostly sits still until it matures. Crypto never sleeps. The game day rolls over at midnight Central. None of this is investment advice. Obviously.</p>
+        <p class="muted">Trickle Down Holdings is a fictional company and a wholly owned subsidiary of Trickle Down Holdings. Prices come from Finnhub and CoinGecko and can be a minute or so behind. Stocks don't trade on weekends; a stock bought Friday afternoon mostly sits still until it matures. Crypto never sleeps. The game day rolls over at midnight Central. None of this is investment advice. Obviously.</p>
       </div>`;
+    $('#btn-orient-how').onclick = () => Explainer.open({ rules });
   }
 
   // --- auth sheet ----------------------------------------------------------------------------------
@@ -967,6 +975,7 @@
     $('#form-auth').addEventListener('submit', submitAuth);
     $('#auth-switch').onclick = () => openAuth(state.authMode === 'login' ? 'register' : 'login');
     $('#btn-claim').onclick = () => openAuth('claim');
+    $('#btn-help').onclick = () => Explainer.open({ rules: state.me ? state.me.rules : undefined });
     $('#btn-signout').onclick = () => { API.setToken(null); state.me = null; state.flipped = false; location.hash = ''; route(); };
     window.addEventListener('hashchange', route);
 
