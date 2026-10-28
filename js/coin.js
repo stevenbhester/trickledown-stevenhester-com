@@ -45,7 +45,9 @@ window.Coin = (function () {
     if (s < 0) return mix('#F4E1DC', '#C04A35', k);
     return '#CDE4EB';
   }
-  const money = (n) => (n >= 1000 ? `$${Math.round(n).toLocaleString('en-US')}` : `$${n.toFixed(n % 1 ? 2 : 0)}`);
+  // Play money in thousands, like the rest of the UI: $50K, $1.2M.
+  const fmt1 = (v) => { const r = Math.round(v * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
+  const money = (n) => (n >= 1000 ? `$${fmt1(n / 1000)}M` : n > 0 && n < 0.1 ? `$${Math.round(n * 1000)}` : `$${fmt1(n)}K`);
 
   function label(a0, sweep, lines, cls = '', light = false) {
     if (sweep < 20) return '';

@@ -46,7 +46,7 @@
 
   // One player, seeded so the screen has something on it.
   const today = new Date().toISOString().slice(0, 10);
-  const user = { id: 1, username: 'guest_demo', is_guest: true, cash: 100, total_donated: 0.6, realized_pnl: 2.4, streak: 3, charity_id: 6, is_admin: true };
+  const user = { id: 1, username: 'guest_demo', is_guest: true, cash: 100, total_donated: 0.6, realized_pnl: 2.4, streak: 3, charity_id: 6, is_admin: true, vested: false };
   let nextId = 10;
   const seedNvda = find('NVDA'), seedDoge = find('DOGE'), seedKo = find('KO');
   const HOLD_MS = RULES.hold_hours * 3600e3;
@@ -170,8 +170,8 @@
       settleMatured();
       TownRules.ensureIssues(town, townCtx());
       const open = positions.filter((p) => p.status === 'open').map(shape).sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
-      const history = positions.filter((p) => p.status === 'closed' || p.status === 'rolled').sort((a, b) => b.id - a.id)
-        .map((p) => ({ ...p, rode: p.status === 'rolled', charity_name: p.charity_id ? CHARITIES.find((c) => c.id === p.charity_id).name : null }));
+      const history = positions.filter((p) => p.status === 'closed' || p.status === 'rolled' || p.status === 'vested').sort((a, b) => b.id - a.id)
+        .map((p) => ({ ...p, rode: p.status === 'rolled', vested: p.status === 'vested', charity_name: p.charity_id ? CHARITIES.find((c) => c.id === p.charity_id).name : null }));
       // What your friends bought today, for the crowd line.
       const friendsToday = [...friends].sort().map((name) => { const p = findPlayer(name); return p && { username: name, symbols: [...new Set(p.positions().filter((x) => new Date(x.opened_at) >= new Date(today)).map((x) => x.symbol))].sort() }; }).filter((f) => f && f.symbols.length);
       const picks = [['NVDA', 'Nvidia', 9], ['BTC', 'Bitcoin', 5], ['TSLA', 'Tesla', 4], ['DOGE', 'Dogecoin', 2], ['GLD', 'Gold (ETF)', 1]]
@@ -185,6 +185,7 @@
         allowance: null, rules: RULES, positions: open, history, donations_by_charity: byCharity, town: townView(),
         crowd: { picks, buys: 21, players: 9, friends: friendsToday },
         friend_count: friends.size,
+        vesting: user.vested ? null : { available: positions.length > 0, amount: 40 },
         today_donated: history.filter((h) => h.closed_day === today).reduce((s, h) => s + h.tax, 0),
       };
     }
@@ -244,6 +245,17 @@
       for (let i = donations.length - 1; i >= 0; i--) if (donations[i].user === user.username) donations.splice(i, 1);
       Object.assign(town, TownRules.fresh());
       return { ok: true };
+    }
+    if (path === '/vest') {
+      if (user.vested) fail('Your shares already vested. Once per associate. Policy.');
+      const amount = 40, profit = 40, tax = round2(profit * RULES.tax_rate), net = round2(amount - tax);
+      const charity = CHARITIES.find((c) => c.id === Number(body.charity_id)) || CHARITIES.find((c) => c.id === user.charity_id) || CHARITIES[0];
+      const hireCost = TownRules.hireCost(town); const lobbyists = round2(tax / hireCost);
+      positions.push({ id: nextId++, symbol: 'TDH', name: 'Trickle Down Holdings', asset_type: 'stock', multiplier: 1, invested: 0, status: 'vested', proceeds: amount, profit, tax, lobbyists, tier: 'Vested', charity_id: charity.id, collected: true, vested: true, closed_day: today, closed_at: new Date().toISOString() });
+      user.cash = round2(user.cash + net); user.total_donated = round2(user.total_donated + lobbyists); user.realized_pnl = round2(user.realized_pnl + profit); user.charity_id = charity.id; user.vested = true;
+      donations.push({ charity_id: charity.id, amount: lobbyists, user: user.username });
+      TownRules.ensureIssues(town, townCtx());
+      return { ok: true, user: publicUser(), town: townView(), receipt: { position_id: nextId - 1, symbol: 'TDH', name: 'Trickle Down Holdings', invested: 0, value: amount, profit, tax, net, tier: 'Vested', lobbyists, hire_cost: hireCost, collected: true, vested: true, charity } };
     }
     if (path === '/buy') {
       const a = find(body.symbol); const amount = round2(Number(body.amount));

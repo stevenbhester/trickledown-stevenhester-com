@@ -61,13 +61,13 @@ window.Explainer = (function () {
         next: 'Show me how',
       },
       {
-        title: `Get $${r.daily_base} every day`,
+        title: `Get $${r.daily_base}K every day`,
         art: svg(`
           ${coin(140, 88, 50)}
           ${bill(104, 20, 'fall f1', -18)}${bill(140, 8, 'fall f2', 4)}${bill(176, 20, 'fall f3', 20)}
-          <text x="140" y="96" text-anchor="middle" class="x-big">+$${r.daily_base}</text>
+          <text x="140" y="96" text-anchor="middle" class="x-big">+$${r.daily_base}K</text>
           <g class="x-days">${[0, 1, 2, 3, 4, 5, 6].map((i) => `<rect x="${12 + i * 13}" y="128" width="10" height="10" rx="2" class="${i < 4 ? 'on' : ''}"/>`).join('')}<text x="12" y="122" class="x-small">streak</text></g>`),
-        body: `Fake, obviously. Come back daily and it grows, up to $${r.daily_cap}. Miss a day and it resets.`,
+        body: `Fake, obviously. Come back daily and it grows, up to $${r.daily_cap}K. Miss a day and it resets.`,
         fine: 'Loyalty is our most valuable product. Yours, specifically.',
       },
       {
@@ -104,7 +104,7 @@ window.Explainer = (function () {
           ${suit(141, 34, '', 0.9)}
           ${arrow(196, 216, 70)}
           ${suit(224, 52, 'pop p1')}${suit(246, 52, 'pop p2')}`),
-        body: `${pct}% of every win is taxed. Not to the government, silly. To your Local Lobbyist Recruiter. Losses are free.`,
+        body: `${pct}% of every win is taxed. Not to the government, silly. To your Local Lobbyist Recruiter, at about $1K a head. Losses are free.`,
         fine: 'Fractional lobbyists are hired fractionally. Please do not ask which fraction.',
       },
       {
@@ -165,10 +165,10 @@ window.Explainer = (function () {
         art: svg(`
           <text x="70" y="40" text-anchor="middle" class="x-tag">happy</text>
           <rect x="20" y="50" width="100" height="12" rx="6" fill="#DDE6E9"/><rect x="20" y="50" width="88" height="12" rx="6" fill="#2E9C72"/>
-          <text x="70" y="100" text-anchor="middle" class="x-big">$0.65</text><text x="70" y="120" text-anchor="middle" class="x-small">per lobbyist</text>
+          <text x="70" y="100" text-anchor="middle" class="x-big">$750</text><text x="70" y="120" text-anchor="middle" class="x-small">per lobbyist</text>
           <text x="210" y="40" text-anchor="middle" class="x-tag">miserable</text>
           <rect x="160" y="50" width="100" height="12" rx="6" fill="#DDE6E9"/><rect x="160" y="50" width="18" height="12" rx="6" fill="#C04A35"/>
-          <text x="210" y="100" text-anchor="middle" class="x-big" fill="#B0412E">$1.35</text><text x="210" y="120" text-anchor="middle" class="x-small">and they quit</text>`),
+          <text x="210" y="100" text-anchor="middle" class="x-big" fill="#B0412E">$1.3K</text><text x="210" y="120" text-anchor="middle" class="x-small">and they quit</text>`),
         body: 'Happy residents make the recruiter cheaper. Sick ones quit before Lobbyfest, and quitters don\'t count.',
         fine: 'Morale is a mindset. Health is a line on a chart.',
       },

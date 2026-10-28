@@ -27,19 +27,28 @@
   // --- formatting ----------------------------------------------------------------
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const money = (n, opts = {}) => {
-    if (n === null || n === undefined || Number.isNaN(n)) return '—';
-    const s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: opts.whole ? 0 : 2, maximumFractionDigits: opts.whole ? 0 : 2 });
-    return `${n < 0 ? '-' : ''}$${s}`;
+  // Play money is shown in thousands: a unit is $1K, a thousand units is $1M,
+  // one decimal at most. Under $0.1K it's shown in plain dollars ($40) rather
+  // than rounding a real amount to nothing. Real stock prices use price().
+  const fmt1 = (v) => { const r = Math.round(v * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
+  const moneyParts = (n, opts = {}) => {
+    if (n === null || n === undefined || Number.isNaN(n)) return null;
+    const a = Math.abs(n), sign = n < 0 ? '-' : '';
+    if (a === 0) return { sign, num: '0', unit: '' };
+    if (a >= 1000) return { sign, num: fmt1(a / 1000), unit: 'M' };
+    if (a < 0.1 && !opts.whole) return { sign, num: String(Math.round(a * 1000)), unit: '' };
+    return { sign, num: opts.whole ? String(Math.round(a)) : fmt1(a), unit: 'K' };
   };
-  const moneySplit = (n) => `<small>$</small>${esc(Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}`;
+  const money = (n, opts = {}) => { const m = moneyParts(n, opts); return m ? `${m.sign}$${m.num}${m.unit}` : '—'; };
+  const moneySplit = (n) => { const m = moneyParts(n) || { sign: '', num: '0', unit: '' }; return `${m.sign}<small>$</small>${esc(m.num)}${m.unit ? `<small>${m.unit}</small>` : ''}`; };
   const pct = (p, digits = 1) => {
     if (p === null || p === undefined || Number.isNaN(p)) return '—';
     const v = p * 100;
     return `${v > 0 ? '+' : ''}${v.toFixed(digits)}%`;
   };
   const dir = (p) => (p > 0 ? 'up' : p < 0 ? 'down' : '');
-  const price = (p) => (p >= 1000 ? money(p, { whole: true }) : p >= 1 ? money(p) : `$${p.toPrecision(3)}`);
+  // Real prices, in real dollars.
+  const price = (p) => (p === null || p === undefined || Number.isNaN(p) ? '—' : p >= 1000 ? `$${Math.round(p).toLocaleString('en-US')}` : p >= 1 ? `$${p.toFixed(2)}` : `$${p.toPrecision(3)}`);
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
   const mult = (m) => `×${Number.isInteger(m) ? m : m.toFixed(1)}`;
   // The multipliers a ride off position p would run at: the new day starts
@@ -172,7 +181,7 @@
       <div class="welcome">
         <h1 class="hero">Fake money. Real market. Real charity.</h1>
         <ul class="pitch">
-          <li><b>$100 a day</b> that isn't real, on real stocks and crypto, with the swings turned up to ×10.</li>
+          <li><b>$100K a day</b> that isn't real, on real stocks and crypto, with the swings turned up to ×10.</li>
           <li><b>Win</b> and the tax hires lobbyists for a charity. <b>Lose</b> and nothing happens.</li>
           <li><b>Every quarter</b> this site's ad money goes to the charities with the most lobbyists.</li>
         </ul>
@@ -267,7 +276,7 @@
     } else if (total > 0) {
       center = `<b>${moneySplit(total)}</b><span>in play<br>nothing free to spend</span>`;
     } else {
-      center = `<b>$0</b><span>Come back tomorrow.</span>`;
+      center = `<b><small>$</small>0</b><span>Come back tomorrow.</span>`;
     }
     return `${svg}<div class="coin-center">${center}</div><button class="coin-tap" type="button" aria-label="Flip the coin"></button>`;
   }
@@ -456,7 +465,7 @@
           <ul class="asset-list" id="asset-list" role="listbox" hidden></ul>
         </div>
         <div class="amount-zone" id="amount-zone" hidden>
-          <div class="amount-row"><span class="amount-prefix">$</span><input id="carve-usd" type="number" min="0.01" max="${user.cash}" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="Amount in dollars"></div>
+          <div class="amount-row"><span class="amount-prefix">$</span><input id="carve-usd" type="number" min="0.01" max="${user.cash}" step="0.01" inputmode="decimal" placeholder="0.0" aria-label="Amount in thousands of dollars"><span class="amount-suffix">K</span></div>
           <div class="chips" id="carve-chips">
             <button type="button" data-pct="10">10%</button>
             <button type="button" data-pct="25">25%</button>
@@ -658,6 +667,8 @@
       const row = $(`.position[data-id="${r.position.id}"]`);
       if (row) row.classList.add('fresh');
       await animateWedge(r.position.id, 0, 1);
+      // Day one: the first buy is what makes the shares vest.
+      if (state.me.vesting && state.me.vesting.available) { setTimeout(openVesting, REDUCED ? 100 : 700); return; }
       const s = $('#carve-search'); if (s) s.focus();
     } catch (e) {
       const err = $('#carve-error'); if (err) { err.textContent = e.message; err.hidden = false; }
@@ -819,7 +830,7 @@
         ${history.length ? `<ul class="history">${history.map((h) => {
           const hired = h.lobbyists != null ? h.lobbyists : h.tax;
           return `<li>
-            <span><span class="tier">${esc(h.tier)}</span> &nbsp;${esc(h.symbol)} ${money(h.invested)} → ${money(h.proceeds)} <span class="muted">${h.rode ? 'rode on, half tax' : h.collected ? 'collected' : h.proceeds > 0 ? 'sold early' : 'buried'}</span></span>
+            <span><span class="tier">${esc(h.tier)}</span> &nbsp;${esc(h.symbol)} ${money(h.invested)} → ${money(h.proceeds)} <span class="muted">${h.vested ? 'vested, sold per policy' : h.rode ? 'rode on, half tax' : h.collected ? 'collected' : h.proceeds > 0 ? 'sold early' : 'buried'}</span></span>
             <span class="to">${hired > 0 ? `${esc(lobby(hired))} for ${esc(h.charity_name)}` : shortDate(h.closed_at)}</span>
           </li>`;
         }).join('')}</ul>` : `<p class="muted">Nothing collected yet. The records start when you do.</p>`}
@@ -1272,6 +1283,59 @@
     } finally { state.busy = false; }
   }
 
+  // Day one's windfall. The player has just invested; their shares in the
+  // company vest and policy says sell, for VEST_AMOUNT of pure profit. The
+  // sale is taxed like any win, so it hires the first lobbyists and flows
+  // straight into the first-hire ceremony.
+  async function openVesting() {
+    const v = state.me && state.me.vesting;
+    if (!v || !v.available || $('#dlg-vest').open) return;
+    try { await ensureAssets(); } catch (e) { /* the select just comes up empty; the server picks */ }
+    const rules = state.me.rules;
+    const rate = rules.tax_rate, rateNow = state.me.town ? state.me.town.hire_cost : 1;
+    const tax = round2(v.amount * rate), net = round2(v.amount - tax), hired = round2(tax / rateNow);
+    const shares = Math.round(v.amount * 10);
+    const pre = defaultCharityId();
+    const charityOptions = state.charities.map((c) => `<option value="${c.id}" ${c.id === pre ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+    $('#vest-body').innerHTML = `
+      <div class="vest-memo">
+        <div class="vest-memo-head"><span>Trickle Down Holdings</span><span>Internal · Equity</span></div>
+        <p>Congratulations on your first investment. As a new associate you were granted <b>${shares} shares</b> of Trickle Down Holdings at a strike price of <b>$0</b>. They vested this morning.</p>
+        <p>Company policy forbids associates from holding company stock. You will be selling. Today. At the current valuation.</p>
+      </div>
+      <ul class="receipt">
+        <li><span>${shares} shares, cost basis</span><b>${money(0)}</b></li>
+        <li><span>Current valuation</span><b>${money(v.amount)}</b></li>
+        <li><span>Profit. Pure.</span><b class="up">${money(v.amount)}</b></li>
+        <li><span>Tax, ${Math.round(rate * 100)}% of profit, hires ${esc(lobby(hired))}</span><b>${money(tax)}</b></li>
+        <li class="total"><span>Back onto the coin as bills</span><b>${money(net)}</b></li>
+      </ul>
+      <label class="field charity-pick"><span>${esc(lobby(hired))} for</span><select id="vest-charity">${charityOptions}</select></label>
+      <p class="muted small">Nothing about this is normal. Everything about this is legal.</p>
+      <button type="button" class="btn primary wide" id="vest-sell">Sell. It's policy.</button>`;
+    $('#dlg-vest').showModal();
+    $('#vest-sell').onclick = vest;
+  }
+
+  async function vest() {
+    if (state.busy) return;
+    state.busy = true;
+    const btn = $('#vest-sell'); btn.disabled = true; btn.textContent = 'Selling…';
+    try {
+      const sel = $('#vest-charity');
+      const r = await API.post('/vest', { charity_id: sel ? Number(sel.value) : undefined });
+      $('#dlg-vest').close();
+      await loadMe();
+      const rc = r.receipt;
+      const hiredNow = rc.lobbyists != null ? rc.lobbyists : rc.tax;
+      const t = state.me.town;
+      if (t && t.unlocked && !Explainer.seen('town')) openHireCeremony(rc, hiredNow, 'Vested');
+      else { toast(`Vested. ${money(rc.tax)} of tax hired ${lobby(hiredNow)} for ${rc.charity.name}.`, 4000); flip(true); await hireAnimation(hiredNow); }
+    } catch (e) {
+      toast(e.message, 4000); btn.disabled = false; btn.textContent = 'Try again';
+    } finally { state.busy = false; }
+  }
+
   // The first lobbyist: the tax walks across the desk and comes out a person,
   // the player reads what just happened, and chooses to flip the coin. The
   // TrickleTown tour opens after the flip, not before.
@@ -1281,7 +1345,7 @@
     $('#hire-title').textContent = hiredNow >= 2 ? 'Your first lobbyists' : 'Your first lobbyist';
     $('#hire-body').innerHTML = `
       <div class="receipt-tier win">${esc(rc.tier)}.</div>
-      <p>${how} ${esc(rc.symbol)}: ${money(rc.profit)} of profit, ${money(rc.tax)} of it taxed. Not to the government. To your recruiter.</p>
+      <p>${rc.vested ? `Your Trickle Down Holdings shares sold for ${money(rc.profit)} of pure profit` : `${how} ${esc(rc.symbol)}: ${money(rc.profit)} of profit`}, ${money(rc.tax)} of it taxed. Not to the government. To your recruiter.</p>
       <div class="hire-scene" aria-hidden="true">
         <div class="hire-from">${billsRow(Math.max(1, rc.tax), { max: count })}</div>
         <div class="hire-desk"><b>RECRUITER</b><span>${money(rc.hire_cost || 1)} a head</span></div>
@@ -1444,7 +1508,7 @@
             </li>`).join('')}
         </ul>
         <div class="note">
-          Every collected profit pays a tax in play money, and every dollar of it hires one lobbyist for a charity the player picks. Lobbyists aren't dollars. At the end of each quarter, the real money the ads on this site earned is split between the charities by headcount. Receipts get posted here when that happens.
+          Every collected profit pays a tax in play money, and every $1K of it hires about one lobbyist for a charity the player picks. Lobbyists aren't dollars. At the end of each quarter, the real money the ads on this site earned is split between the charities by headcount. Receipts get posted here when that happens.
         </div>`;
     } catch (e) {
       el.innerHTML = `<h1>The lobby</h1><p class="lede">${esc(e.message)}</p>`;
@@ -1639,10 +1703,13 @@
         <p>Add anyone by username on the Leaders page. You'll see what they bought today, their coin and their village, and the boards can be switched to friends only. It's one-way, like a lobbyist's loyalty: they only see you if they add you back.</p>
 
         <h2>Lobbyists</h2>
-        <p>Your tax hires lobbyists for a charity you pick, at about a dollar a head. They are not dollars. You can hire a fraction of a lobbyist; it looks about how you'd expect.</p>
+        <p>Your tax hires lobbyists for a charity you pick, at about $1K a head (lobbyists are not cheap, and not dollars). You can hire a fraction of a lobbyist; it looks about how you'd expect.</p>
+
+        <h2>Day one</h2>
+        <p>Your first investment vests your shares in Trickle Down Holdings. Company policy forbids holding company stock, so you sell, at once, for ${money(rules.vest_amount || 40)} of pure profit. The tax on that hires your first lobbyists, which is how TrickleTown opens before your first real win does. Once per associate.</p>
 
         <h2>TrickleTown</h2>
-        <p>Flip the coin and you'll find where your lobbyists live. You own the village. Each lot holds one building, and every building is a choice: extractive ones (tenements, a casino) pay into your daily allowance and wear your lobbyists down; decent ones (a co-op, a clinic) cost you upkeep and keep them well. Happiness sets the recruiter's rate, from $1.25 a head in a miserable town to 75¢ in a happy one, every point counting, so a well-run village turns the same tax into more lobbyists. Health keeps them around: below 50 they start quitting overnight, a few percent a night at first and a fifth of the payroll at zero, and quitters don't go to Lobbyfest. The Company Store, for what it's worth, takes 20% off anything a card costs. More money to play with, or cheaper lobbyists who stay. Pick, or split the difference.</p>
+        <p>Flip the coin and you'll find where your lobbyists live. You own the village. Each lot holds one building, and every building is a choice: extractive ones (tenements, a casino) pay into your daily allowance and wear your lobbyists down; decent ones (a co-op, a clinic) cost you upkeep and keep them well. Happiness sets the recruiter's rate, from $1.3K a head in a miserable town to $750 in a happy one, every point counting, so a well-run village turns the same tax into more lobbyists. Health keeps them around: below 50 they start quitting overnight, a few percent a night at first and a fifth of the payroll at zero, and quitters don't go to Lobbyfest. The Company Store, for what it's worth, takes 20% off anything a card costs. More money to play with, or cheaper lobbyists who stay. Pick, or split the difference.</p>
         <p>Every day Preston Yield, your value extraction partner, and Dolores Pike, lobbyist for your lobbyists, bring two cards to TrickleTown Hall: one everyone gets, one from whatever your own village has unlocked. Each pitch shows which way it will push your allowance, happiness, hiring cost, and health, but not by how much; you see the real numbers once you've played it. Leave a card unplayed and it expires at midnight; once you've built something, the residents notice being ignored (a couple of happiness points a night, never more). Some choices leave a mark, and a later card knocks because of it. The deck shows every card and what unlocks it: a building, an upgrade, a headcount, cash on the coin at dawn, friends, a streak, a town in trouble, or a town doing suspiciously well.</p>
         <p>The construction zone has one lot per plot. Tap a lot to open its Site Office: an empty lot gets three pitches to choose from (${money(40, { whole: true })} to build), and a built one gets proposals for upgrades as they unlock: a few days after building, at a certain headcount or cash on the coin, or when the town is in a certain state. Each proposal is a card, the proposer's pitch against the other advocate's objection. Upgrades push the same four numbers every day, the same way buildings do, and tearing a building down takes its upgrades with it.</p>
 
@@ -1829,7 +1896,7 @@
       if (reset.dataset.armed !== '1') { reset.dataset.armed = '1'; reset.textContent = 'Tap again to wipe positions, lobbyists and town'; return; }
       try {
         await API.post('/admin/reset');
-        toast('Reset. Fresh $100 on the next load.');
+        toast('Reset. Fresh $100K on the next load.');
         $('#dlg-account').close(); state.me = null; state.flipped = false;
         try { localStorage.removeItem('trickledown.town-intro'); } catch (e) { /* fine */ }
         location.hash = '#today'; route();
