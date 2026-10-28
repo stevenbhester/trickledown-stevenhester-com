@@ -203,7 +203,7 @@ window.Coin = (function () {
     empty: (x, y) => `
       <rect x="${x - 34}" y="${y - 30}" width="68" height="30" class="b-lot"/>
       <line x1="${x}" y1="${y - 30}" x2="${x}" y2="${y - 52}" class="b-post"/>
-      <rect x="${x - 18}" y="${y - 66}" width="36" height="16" rx="2" class="b-sign"/>
+      <rect x="${x - 24}" y="${y - 66}" width="48" height="16" rx="2" class="b-sign"/>
       <text x="${x}" y="${y - 55}" text-anchor="middle" class="b-sign-text">EMPTY LOT</text>`,
     tenement: (x, y) => `
       <g transform="rotate(-2 ${x} ${y})">
@@ -251,7 +251,7 @@ window.Coin = (function () {
   };
 
   // town: the /me town view. pop: this quarter's lobbyists. pending: issues awaiting a decision.
-  function village({ town, pop, pending }) {
+  function village({ town, pop, pending, locked = false, progress = 0 }) {
     const hp = town.happiness / 100, hl = town.health / 100;
     const sky0 = mix('#8E9AA0', '#7FC3DD', hp), sky1 = mix('#C7CED1', '#E6F4F8', hp);
     const ground = mix('#9C8F6E', '#7DB27A', hl), ground2 = mix('#857A5C', '#5E9A5E', hl);
@@ -287,12 +287,23 @@ window.Coin = (function () {
         ${weather}
         <rect x="0" y="196" width="320" height="130" fill="${ground}"/>
         <path d="M0 214 Q160 200 320 214 L320 222 Q160 208 0 222 Z" fill="${ground2}" opacity=".5"/>
-        <text x="160" y="46" text-anchor="middle" class="v-title">LOBBYTON</text>
-        <text x="160" y="62" text-anchor="middle" class="v-pop">pop. ${esc(pop % 1 ? pop.toFixed(2).replace(/0$/, '') : pop)}</text>
+        <text x="160" y="46" text-anchor="middle" class="v-title">${locked ? '???' : 'TRICKLETOWN'}</text>
+        ${locked ? '' : `<text x="160" y="62" text-anchor="middle" class="v-pop">pop. ${esc(pop % 1 ? pop.toFixed(2).replace(/0$/, '') : pop)}</text>`}
         ${BUILDINGS[plots.housing || 'empty'](104, 200)}
         ${BUILDINGS[plots.square || 'empty'](220, 200)}
-        ${people}
-        ${advocates}
+        ${locked ? '' : people}
+        ${locked ? '' : advocates}
+        ${locked ? `
+          <rect x="0" y="0" width="320" height="320" class="v-fog"/>
+          <g transform="translate(160 150)">
+            <path d="M-16 -6 v-10 a16 16 0 0 1 32 0 v10" fill="none" class="v-lock-shackle"/>
+            <rect x="-24" y="-6" width="48" height="38" rx="6" class="v-lock"/>
+            <text y="20" text-anchor="middle" class="v-lock-text">?</text>
+          </g>
+          <text x="160" y="218" text-anchor="middle" class="v-locked-title">UNDER CONSTRUCTION</text>
+          <text x="160" y="238" text-anchor="middle" class="v-locked-sub">opens with your first lobbyist</text>
+          <rect x="100" y="250" width="120" height="8" rx="4" class="v-prog-bg"/>
+          <rect x="100" y="250" width="${Math.min(120, 120 * Math.max(0, progress))}" height="8" rx="4" class="v-prog"/>` : ''}
       </g>
     </svg>`;
   }

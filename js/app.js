@@ -158,7 +158,7 @@
         </div>
         <button class="linkish" id="btn-orient" style="margin-top:14px">Watch the 60-second orientation</button>
       </div>`;
-    $('#btn-orient').onclick = () => Explainer.open();
+    $('#btn-orient').onclick = () => Explainer.open({ deck: 'main' });
     $('#btn-guest').onclick = async () => {
       try {
         const r = await API.post('/auth/guest');
@@ -177,15 +177,17 @@
       state.me = me;
       setSignedIn(true);
       renderToday();
-      if (!Explainer.seen() && !state.oriented) {
+      if (!Explainer.seen('main') && !state.oriented) {
         state.oriented = true;
-        setTimeout(() => Explainer.open({ rules: me.rules }), me.allowance && !REDUCED ? 1700 : 300);
+        setTimeout(() => Explainer.open({ deck: 'main', rules: me.rules, onClose: () => maybeTownIntro(600) }), me.allowance && !REDUCED ? 1700 : 300);
+      } else {
+        maybeTownIntro(me.allowance && !REDUCED ? 2200 : 400);
       }
       if (me.allowance) {
         tossCoin();
         const a = me.allowance;
         const ti = a.town_income || 0;
-        const village = ti ? ` (${money(a.base != null ? a.base : a.amount - ti, { whole: true })} stipend ${ti > 0 ? '+' : '−'} ${money(Math.abs(ti), { whole: true })} ${ti > 0 ? 'from' : 'upkeep for'} Lobbyton)` : '';
+        const village = ti ? ` (${money(a.base != null ? a.base : a.amount - ti, { whole: true })} stipend ${ti > 0 ? '+' : '−'} ${money(Math.abs(ti), { whole: true })} ${ti > 0 ? 'from' : 'upkeep for'} TrickleTown)` : '';
         const quit = me.town && me.town.report && me.town.report.quit > 0 ? ` ${lobby(me.town.report.quit)} quit overnight.` : '';
         setTimeout(() => toast(`${me.user.streak > 1 ? `Day ${me.user.streak} of your streak: ` : ''}${money(a.amount, { whole: true })} landed on the coin${village}.${quit}`, 4200), REDUCED ? 0 : 1100);
       }
@@ -232,13 +234,25 @@
   }
 
   function pendingIssues() {
-    return state.me && state.me.town ? state.me.town.issues.filter((i) => !i.chosen).length : 0;
+    const t = state.me && state.me.town;
+    return t && t.unlocked ? t.issues.filter((i) => !i.chosen).length : 0;
+  }
+
+  // The TrickleTown tour, once, the first time the town is open and nobody's
+  // in the middle of another tutorial.
+  function maybeTownIntro(delay = 0) {
+    setTimeout(() => {
+      const me = state.me;
+      if (!me || !me.town || !me.town.unlocked || Explainer.seen('town') || Explainer.isOpen()) return;
+      if (state.tab !== 'today') return;
+      Explainer.open({ deck: 'town', onDone: () => { if (!state.flipped) flip(true); setTimeout(() => { const a = $('#agenda'); if (a) a.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }, 500); } });
+    }, delay);
   }
 
   function coinBackMarkup() {
     const me = state.me;
     const q = Math.max(0, me.user.quarter_donated || 0);
-    const svg = Coin.village({ town: me.town, pop: round2(q), pending: pendingIssues() });
+    const svg = Coin.village({ town: me.town, pop: round2(q), pending: pendingIssues(), locked: !me.town.unlocked, progress: me.user.total_donated });
     return `${svg}<button class="coin-tap village-tap" type="button" aria-label="Flip the coin back"></button>`;
   }
 
@@ -286,6 +300,7 @@
       w.onpointermove = (e) => { if (e.pointerType === 'mouse' && p()) showTip(tipFor(p()), e); };
       w.onpointerleave = hideTip;
     });
+    $$('.v-advocate').forEach((g) => { g.style.cursor = 'pointer'; g.onclick = (e) => { e.stopPropagation(); openAdvisors(); }; });
     const cash = $('.cash-sector');
     if (cash) {
       cash.onclick = () => { hideTip(); const i = $('#carve-search'); const u = $('#carve-usd'); if (u && !u.closest('[hidden]')) { u.focus(); u.select(); } else if (i) i.focus(); };
@@ -297,8 +312,14 @@
 
   function captionMarkup() {
     const n = pendingIssues();
+    const locked = state.me && state.me.town && !state.me.town.unlocked;
+    if (locked) {
+      return state.flipped
+        ? `<div class="side-label"><b>Tails.</b> Under construction. <span class="muted">Heads is your portfolio.</span></div><button class="btn quiet small" id="btn-flip">Flip to portfolio</button>`
+        : `<div class="side-label"><b>Heads.</b> Your portfolio. <span class="muted">Tails is a secret.</span></div><button class="btn quiet small" id="btn-flip">Flip the coin</button>`;
+    }
     return state.flipped
-      ? `<div class="side-label"><b>Tails.</b> Your lobbyist village. <span class="muted">Heads is your portfolio.</span></div><button class="btn quiet small" id="btn-flip">Flip to portfolio</button>`
+      ? `<div class="side-label"><b>Tails.</b> TrickleTown, where your lobbyists live. <span class="muted">Heads is your portfolio.</span></div><button class="btn quiet small" id="btn-flip">Flip to portfolio</button>`
       : `<div class="side-label"><b>Heads.</b> Your portfolio. <span class="muted">Tails is your village.</span></div><button class="btn small ${n ? 'primary' : 'quiet'}" id="btn-flip">${n ? `Village: ${n} issue${n === 1 ? '' : 's'}` : 'Flip to village'}</button>`;
   }
 
@@ -595,17 +616,28 @@
     }
   }
 
-  // --- Tails: the village panel -----------------------------------------------------------
+  // --- Tails: TrickleTown -----------------------------------------------------------------
 
   const CLUE_LABEL = { allowance: 'Allowance', cash: 'Cash now', happiness: 'Happiness', hiring: 'Hiring cost', health: 'Health' };
   const TIER_LABEL = { bad: 'Extractive', compromise: 'Compromise', good: 'Decent' };
+  const WHO = { preston: { name: 'Preston Yield', role: 'Value Extraction Partner' }, dolores: { name: 'Dolores Pike', role: 'Lobbyist for Lobbyists' } };
 
   // ▲▼ hints, never exact numbers. Green means good for you.
-  function clueChips(clues) {
-    return `<span class="clues">${clues.map((c) => {
+  function clueChips(clues, cls = '') {
+    return `<span class="clues ${cls}">${clues.map((c) => {
       const good = c.k === 'hiring' ? c.dir < 0 : c.dir > 0;
       return `<span class="clue ${good ? 'good' : 'bad'}">${esc(CLUE_LABEL[c.k])} ${(c.dir > 0 ? '▲' : '▼').repeat(c.n)}</span>`;
     }).join('')}</span>`;
+  }
+
+  // What actually happened, once it has.
+  function fxChips(fx) {
+    const out = [];
+    if (fx.cash) out.push(`<span class="clue ${fx.cash > 0 ? 'good' : 'bad'}">Cash ${fx.cash > 0 ? '+' : '−'}${money(Math.abs(fx.cash), { whole: true })}</span>`);
+    if (fx.income) out.push(`<span class="clue ${fx.income > 0 ? 'good' : 'bad'}">Allowance ${fx.income > 0 ? '+' : '−'}${money(Math.abs(fx.income), { whole: true })}/day</span>`);
+    if (fx.happy) out.push(`<span class="clue ${fx.happy > 0 ? 'good' : 'bad'}">Happiness ${fx.happy > 0 ? '+' : '−'}${Math.abs(fx.happy)}</span>`);
+    if (fx.health) out.push(`<span class="clue ${fx.health > 0 ? 'good' : 'bad'}">Health ${fx.health > 0 ? '+' : '−'}${Math.abs(fx.health)}</span>`);
+    return `<span class="clues">${out.join('')}</span>`;
   }
 
   function meter(label, value, opts = {}) {
@@ -620,54 +652,85 @@
   function reportLine(r) {
     if (!r || r.first_day) return '';
     const bits = [];
-    bits.push(r.income >= 0 ? `Lobbyton paid <b>${money(r.income)}</b> into your allowance` : `Lobbyton's upkeep took <b>${money(-r.income)}</b> from your allowance`);
+    bits.push(r.income >= 0 ? `TrickleTown paid <b>${money(r.income)}</b> into your allowance` : `TrickleTown's upkeep took <b>${money(-r.income)}</b> from your allowance`);
     if (r.happy_delta) bits.push(`happiness ${r.happy_delta > 0 ? '▲' : '▼'}${Math.abs(r.happy_delta)}`);
     if (r.health_delta) bits.push(`health ${r.health_delta > 0 ? '▲' : '▼'}${Math.abs(r.health_delta)}`);
     let out = `Overnight: ${bits.join(', ')}.`;
     if (r.quit > 0) out += ` <b class="down">${esc(lobby(r.quit))} quit.</b> Reason given: "the conditions."`;
-    if (r.ignored) out += ` You ignored ${r.ignored} issue${r.ignored === 1 ? '' : 's'} yesterday. They noticed.`;
+    if (r.ignored) out += ` You left ${r.ignored} card${r.ignored === 1 ? '' : 's'} unplayed yesterday. They noticed.`;
     return `<p class="v-report">${out}</p>`;
   }
 
-  function issueCard(i) {
-    const pitch = (who, p) => {
-      const chosen = i.chosen === who, other = i.chosen && !chosen;
-      return `<div class="pitch ${who} ${chosen ? 'chosen' : ''} ${other ? 'passed' : ''}">
-        <div class="who">${who === 'preston' ? Coin.preston(40) : Coin.dolores(40)}<span><b>${who === 'preston' ? 'Preston Yield' : 'Dolores Pike'}</b><small>${who === 'preston' ? 'Value Extraction Partner' : 'Lobbyist for Lobbyists'}</small></span></div>
-        <q>${esc(p.line)}</q>
-        ${clueChips(p.clues)}
-        ${i.chosen ? (chosen ? `<div class="verdict">You went with ${who === 'preston' ? 'Preston' : 'Dolores'}: ${esc(p.label)}.</div>` : '')
-          : `<button type="button" class="btn small ${who === 'preston' ? 'quiet' : 'quiet'}" data-decide="${esc(i.id)}" data-side="${who}">${esc(p.label)}${p.cost ? ` <span class="muted">(${money(p.cost, { whole: true })})</span>` : ''}</button>`}
-      </div>`;
-    };
-    return `<article class="issue ${i.chosen ? 'done' : ''}">
-      <header><span class="issue-tag">${i.general ? "Today's headline" : 'In your village'}</span><h4>${esc(i.title)}</h4><p>${esc(i.setup)}</p></header>
-      <div class="pitches">${pitch('preston', i.preston)}${pitch('dolores', i.dolores)}</div>
-    </article>`;
-  }
-
+  // One building, its sign, its daily pushes, and its upgrades.
   function plotCard(p, cost) {
-    const open = !p.building || state.plotOpen === p.slot;
+    const b = p.building;
+    const open = !b || state.plotOpen === p.slot;
     const options = open ? `<div class="options">${p.options.filter((o) => o.key !== p.key).map((o) => `
       <div class="option tier-${o.tier}">
         <div class="option-head"><span class="tier-badge">${TIER_LABEL[o.tier]}</span><b>${esc(o.name)}</b></div>
-        <div class="option-pitch">${o.pitch.who === 'preston' ? Coin.preston(28) : Coin.dolores(28)}<q>${esc(o.pitch.line)}</q></div>
+        <div class="option-pitch">${Coin[o.pitch.who](28)}<q>${esc(o.pitch.line)}</q></div>
         ${clueChips(o.clues)}
         <button type="button" class="btn small ${o.tier === 'good' ? 'primary' : 'quiet'}" data-build="${esc(p.slot)}" data-key="${esc(o.key)}">Build it (${money(cost, { whole: true })})</button>
       </div>`).join('')}</div>` : '';
-    return `<article class="plot">
-      <div class="plot-head"><h4>${esc(p.label)}</h4>${p.building
-        ? `<span><span class="tier-badge tier-${p.building.tier}">${TIER_LABEL[p.building.tier]}</span> <b>${esc(p.building.name)}</b></span>`
-        : '<span class="muted">Empty lot</span>'}</div>
-      ${p.building && !open ? `<div class="plot-now">${clueChips(p.options.find((o) => o.key === p.key).clues)}<button type="button" class="linkish" data-replace="${esc(p.slot)}">Replace it</button></div>` : ''}
-      ${p.building && open ? '<button type="button" class="linkish" data-replace="">Keep it</button>' : ''}
+    const upgrades = b && !open ? `<ul class="upgrades">${b.upgrades.map((u) => `
+      <li class="upgrade tier-${u.tier} ${u.owned ? 'owned' : ''}">
+        <div class="upgrade-main">
+          <span class="tier-badge">${u.owned ? 'Built' : TIER_LABEL[u.tier]}</span>
+          <b>${esc(u.name)}</b>
+          ${clueChips(u.clues, 'mini')}
+        </div>
+        <div class="option-pitch">${Coin[u.pitch.who](24)}<q>${esc(u.pitch.line)}</q></div>
+        ${u.owned ? '' : `<button type="button" class="btn small ${u.tier === 'good' ? 'primary' : 'quiet'}" data-upgrade="${esc(p.slot)}" data-key="${esc(u.key)}">Buy it (${money(u.cost, { whole: true })})</button>`}
+      </li>`).join('')}</ul>` : '';
+    return `<article class="plot ${b ? `tier-${b.tier}` : 'empty'}">
+      <div class="plot-head">
+        <div><span class="plot-label">${esc(p.label)}</span>${b ? `<h4>${esc(b.name)}</h4><div class="plot-sign">${esc(b.sign)}</div>` : '<h4>Empty lot</h4><div class="plot-sign">Zoned for anything. Including regret.</div>'}</div>
+        ${b ? `<span class="tier-badge">${TIER_LABEL[b.tier]}</span>` : ''}
+      </div>
+      ${b && !open ? `<div class="plot-now">${clueChips(b.clues)}<span class="muted small">per day</span></div>` : ''}
+      ${upgrades}
+      ${b && !open ? `<button type="button" class="linkish" data-replace="${esc(p.slot)}">Tear it down and build something else</button>` : ''}
+      ${b && open ? '<button type="button" class="linkish" data-replace="">Never mind, keep it</button>' : ''}
       ${options}
     </article>`;
   }
 
-  // Back: the village, today's agenda, the plots, then the payroll and records.
+  function lockedMarkup() {
+    const me = state.me;
+    const have = Math.max(0, me.user.total_donated || 0);
+    const need = me.town.unlock_at || 1;
+    return `
+      <div class="side-head"><h2>Under construction</h2><span class="muted">Something is being built.</span></div>
+      <section class="locked">
+        <p><b>Hire your first full lobbyist and this side opens.</b> They'll need somewhere to live.</p>
+        <div class="lobby-row"><b>${esc(lobbyN(have))} / ${need}</b>${have > 0 ? lobbyists(have) : ''}</div>
+        <div class="rank-bar"><i style="--w:${Math.min(100, (have / need) * 100).toFixed(0)}%"></i></div>
+        <p class="muted small">Collect a profit on heads. A quarter of it is taxed, and the tax hires lobbyists.</p>
+        <div class="row-actions"><button class="btn quiet small" id="btn-flip-back">Flip to portfolio</button></div>
+      </section>`;
+  }
+
+  // The collection: every card, with what unlocks it.
+  function deckMarkup(deck) {
+    const order = { today: 0, played: 1, available: 2, locked: 3 };
+    const sorted = [...deck].sort((a, b) => order[a.status] - order[b.status]);
+    const counts = deck.reduce((m, d) => { m[d.status] = (m[d.status] || 0) + 1; return m; }, {});
+    return `<section class="deck">
+      <h3>The deck <span class="muted">${deck.length - (counts.locked || 0)} of ${deck.length} unlocked</span></h3>
+      <p class="muted small">Two cards a day: one everyone gets, one from whatever your town has unlocked. The rest are waiting.</p>
+      <div class="deck-grid">${sorted.map((d) => `
+        <div class="mini-card ${d.status} ${d.general ? 'general' : ''}">
+          <span class="mini-status">${{ today: 'In hand', played: 'Played today', available: 'In the pile', locked: 'Locked' }[d.status]}</span>
+          <b>${d.status === 'locked' ? '???' : esc(d.title)}</b>
+          <span class="mini-needs">${d.general ? 'Everyone gets this one.' : d.status === 'locked' ? esc(d.needs) : esc(d.needs.replace(/^Unlock:/, 'Unlocked:'))}</span>
+          ${d.seen && d.status !== 'played' ? '<span class="mini-seen">✓ played before</span>' : ''}
+        </div>`).join('')}</div>
+    </section>`;
+  }
+
   function backMarkup() {
     const me = state.me;
+    if (!me.town.unlocked) return lockedMarkup();
     const { user, history, day, town } = me;
     const given = me.donations_by_charity.filter((c) => c.amount > 0);
     const q = Math.max(0, user.quarter_donated || 0);
@@ -676,12 +739,15 @@
     const prevAt = have ? have.at : 0;
     const progress = next ? Math.min(100, ((user.total_donated - prevAt) / (next.at - prevAt)) * 100) : 100;
     const pending = pendingIssues();
+    const decided = town.issues.length - pending;
     return `
       <div class="side-head">
-        <h2>Lobbyton</h2>
-        <span class="muted">Lobbyfest in <b data-fest="${esc(day.quarter_ends_at)}">${esc(untilLong(day.quarter_ends_at))}</b>.</span>
+        <div><h2>TrickleTown</h2><div class="motto">“${esc(town.motto)}”</div></div>
+        <span class="muted">Lobbyfest in <b data-fest="${esc(day.quarter_ends_at)}">${esc(untilLong(day.quarter_ends_at))}</b></span>
       </div>
-      <div class="lobby-row"><b>${esc(lobbyN(q))}</b>${q > 0 ? lobbyists(q) : '<span class="muted">Nobody lives here yet. Collect a profit and the tax hires your first resident.</span>'}</div>
+
+      <div class="lobby-row"><b>${esc(lobbyN(q))}</b>${q > 0 ? lobbyists(q) : '<span class="muted">Nobody lives here yet this quarter.</span>'}</div>
+      ${reportLine(town.report)}
 
       <section class="meters">
         <div class="meter money"><div class="meter-top"><span>Village income</span><b class="${town.income >= 0 ? 'up' : 'down'}">${town.income >= 0 ? '+' : '−'}${money(Math.abs(town.income))}/day</b></div><div class="meter-note">added to tomorrow's allowance</div></div>
@@ -689,18 +755,22 @@
         ${meter('Happiness', town.happiness)}
         ${meter('Health', town.health, { warnBelow: town.quit_below, note: town.health < town.quit_below ? `<b class="down">They're quitting: about ${Math.round(town.quit_rate * 100)}% a night.</b>` : `Below ${town.quit_below}, they start quitting.` })}
       </section>
-      ${reportLine(town.report)}
 
-      <section class="agenda" id="agenda">
-        <h3>Today's agenda ${pending ? `<span class="count">${pending}</span>` : '<span class="muted">· all decided</span>'}</h3>
-        ${town.issues.map(issueCard).join('')}
-        ${pending ? '<p class="muted small">Undecided issues expire at midnight, and being ignored is bad for morale.</p>' : ''}
+      <section class="advisors-cta ${pending ? 'waiting' : ''}">
+        <div class="advisors-faces">${Coin.preston(52)}${Coin.dolores(52)}</div>
+        <div class="advisors-text">
+          <b>${pending ? `${pending} card${pending === 1 ? '' : 's'} on the table` : decided ? "Today's cards are played" : 'Nobody is waiting'}</b>
+          <span class="muted">${pending ? 'Preston and Dolores each have a pitch. Pick one per card.' : decided ? 'Come back tomorrow for two more. Or review how it went.' : 'The advisors are out. New cards at midnight.'}</span>
+        </div>
+        <button type="button" class="btn ${pending ? 'primary' : 'quiet'}" id="btn-advisors">${pending ? 'Speak with your advisors' : 'Review'}</button>
       </section>
 
       <section class="plots">
         <h3>The village</h3>
         ${town.plots.map((p) => plotCard(p, town.build_cost)).join('')}
       </section>
+
+      ${deckMarkup(town.deck)}
 
       <section class="records">
         <h3>Payroll</h3>
@@ -725,6 +795,7 @@
 
   // After any village change, redraw the coin, the caption and the panel in place.
   function refreshVillage(town, user) {
+    clearTimeout(state.flipTimer);
     state.me.town = town;
     if (user) state.me.user = { ...state.me.user, ...user };
     paintCoin();
@@ -735,41 +806,162 @@
     window.scrollTo({ top: y });
   }
 
-  const DECIDED = {
-    preston: ['Preston is delighted. He is already drafting the press release.', 'Preston gives you a thumbs-up and a business card. You already have six.', 'Preston nods. Somewhere, a number went up.'],
-    dolores: ['Dolores nods once. From her, that is a standing ovation.', 'Dolores writes something on her clipboard. It might be your name. It might be "fine."', 'Dolores says "huh." It is the warmest thing she has said all week.'],
+  const REACTIONS = {
+    preston: ['Preston is delighted. He is already drafting the press release.', 'Preston gives you a thumbs-up and a business card. You already have six.', 'Preston nods. Somewhere, a number went up.', 'Preston says "love that for us." He means him.'],
+    dolores: ['Dolores nods once. From her, that is a standing ovation.', 'Dolores writes something on her clipboard. It might be your name. It might be "fine."', 'Dolores says "huh." It is the warmest thing she has said all week.', 'Dolores does not smile, but she does not not smile.'],
   };
+  const reaction = (who) => REACTIONS[who][Math.floor(Math.random() * REACTIONS[who].length)];
+
+  async function townPost(path, body, btn) {
+    if (state.busy) return null;
+    state.busy = true; if (btn) btn.disabled = true;
+    try { return await API.post(path, body); }
+    catch (e) { toast(e.message, 3600); if (btn) btn.disabled = false; return null; }
+    finally { state.busy = false; }
+  }
 
   function wireBack() {
     const b = $('#btn-flip-back'); if (b) b.onclick = () => flip(false);
-    $$('[data-decide]').forEach((btn) => {
-      btn.onclick = async () => {
-        if (state.busy) return;
-        state.busy = true; btn.disabled = true;
-        try {
-          const r = await API.post('/town/decide', { issue_id: btn.dataset.decide, side: btn.dataset.side });
-          const lines = DECIDED[btn.dataset.side];
-          toast(lines[Math.floor(Math.random() * lines.length)], 3200);
-          refreshVillage(r.town, r.user);
-        } catch (e) { toast(e.message, 3600); btn.disabled = false; }
-        finally { state.busy = false; }
-      };
-    });
-    $$('[data-replace]').forEach((btn) => {
-      btn.onclick = () => { state.plotOpen = btn.dataset.replace || null; renderUnder(); };
-    });
+    const adv = $('#btn-advisors'); if (adv) adv.onclick = () => openAdvisors();
+    $$('[data-replace]').forEach((btn) => { btn.onclick = () => { state.plotOpen = btn.dataset.replace || null; renderUnder(); }; });
     $$('[data-build]').forEach((btn) => {
       btn.onclick = async () => {
-        if (state.busy) return;
-        state.busy = true; btn.disabled = true;
-        try {
-          const r = await API.post('/town/build', { slot: btn.dataset.build, key: btn.dataset.key });
-          state.plotOpen = null;
-          const b = r.town.plots.find((p) => p.slot === btn.dataset.build).building;
-          toast(b.tier === 'bad' ? `${b.name} is up. Preston is already invoicing.` : b.tier === 'good' ? `${b.name} is up. Dolores almost smiled.` : `${b.name} is up. Nobody is thrilled. Nobody is suing.`, 3600);
-          refreshVillage(r.town, r.user);
-        } catch (e) { toast(e.message, 3600); btn.disabled = false; }
-        finally { state.busy = false; }
+        const r = await townPost('/town/build', { slot: btn.dataset.build, key: btn.dataset.key }, btn);
+        if (!r) return;
+        state.plotOpen = null;
+        const nb = r.town.plots.find((p) => p.slot === btn.dataset.build).building;
+        toast(nb.tier === 'bad' ? `${nb.name} is up. Preston is already invoicing.` : nb.tier === 'good' ? `${nb.name} is up. Dolores almost smiled.` : `${nb.name} is up. Nobody is thrilled. Nobody is suing.`, 3600);
+        refreshVillage(r.town, r.user);
+      };
+    });
+    $$('[data-upgrade]').forEach((btn) => {
+      btn.onclick = async () => {
+        const r = await townPost('/town/upgrade', { slot: btn.dataset.upgrade, key: btn.dataset.key }, btn);
+        if (!r) return;
+        const nb = r.town.plots.find((p) => p.slot === btn.dataset.upgrade).building;
+        const u = nb.upgrades.find((x) => x.key === btn.dataset.key);
+        toast(`${u.name}: done. ${reaction(u.pitch.who)}`, 3800);
+        refreshVillage(r.town, r.user);
+      };
+    });
+  }
+
+  // --- The advisors: cards, one at a time ---------------------------------------------------
+
+  const adv = { cards: [], i: 0, result: null };
+
+  function openAdvisors(startAt = 0) {
+    clearTimeout(state.flipTimer); // they're engaged; don't flip the coin back under them
+    if (!state.flipped) flip(true);
+    const t = state.me.town;
+    adv.cards = t.issues.slice();
+    adv.i = Math.max(0, Math.min(adv.cards.length, startAt));
+    adv.result = null;
+    // Start on the first unplayed card, if any.
+    const firstOpen = adv.cards.findIndex((c) => !c.chosen);
+    if (startAt === 0 && firstOpen > 0) adv.i = firstOpen;
+    renderAdvisors();
+    const d = $('#dlg-advisors');
+    if (!d.open) d.showModal();
+  }
+
+  function advisorsSummary() {
+    const t = state.me.town;
+    const locked = t.deck.filter((d) => d.status === 'locked').length;
+    const played = t.issues.filter((c) => c.chosen);
+    const p = played.filter((c) => c.chosen === 'preston').length, d = played.filter((c) => c.chosen === 'dolores').length;
+    const verdict = !played.length ? 'You played nothing. The advisors have noted it.'
+      : p && !d ? 'Preston is buying champagne. Dolores is updating her résumé.'
+      : d && !p ? 'Dolores is quietly pleased. Preston is in the parking lot, on the phone, pacing.'
+      : 'One each. Preston calls it balance. Dolores calls it a coin flip.';
+    return `<div class="adv-card summary">
+      <div class="adv-band">That's the table</div>
+      <h3>Agenda closed</h3>
+      <p>${esc(verdict)}</p>
+      <div class="adv-tally"><span>${Coin.preston(32)} ${p}</span><span>${Coin.dolores(32)} ${d}</span></div>
+      <p class="muted small">${locked} card${locked === 1 ? '' : 's'} still locked. Build, hire, and spend to meet them.</p>
+      <div class="adv-actions"><button type="button" class="btn quiet" data-adv="deck">See the deck</button><button type="button" class="btn primary" data-adv="close">Back to town</button></div>
+    </div>`;
+  }
+
+  function advisorPitch(i, who, played) {
+    const p = i[who], w = WHO[who];
+    const mine = i.chosen === who, other = i.chosen && !mine;
+    return `<button type="button" class="adv-pitch ${who} ${mine ? 'chosen' : ''} ${other ? 'passed' : ''}" data-pick="${who}" ${played ? 'disabled' : ''}>
+      <span class="adv-who">${Coin[who](44)}<span><b>${esc(w.name)}</b><small>${esc(w.role)}</small></span></span>
+      <q>${esc(p.line)}</q>
+      ${clueChips(p.clues)}
+      <span class="adv-label">${mine ? '✓ ' : ''}${esc(p.label)}${p.cost ? ` <small>(${money(p.cost, { whole: true })})</small>` : ''}</span>
+    </button>`;
+  }
+
+  function renderAdvisors() {
+    const stage = $('#adv-stage');
+    const n = adv.cards.length;
+    if (adv.i >= n) { stage.innerHTML = advisorsSummary(); wireAdvisors(); return; }
+    const c = adv.cards[adv.i];
+    const played = !!c.chosen;
+    if (adv.result && adv.result.id === c.id) {
+      const r = adv.result, w = WHO[r.side];
+      stage.innerHTML = `
+        <div class="adv-card result ${r.side}">
+          <div class="adv-band">${esc(c.title)}</div>
+          <div class="adv-result-who">${Coin[r.side](56)}<div><b>You went with ${esc(w.name.split(' ')[0])}.</b><span>${esc(c[r.side].label)}</span></div></div>
+          <p>${esc(r.line)}</p>
+          ${fxChips(r.fx)}
+          ${Object.keys(r.fx).length === 0 ? '<p class="muted small">Nothing measurable happened. That is its own kind of outcome.</p>' : ''}
+          <div class="adv-actions"><button type="button" class="btn primary" data-adv="next">${adv.i + 1 < n ? 'Next card' : 'Done'}</button></div>
+        </div>`;
+      wireAdvisors(); return;
+    }
+    stage.innerHTML = `
+      <div class="adv-card ${played ? 'played' : ''}" id="adv-card">
+        <div class="adv-band ${c.general ? 'headline' : 'village'}">${c.general ? "Today's headline" : 'From your village'} · ${adv.i + 1} of ${n}</div>
+        <h3>${esc(c.title)}</h3>
+        <p>${esc(c.setup)}</p>
+        ${played ? `<div class="adv-played">Played. You went with ${esc(WHO[c.chosen].name.split(' ')[0])}: ${esc(c[c.chosen].label)}.</div>` : ''}
+      </div>
+      <div class="adv-pitches">${advisorPitch(c, 'preston', played)}${advisorPitch(c, 'dolores', played)}</div>
+      <div class="adv-foot">
+        <button type="button" class="linkish" data-adv="prev" ${adv.i === 0 ? 'disabled' : ''}>Previous</button>
+        <span class="adv-dots">${adv.cards.map((x, k) => `<i class="${k === adv.i ? 'on' : ''} ${x.chosen ? 'done' : ''}"></i>`).join('')}</span>
+        <button type="button" class="linkish" data-adv="next">${played ? 'Next' : 'Skip for now'}</button>
+      </div>`;
+    wireAdvisors();
+  }
+
+  function wireAdvisors() {
+    const dlg = $('#dlg-advisors');
+    $$('[data-adv]', dlg).forEach((b) => {
+      b.onclick = () => {
+        const a = b.dataset.adv;
+        if (a === 'close') dlg.close();
+        else if (a === 'deck') { dlg.close(); const d = $('.deck'); if (d) d.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }
+        else if (a === 'next') { adv.result = null; adv.i += 1; renderAdvisors(); }
+        else if (a === 'prev') { adv.result = null; adv.i = Math.max(0, adv.i - 1); renderAdvisors(); }
+      };
+    });
+    const card = $('#adv-card');
+    $$('[data-pick]', dlg).forEach((b) => {
+      const who = b.dataset.pick;
+      b.onpointerenter = () => { if (card) card.classList.add(`lean-${who}`); };
+      b.onpointerleave = () => { if (card) card.classList.remove(`lean-${who}`); };
+      b.onclick = async () => {
+        const c = adv.cards[adv.i];
+        $$('[data-pick]', dlg).forEach((x) => { x.disabled = true; });
+        const r = await townPost('/town/decide', { issue_id: c.id, side: who }, b);
+        if (!r) { $$('[data-pick]', dlg).forEach((x) => { x.disabled = false; }); return; }
+        // Fly the card off toward the chosen side, then show the result.
+        if (card && !REDUCED) {
+          card.classList.remove('lean-preston', 'lean-dolores');
+          card.classList.add(`fly-${who}`);
+          await new Promise((res) => setTimeout(res, 420));
+        }
+        c.chosen = who;
+        adv.result = { id: c.id, side: who, fx: r.fx || {}, line: reaction(who) };
+        refreshVillage(r.town, r.user);
+        adv.cards = state.me.town.issues.slice();
+        renderAdvisors();
       };
     });
   }
@@ -864,10 +1056,11 @@
       const how = rc.collected ? 'Collected' : rc.busted ? 'Buried' : 'Sold early';
       if (rc.tax > 0) {
         const hiredNow = rc.lobbyists != null ? rc.lobbyists : rc.tax;
-        toast(`${rc.tier}. ${how}: ${money(rc.tax)} of tax hired ${lobby(hiredNow)} for ${rc.charity.name}. They're moving into Lobbyton.`, 4200);
+        toast(`${rc.tier}. ${how}: ${money(rc.tax)} of tax hired ${lobby(hiredNow)} for ${rc.charity.name}. They're moving into TrickleTown.`, 4200);
         flip(true);
         await hireAnimation(hiredNow);
-        state.flipTimer = setTimeout(() => { if (state.flipped) flip(false); }, 3200);
+        maybeTownIntro(900);
+        state.flipTimer = setTimeout(() => { if (state.flipped && !$('#dlg-advisors').open && !Explainer.isOpen()) flip(false); }, 3200);
       } else {
         toast(rc.busted ? `${rc.tier}. ${p.symbol} is in the ground.` : `${rc.tier}. ${how} for ${money(rc.net)}, back on the coin.`);
       }
@@ -1040,7 +1233,7 @@
     ];
     $('#screen-how').innerHTML = `
       <h1>How it works</h1>
-      <button class="btn quiet small" id="btn-orient-how" style="margin:6px 0 10px">Replay the orientation</button>
+      <div class="row-actions" style="margin:6px 0 10px"><button class="btn quiet small" id="btn-orient-how">Replay the orientation</button>${me && me.town && me.town.unlocked ? '<button class="btn quiet small" id="btn-town-how">TrickleTown tour</button>' : ''}</div>
       ${rules.demo ? `<div class="note warn">Demo. The charities are fictional and no real money moves. The game is real; the philanthropy isn't yet.</div>` : ''}
       <div class="rules">
         <h2>The coin</h2>
@@ -1058,9 +1251,10 @@
         <h2>Lobbyists</h2>
         <p>Your tax hires lobbyists for a charity you pick, at about a dollar a head. They are not dollars. You can hire a fraction of a lobbyist; it looks about how you'd expect.</p>
 
-        <h2>Lobbyton</h2>
+        <h2>TrickleTown</h2>
         <p>Flip the coin and you'll find where your lobbyists live. You own the village. Each lot holds one building, and every building is a choice: extractive ones (tenements, a casino) pay into your daily allowance and wear your lobbyists down; decent ones (a co-op, a clinic) cost you upkeep and keep them well. Happiness sets the recruiter's rate: happy lobbyists make hiring cheaper. Health keeps them around: below 40, they start quitting overnight, and quitters don't go to Lobbyfest.</p>
-        <p>Every day Preston Yield, your value extraction partner, and Dolores Pike, lobbyist for your lobbyists, bring you one or two issues: one everyone gets, one from your own village. Each pitch shows which way it will push your allowance, happiness, hiring cost, and health, but not by how much. Ignore them and they expire at midnight, which nobody enjoys.</p>
+        <p>Every day Preston Yield, your value extraction partner, and Dolores Pike, lobbyist for your lobbyists, bring two cards to TrickleTown Hall: one everyone gets, one from whatever your own village has unlocked. Each pitch shows which way it will push your allowance, happiness, hiring cost, and health, but not by how much; you see the real numbers once you've played it. Leave a card unplayed and it expires at midnight, which nobody enjoys. The deck shows every card and what unlocks it: a building, an upgrade, a headcount, cash on the coin at dawn, or a town in trouble.</p>
+        <p>Buildings have upgrades. Upgrades push the same four numbers every day, the same way buildings do, and tearing a building down takes its upgrades with it.</p>
 
         <h2>Lobbyfest</h2>
         <p>At midnight Central on the last day of every quarter, every lobbyist in the game marches off to Lobbyfest. The ads on this site earn real dollars, and that's when all of it is split between the charities on the Lobby page by headcount: a charity with a third of the lobbyists gets a third of the money. Then every payroll resets to zero and the next quarter starts. Your fake tax is a vote on where the real money goes. Nothing you do here costs you anything. That's the whole point.</p>
@@ -1074,7 +1268,8 @@
         <h2>Fine print</h2>
         <p class="muted">Trickle Down Holdings is a fictional company and a wholly owned subsidiary of Trickle Down Holdings. Prices come from Finnhub and CoinGecko and can be a minute or so behind. Stocks don't trade on weekends; a stock bought Friday afternoon mostly sits still until it matures. Crypto never sleeps. The game day rolls over at midnight Central. None of this is investment advice. Obviously.</p>
       </div>`;
-    $('#btn-orient-how').onclick = () => Explainer.open({ rules });
+    $('#btn-orient-how').onclick = () => Explainer.open({ deck: 'main', rules });
+    const tt = $('#btn-town-how'); if (tt) tt.onclick = () => Explainer.open({ deck: 'town' });
   }
 
   // --- auth sheet ----------------------------------------------------------------------------------
@@ -1122,12 +1317,13 @@
 
   function wire() {
     $$('[data-close]').forEach((b) => { b.onclick = () => b.closest('dialog').close(); });
+    $('#dlg-advisors').addEventListener('close', () => { adv.result = null; });
     $$('dialog.sheet').forEach((d) => { d.addEventListener('click', (e) => { if (e.target === d) d.close(); }); });
     $('#form-sell').addEventListener('submit', submitSell);
     $('#form-auth').addEventListener('submit', submitAuth);
     $('#auth-switch').onclick = () => openAuth(state.authMode === 'login' ? 'register' : 'login');
     $('#btn-claim').onclick = () => openAuth('claim');
-    $('#btn-help').onclick = () => Explainer.open({ rules: state.me ? state.me.rules : undefined });
+    $('#btn-help').onclick = () => Explainer.open({ deck: 'main', rules: state.me ? state.me.rules : undefined });
     $('#btn-signout').onclick = () => { API.setToken(null); state.me = null; state.flipped = false; location.hash = ''; route(); };
     window.addEventListener('hashchange', route);
 

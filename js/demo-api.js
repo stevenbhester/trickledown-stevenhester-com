@@ -43,7 +43,7 @@
 
   // One player, seeded so the screen has something on it.
   const today = new Date().toISOString().slice(0, 10);
-  const user = { id: 1, username: 'guest_demo', is_guest: true, cash: 100, total_donated: 7.5, realized_pnl: 22.5, streak: 3, charity_id: 6 };
+  const user = { id: 1, username: 'guest_demo', is_guest: true, cash: 100, total_donated: 0.6, realized_pnl: 2.4, streak: 3, charity_id: 6 };
   let nextId = 10;
   const seedNvda = find('NVDA'), seedDoge = find('DOGE'), seedKo = find('KO');
   const HOLD_MS = RULES.hold_hours * 3600e3;
@@ -54,8 +54,8 @@
     // Live, bought 20h ago, down.
     { id: 2, symbol: 'DOGE', name: 'Dogecoin', asset_type: 'crypto', multiplier: 5, invested: 25, entry_price: priceOf(seedDoge).price * 1.012, opened_at: ago(20), opened_day: today, matures_at: new Date(Date.now() + HOLD_MS - 20 * 3600e3).toISOString(), status: 'open' },
     // Matured 2h ago: frozen, ready to collect.
-    { id: 5, symbol: 'KO', name: 'Coca-Cola', asset_type: 'stock', multiplier: 10, invested: 20, entry_price: round2(priceOf(seedKo).price * 0.99), opened_at: ago(26), opened_day: '2026-10-26', matures_at: ago(2), matured_at: ago(2), matured_price: priceOf(seedKo).price, status: 'open' },
-    { id: 3, symbol: 'TSLA', name: 'Tesla', asset_type: 'stock', multiplier: 10, invested: 40, status: 'closed', proceeds: 58, profit: 18, tax: 4.5, tier: 'Nice', charity_id: 6, collected: true, closed_day: today, closed_at: ago(1) },
+    { id: 5, symbol: 'KO', name: 'Coca-Cola', asset_type: 'stock', multiplier: 10, invested: 20, entry_price: round2(priceOf(seedKo).price * 0.97), opened_at: ago(26), opened_day: '2026-10-26', matures_at: ago(2), matured_at: ago(2), matured_price: priceOf(seedKo).price, status: 'open' },
+    { id: 3, symbol: 'TSLA', name: 'Tesla', asset_type: 'stock', multiplier: 10, invested: 10, status: 'closed', proceeds: 12.4, profit: 2.4, tax: 0.6, lobbyists: 0.6, tier: 'Respectable', charity_id: 6, collected: true, closed_day: today, closed_at: ago(1) },
     { id: 4, symbol: 'GME', name: 'GameStop', asset_type: 'stock', multiplier: 10, invested: 30, status: 'closed', proceeds: 0, profit: -30, tax: 0, tier: 'Rest in peace', charity_id: null, collected: false, closed_day: '2026-10-26', closed_at: ago(24) },
   ];
   positions[2].matured_value = round2(positions[2].invested * (1 + 10 * (positions[2].matured_price - positions[2].entry_price) / positions[2].entry_price));
@@ -80,10 +80,12 @@
   const town = TownRules.fresh();
   town.plots.housing = 'pinnacle';
   town.happiness = 48; town.health = 52;
-  TownRules.tick(town, { day: today, uid: 1 });
+  const townCtx = (extra = {}) => ({ day: today, uid: 1, cash: user.cash, lobbyists: user.total_donated, unlocked: TownRules.isUnlocked(user.total_donated), ...extra });
+  const townView = () => ({ ...TownRules.view(town, townCtx()), unlocked: TownRules.isUnlocked(user.total_donated) });
+  TownRules.tick(town, townCtx({ cash: 120 }));
 
   const donations = [
-    { charity_id: 6, amount: 4.5, user: 'guest_demo' }, { charity_id: 4, amount: 2.1, user: 'guest_demo' }, { charity_id: 1, amount: 0.9, user: 'guest_demo' },
+    { charity_id: 6, amount: 0.6, user: 'guest_demo' },
     { charity_id: 1, amount: 61.25, user: 'ravi_k' }, { charity_id: 2, amount: 48, user: 'ravi_k' }, { charity_id: 4, amount: 33.1, user: 'erin' },
     { charity_id: 3, amount: 12.75, user: 'erin' }, { charity_id: 6, amount: 20, user: 'bagholder_ben' }, { charity_id: 8, amount: 9.3, user: 'bagholder_ben' },
     { charity_id: 5, amount: 15.5, user: 'moonshot_mia' }, { charity_id: 7, amount: 2.25, user: 'moonshot_mia' },
@@ -118,6 +120,7 @@
     await sleep(120);
     if (path === '/me') {
       settleMatured();
+      TownRules.ensureIssues(town, townCtx());
       const open = positions.filter((p) => p.status === 'open').map(shape).sort((a, b) => new Date(a.opened_at) - new Date(b.opened_at));
       const history = positions.filter((p) => p.status === 'closed').sort((a, b) => b.id - a.id)
         .map((p) => ({ ...p, charity_name: p.charity_id ? CHARITIES.find((c) => c.id === p.charity_id).name : null }));
@@ -129,7 +132,7 @@
       return {
         user: { ...publicUser(), quarter_donated: round2(byCharity.reduce((s, c) => s + c.amount, 0)) },
         day: { key: today, number: 12, quarter: '2026-Q4', resets_at: resetsAt(), quarter_ends_at: quarterEndsAt(), tz: 'America/Chicago' },
-        allowance: null, rules: RULES, positions: open, history, donations_by_charity: byCharity, town: TownRules.view(town),
+        allowance: null, rules: RULES, positions: open, history, donations_by_charity: byCharity, town: townView(),
         crowd: { picks, buys: 21, players: 9 },
         today_donated: history.filter((h) => h.closed_day === today).reduce((s, h) => s + h.tax, 0),
       };
@@ -172,16 +175,25 @@
       positions.push(p); return { ok: true, position: shape(p), cash: user.cash, quote: q };
     }
     if (path === '/town/decide') {
+      if (!TownRules.isUnlocked(user.total_donated)) fail('TrickleTown opens when you hire your first full lobbyist.');
       const r = TownRules.decide(town, String(body.issue_id || ''), body.side, user.cash);
       if (r.error) fail(r.error);
       user.cash = round2(Math.max(0, user.cash + r.cash));
-      return { ok: true, cash_change: r.cash, user: publicUser(), town: TownRules.view(town) };
+      return { ok: true, cash_change: r.cash, fx: r.fx, user: publicUser(), town: townView() };
+    }
+    if (path === '/town/upgrade') {
+      if (!TownRules.isUnlocked(user.total_donated)) fail('TrickleTown opens when you hire your first full lobbyist.');
+      const r = TownRules.upgrade(town, String(body.slot || ''), String(body.key || ''), user.cash);
+      if (r.error) fail(r.error);
+      user.cash = round2(user.cash + r.cash);
+      return { ok: true, user: publicUser(), town: townView() };
     }
     if (path === '/town/build') {
+      if (!TownRules.isUnlocked(user.total_donated)) fail('TrickleTown opens when you hire your first full lobbyist.');
       const r = TownRules.build(town, String(body.slot || ''), String(body.key || ''), user.cash);
       if (r.error) fail(r.error);
       user.cash = round2(user.cash + r.cash);
-      return { ok: true, user: publicUser(), town: TownRules.view(town) };
+      return { ok: true, user: publicUser(), town: townView() };
     }
     if (path === '/ride') {
       const p = positions.find((x) => x.id === Number(body.position_id)); if (!p) fail('No such position.', 404); if (p.status !== 'open') fail('Already collected.');
