@@ -218,11 +218,21 @@ window.Explainer = (function () {
           <button type="button" class="btn quiet" data-x="back">Back</button>
           <button type="button" class="btn primary" data-x="next">Next</button>
         </div>
+        <div class="x-finale" hidden>
+          <div class="x-finale-row">
+            <button type="button" class="btn primary" data-finale="register">Create an account</button>
+            <button type="button" class="btn primary" data-finale="guest">Play as a guest</button>
+          </div>
+          <button type="button" class="linkish center" data-finale="login">Already have an account? Sign in</button>
+        </div>
       </div>`;
     document.body.appendChild(dlg);
     dlg.querySelector('.close').onclick = () => close(false);
     dlg.querySelector('[data-x="back"]').onclick = () => go(i - 1);
     dlg.querySelector('[data-x="next"]').onclick = () => (i === list.length - 1 ? close(true) : go(i + 1));
+    dlg.querySelectorAll('[data-finale]').forEach((b) => {
+      b.onclick = () => { const c = current, choice = b.dataset.finale; close(true); if (c && c.onFinale) c.onFinale(choice); };
+    });
     dlg.addEventListener('click', (e) => { if (e.target === dlg) close(false); });
     dlg.addEventListener('cancel', (e) => { e.preventDefault(); close(false); });
     dlg.addEventListener('keydown', (e) => {
@@ -246,6 +256,10 @@ window.Explainer = (function () {
     dlg.querySelectorAll('.x-dots button').forEach((b) => { b.onclick = () => go(Number(b.dataset.k)); });
     dlg.querySelector('[data-x="back"]').disabled = i === 0;
     dlg.querySelector('[data-x="next"]').textContent = s.next || 'Next';
+    // Training taken before signing up ends in the three ways in, not "Start playing".
+    const finale = !!(current && current.finale) && i === list.length - 1;
+    dlg.querySelector('.x-nav').hidden = finale;
+    dlg.querySelector('.x-finale').hidden = !finale;
   }
 
   function markSeen(deck) { try { localStorage.setItem(KEYS[deck], '1'); } catch (e) { /* private mode */ } }
@@ -260,16 +274,16 @@ window.Explainer = (function () {
     if (c.onClose) c.onClose();
   }
 
-  function open({ deck = 'main', rules, onDone, onClose } = {}) {
+  function open({ deck = 'main', rules, onDone, onClose, finale = false, onFinale } = {}) {
     const r = Object.assign({ daily_base: 100, streak_bonus: 10, daily_cap: 200, tax_rate: 0.25, hold_hours: 24, demo: true }, rules || {});
     if (!dlg) build();
     if (current) close(false);
-    current = { deck, onDone, onClose };
+    current = { deck, onDone, onClose, finale, onFinale };
     list = deck === 'town' ? townDeck() : mainDeck(r);
     // The two tutorials must not look like the same one: a tester who just
     // unlocked the town should never think they're back at orientation.
     dlg.classList.toggle('deck-town', deck === 'town');
-    dlg.querySelector('.x-sub').textContent = deck === 'town' ? 'TrickleTown Resident Services · part two' : 'New Associate Orientation';
+    dlg.querySelector('.x-sub').textContent = deck === 'town' ? 'TrickleTown Resident Services · part two' : 'Employee Training · New Associate Orientation';
     go(0);
     if (!dlg.open) dlg.showModal();
     dlg.querySelector('[data-x="next"]').focus();

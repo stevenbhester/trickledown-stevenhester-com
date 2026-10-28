@@ -34,6 +34,16 @@ design without a server. It is opt-in only: a build whose `config.js` still
 has the placeholder backend URL shows a "not connected yet" notice (with a
 link to the demo) rather than quietly running the fake game.
 
+## The landing page
+
+Hero, three one-line pitches, then "Take the employee training" (the
+orientation deck; when taken before signing up its last slide ends in the
+three ways in), then Create an account / Play as a guest, with Sign in as a
+smaller line under them. Nobody sees a tutorial until they've chosen a way
+in, and nobody sees it twice. Anyone setting a password gets a plain note
+that this is a beta: hashed, rate-limited, HTTPS, but no reset, no 2FA, one
+person's project, so don't reuse a password from elsewhere.
+
 ## Accounts
 
 Three ways an account follows you: username + password ("Keep this

@@ -584,9 +584,31 @@ input:focus { border-color: var(--water); }
 /* Welcome --------------------------------------------------------------------- */
 
 .welcome { padding-top: 10px; }
-.welcome .hero { font-family: var(--display); font-weight: 900; font-size: 64px; line-height: 0.88; margin: 6px 0 18px; max-width: 9ch; }
+.welcome .hero { font-family: var(--display); font-weight: 900; font-size: 64px; line-height: 0.88; margin: 6px 0 16px; max-width: 9ch; }
+@media (max-width: 480px) { .welcome .hero { font-size: 52px; } }
 .welcome p { max-width: 46ch; font-size: 17px; }
-.welcome .row-actions { margin-top: 18px; }
+.welcome .pitch { list-style: none; margin: 0 0 18px; padding: 0; max-width: 46ch; }
+.welcome .pitch li { font-size: 16px; padding: 7px 0 7px 14px; border-left: 3px solid var(--line); margin: 0 0 4px; }
+.welcome .pitch li b { font-family: var(--display); font-weight: 900; font-size: 19px; letter-spacing: 0.01em; }
+.training {
+  display: grid; width: 100%; text-align: left; gap: 2px; padding: 12px 14px; margin: 0 0 14px; cursor: pointer;
+  border: 2px solid var(--ink); border-radius: var(--radius); background: var(--paper); color: var(--ink); font: inherit;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.training:hover { background: var(--shallow); }
+.training:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+.training-tag { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mud); }
+.training-title { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1; }
+.training-sub { font-size: 13px; color: var(--mud); }
+.ways-in { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ways-in .btn { padding: 12px 10px; font-size: 16px; }
+.welcome .linkish.center { margin-top: 12px; font-size: 14px; }
+.x-finale { display: grid; gap: 4px; }
+.x-finale-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.x-finale .linkish.center { margin-top: 8px; font-size: 14px; }
+.note.beta { margin: 0 0 12px; font-size: 13px; line-height: 1.4; }
+.note.beta b { display: block; font-size: 14px; margin-bottom: 2px; }
+@media (max-width: 360px) { .ways-in, .x-finale-row { grid-template-columns: 1fr; } }
 
 /* Footer, banner, toast ------------------------------------------------------- */
 

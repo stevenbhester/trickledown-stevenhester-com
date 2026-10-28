@@ -81,6 +81,10 @@
       <div id="g-btn-auth"></div>
       <div class="or"><span>or</span></div>
     </div>
+    <div class="note warn beta" id="auth-beta" hidden>
+      <b>Beta. Don't reuse a password from anywhere else.</b>
+      Passwords are hashed (bcrypt) and never stored or logged in the clear, logins are rate-limited, and everything travels over HTTPS. But there's no password reset (we don't take an email), no two-factor, and no security team: this is one person's side project. Treat it as a game password, because it is one. Rather not invent one? Play as a guest; a device code carries a guest account to your other devices with no password at all.
+    </div>
     <div id="auth-fields">
       <label class="field"><span>Username</span><input id="auth-user" autocomplete="username" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Password</span><input id="auth-pass" type="password" autocomplete="current-password" minlength="8"></label>

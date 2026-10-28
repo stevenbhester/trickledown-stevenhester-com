@@ -171,24 +171,40 @@
     $('#screen-welcome').innerHTML = `
       <div class="welcome">
         <h1 class="hero">Fake money. Real market. Real charity.</h1>
-        <p>Every day you get $100 that isn't real. Carve it up across any stocks or coins you like. Each bet lives 24 hours, and the longer it lives, the harder it hits: your money tracks the real move at the start and climbs to ten times it by the end (five for crypto).</p>
-        <p>Collect a win and a quarter of the profit is taxed. The tax hires lobbyists for a charity you pick, a dollar a head. They aren't dollars. The ads on this site earn real money, and every quarter it's split between the charities by how many lobbyists each one has.</p>
-        <p>Lose and nothing happens. Win and something does.</p>
-        <div class="row-actions">
+        <ul class="pitch">
+          <li><b>$100 a day</b> that isn't real, on real stocks and crypto, with the swings turned up to ×10.</li>
+          <li><b>Win</b> and the tax hires lobbyists for a charity. <b>Lose</b> and nothing happens.</li>
+          <li><b>Every quarter</b> this site's ad money goes to the charities with the most lobbyists.</li>
+        </ul>
+        <button class="training" id="btn-orient" type="button">
+          <span class="training-tag">Step one</span>
+          <span class="training-title">Take the employee training</span>
+          <span class="training-sub">Sixty seconds. Mandatory. Compensated in knowledge.</span>
+        </button>
+        <div class="ways-in">
+          <button class="btn primary" id="btn-register">Create an account</button>
           <button class="btn primary" id="btn-guest">Play as a guest</button>
-          <button class="btn" id="btn-signin">Sign in</button>
         </div>
-        <button class="linkish" id="btn-orient" style="margin-top:14px">Watch the 60-second orientation</button>
+        <button class="linkish center" id="btn-signin">Already have an account? Sign in</button>
       </div>`;
-    $('#btn-orient').onclick = () => Explainer.open({ deck: 'main' });
-    $('#btn-guest').onclick = async () => {
-      try {
-        const r = await API.post('/auth/guest');
-        API.setToken(r.token);
-        location.hash = '#today'; route();
-      } catch (e) { toast(e.message); }
-    };
+    $('#btn-orient').onclick = () => Explainer.open({ deck: 'main', finale: true, onFinale: welcomeFinale });
+    $('#btn-guest').onclick = startGuest;
+    $('#btn-register').onclick = () => openAuth('register');
     $('#btn-signin').onclick = () => openAuth('login');
+  }
+
+  // Training taken from the landing page ends in the three ways in.
+  const welcomeFinale = (choice) => { if (choice === 'guest') startGuest(); else openAuth(choice); };
+
+  async function startGuest() {
+    if (state.busy) return;
+    state.busy = true;
+    try {
+      const r = await API.post('/auth/guest');
+      API.setToken(r.token);
+      location.hash = '#today'; route();
+    } catch (e) { toast(e.message, 4000); }
+    finally { state.busy = false; }
   }
 
   // --- today: data ------------------------------------------------------------------
@@ -1601,7 +1617,7 @@
     ];
     $('#screen-how').innerHTML = `
       <h1>How it works</h1>
-      <div class="row-actions" style="margin:6px 0 10px"><button class="btn quiet small" id="btn-orient-how">Replay the orientation</button>${me && me.town && me.town.unlocked ? '<button class="btn quiet small" id="btn-town-how">TrickleTown tour</button>' : ''}</div>
+      <div class="row-actions" style="margin:6px 0 10px"><button class="btn quiet small" id="btn-orient-how">Retake employee training</button>${me && me.town && me.town.unlocked ? '<button class="btn quiet small" id="btn-town-how">TrickleTown tour</button>' : ''}</div>
       ${rules.demo ? `<div class="note warn">Demo. The charities are fictional and no real money moves. The game is real; the philanthropy isn't yet.</div>` : ''}
       <div class="rules">
         <h2>The coin</h2>
@@ -1724,6 +1740,8 @@
     }[mode];
     $('#auth-title').textContent = title;
     $('#auth-blurb').textContent = blurb;
+    // Anyone setting a password gets the honest version of where security stands.
+    $('#auth-beta').hidden = !(mode === 'register' || mode === 'claim');
     $('#auth-submit').textContent = code ? 'Sign in with the code' : title;
     $('#auth-fields').hidden = code;
     $('#auth-code-field').hidden = !code;
@@ -1907,7 +1925,7 @@
     $('#auth-code-link').onclick = () => openAuth(state.authMode === 'code' ? 'login' : 'code');
     $('#btn-claim').onclick = () => openAuth('claim');
     $('#btn-account').onclick = openAccount;
-    $('#btn-help').onclick = () => Explainer.open({ deck: 'main', rules: state.me ? state.me.rules : undefined });
+    $('#btn-help').onclick = () => Explainer.open({ deck: 'main', rules: state.me ? state.me.rules : undefined, finale: !API.token(), onFinale: welcomeFinale });
     $('#btn-signout').onclick = signOut;
     window.addEventListener('hashchange', route);
 
