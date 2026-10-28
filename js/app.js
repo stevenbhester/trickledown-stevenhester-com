@@ -181,9 +181,9 @@
       <div class="welcome">
         <h1 class="hero">Fake money. Real market. Real charity.</h1>
         <ul class="pitch">
-          <li><b>$100K a day</b> that isn't real, on real stocks and crypto, with the swings turned up to ×10.</li>
-          <li><b>Win</b> and the tax hires lobbyists for a charity. <b>Lose</b> and nothing happens.</li>
-          <li><b>Every quarter</b> this site's ad money goes to the charities with the most lobbyists.</li>
+          <li><b>$100K a day</b> of fake money to invest however you see fit, with real market performance multiplied up to ×10.</li>
+          <li><b>Win</b> and pay tax, which hires lobbyists for a charity. Treat them well and they're cheaper to hire; squeeze them and your allowance grows.</li>
+          <li><b>Every quarter</b> this site's real ad money goes to the charities with the most lobbyists.</li>
         </ul>
         <button class="training" id="btn-orient" type="button">
           <span class="training-tag">Step one</span>
