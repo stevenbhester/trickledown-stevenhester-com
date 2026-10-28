@@ -51,6 +51,7 @@
   <p class="foot-line">
     <span id="foot-user"></span>
     <button class="linkish" id="btn-claim" hidden>Keep this account</button>
+    <button class="linkish" id="btn-account">Account</button>
     <button class="linkish" id="btn-signout">Sign out</button>
   </p>
 </footer>
@@ -68,7 +69,7 @@
   </form>
 </dialog>
 
-<!-- Claim / sign in sheet -->
+<!-- Sign in / create / claim sheet -->
 <dialog id="dlg-auth" class="sheet">
   <form method="dialog" class="sheet-body" id="form-auth">
     <div class="sheet-head">
@@ -76,12 +77,49 @@
       <button type="button" class="close" data-close aria-label="Close">×</button>
     </div>
     <p class="muted" id="auth-blurb"></p>
-    <label class="field"><span>Username</span><input id="auth-user" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+"></label>
-    <label class="field"><span>Password</span><input id="auth-pass" type="password" autocomplete="current-password" required minlength="6"></label>
+    <div class="google-slot" id="auth-google" hidden>
+      <div id="g-btn-auth"></div>
+      <div class="or"><span>or</span></div>
+    </div>
+    <label class="field"><span>Username</span><input id="auth-user" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+" autocapitalize="off" spellcheck="false"></label>
+    <label class="field"><span>Password</span><input id="auth-pass" type="password" autocomplete="current-password" required minlength="8"></label>
     <p class="form-error" id="auth-error" hidden></p>
     <button type="submit" class="btn primary wide" id="auth-submit">Sign in</button>
     <button type="button" class="linkish center" id="auth-switch">New here? Create an account</button>
   </form>
+</dialog>
+
+<!-- Account sheet -->
+<dialog id="dlg-account" class="sheet">
+  <div class="sheet-body">
+    <div class="sheet-head">
+      <h2>Account</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div id="account-body"></div>
+  </div>
+</dialog>
+
+<!-- A player's public sheet: their coin, their standing, their village -->
+<dialog id="dlg-player" class="sheet">
+  <div class="sheet-body">
+    <div class="sheet-head">
+      <h2 id="player-title">Player</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div id="player-body"></div>
+  </div>
+</dialog>
+
+<!-- The Site Office: build a plot, hear upgrade proposals -->
+<dialog id="dlg-site" class="sheet advisors" aria-label="Site Office">
+  <div class="sheet-body">
+    <div class="sheet-head">
+      <h2 id="site-title">Site Office</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div id="site-stage" class="adv-stage"></div>
+  </div>
 </dialog>
 
 <!-- The advisors: today's cards, one at a time -->

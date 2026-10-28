@@ -6,4 +6,8 @@ window.TRICKLE_CONFIG = {
     ? 'http://localhost:3000'
     : 'https://YOUR-HEROKU-APP.herokuapp.com',
   SITE_URL: 'https://trickledown.stevenhester.com',
+  // Optional. Your Google OAuth "Web application" client ID, the same one set
+  // as GOOGLE_CLIENT_ID on the backend. Leave empty to hide Google sign-in.
+  // (The backend's /auth/options also reports it, so this is just a head start.)
+  GOOGLE_CLIENT_ID: '',
 };

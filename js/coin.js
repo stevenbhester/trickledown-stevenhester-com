@@ -1,7 +1,6 @@
 // The coin. Pure drawing: takes numbers, returns SVG markup. No app state here.
 //
 //   Coin.front({ positions, cash, preview, grow })  the ring of wedges + the fan of bills
-//   Coin.back({ slices })                           a donut of lobbyists by charity
 //
 // Geometry: 320×320 viewBox. Milled edge 150–160, wedge ring 84–146, inset
 // center under 84. Angles clockwise from 12 o'clock. Positions come first
@@ -151,25 +150,6 @@ window.Coin = (function () {
     </svg>`;
   }
 
-  // slices: [{ name, amount }]
-  function back({ slices }) {
-    const total = slices.reduce((s, c) => s + c.amount, 0);
-    let a = 0, wedges = '', labels = '';
-    slices.forEach((c, i) => {
-      const sw = total > 0 ? (c.amount / total) * 360 : 0;
-      if (sw <= 0) return;
-      wedges += `<path class="bwedge b${i % 6}" d="${sector(a, sw)}"><title>${esc(c.name)}: ${c.amount} lobbyists</title></path>`;
-      const short = c.name.length > 14 ? c.name.split(/[\s:]+/)[0] : c.name;
-      labels += label(a, sw, [short, `${c.amount % 1 ? c.amount.toFixed(2).replace(/0$/, '') : c.amount}`], 'back', true);
-      a += sw;
-    });
-    return `<svg class="coin-svg" viewBox="0 0 320 320" aria-label="Your lobbyists by charity">
-      ${body(true)}
-      ${total > 0 ? wedges + labels : `<circle cx="${CX}" cy="${CY}" r="${RM}" class="coin-empty-ring back"/>`}
-      ${center(true)}
-    </svg>`;
-  }
-
   // --- Tails: the village --------------------------------------------------------
 
   // The two advocates, as small portraits. size is the rendered width in px.
@@ -289,8 +269,8 @@ window.Coin = (function () {
         <path d="M0 214 Q160 200 320 214 L320 222 Q160 208 0 222 Z" fill="${ground2}" opacity=".5"/>
         <text x="160" y="46" text-anchor="middle" class="v-title">${locked ? '???' : 'TRICKLETOWN'}</text>
         ${locked ? '' : `<text x="160" y="62" text-anchor="middle" class="v-pop">pop. ${esc(pop % 1 ? pop.toFixed(2).replace(/0$/, '') : pop)}</text>`}
-        ${BUILDINGS[plots.housing || 'empty'](104, 200)}
-        ${BUILDINGS[plots.square || 'empty'](220, 200)}
+        <g class="v-site" data-site="housing">${BUILDINGS[plots.housing || 'empty'](104, 200)}</g>
+        <g class="v-site" data-site="square">${BUILDINGS[plots.square || 'empty'](220, 200)}</g>
         ${locked ? '' : people}
         ${locked ? '' : advocates}
         ${locked ? `
@@ -310,5 +290,15 @@ window.Coin = (function () {
 
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-  return { front, back, village, preston, dolores };
+  // One building on a little patch of ground, for tiles. key: a building key or null.
+  function buildingIcon(key, size = 120) {
+    const art = BUILDINGS[key || 'empty'](70, 118);
+    return `<svg class="b-icon" width="${size}" height="${Math.round(size * 0.8)}" viewBox="0 0 140 112" aria-hidden="true">
+      <rect x="0" y="0" width="140" height="112" fill="#DCEAF0"/>
+      <rect x="0" y="100" width="140" height="12" fill="#9BC48F"/>
+      ${art}
+    </svg>`;
+  }
+
+  return { front, village, buildingIcon, preston, dolores };
 })();

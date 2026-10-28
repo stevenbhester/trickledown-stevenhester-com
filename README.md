@@ -9,8 +9,10 @@ No build step. Plain HTML, CSS, and JS.
 index.html        the shell: masthead, tabs, screens, bottom sheets
 config.js         API_BASE and SITE_URL — the only thing you must edit
 css/style.css     the whole look; design tokens at the top
-js/coin.js        draws the coin (SVG): wedges, bills, the back's donut
-js/app.js         screens, carving, lock-in, flip, share, boards
+js/coin.js        draws the coin (SVG): wedges, bills, the village, the advocates
+js/town.js        TrickleTown rules + the card deck (byte-identical to the backend's src/town.js)
+js/explainer.js   the two tutorials
+js/app.js         screens, carving, collect/sell/ride, the flip, TrickleTown Hall, the Site Office, boards, friends, player sheets
 js/api.js         fetch wrapper with the auth token
 js/demo-api.js    in-memory fake API for demo mode (see below)
 favicon.svg       the droplet
@@ -29,6 +31,28 @@ Open `index.html?demo` (or any build where `config.js` still has the
 placeholder backend URL) and the game runs entirely in the browser against
 invented prices that move fast. Nothing is saved. Good for showing someone the
 loop in thirty seconds, and for working on the design without a server.
+
+## Accounts
+
+Everyone starts as a guest (lives in that browser). "Keep this account" turns
+it into a username + password account, or links a Google account, keeping
+everything. Account (in the footer) changes the username, sets or changes the
+password (which signs out every other device), links Google, and signs out
+everywhere. Google sign-in appears only when the backend reports a client id
+(`/auth/options`); `config.js` can also carry it as a head start. The token
+lives in `localStorage` and goes out as a Bearer header; see the backend
+README's Security section for the rest.
+
+## Friends
+
+Leaders → Friends: add anyone by username. It's one-way and silent; they see
+you only if they add you back. You get a friends-only toggle on both boards,
+a "erin bought NVDA" line under the crowd strip on Today, and a sheet for any
+player (tap a name anywhere): their coin with live wedges, standing, rank,
+cash in play, favourite charity, and a summary of their village. Guests can
+add friends but can't be added, since a guest's name isn't shareable; the
+account sheet and the share card both carry your username once you've
+claimed one. In demo mode, `ravi_k` and `bagholder_ben` are addable.
 
 ## Deploy to GitHub Pages
 
@@ -52,9 +76,16 @@ loop in thirty seconds, and for working on the design without a server.
   the centre. Hover a wedge for the return, the multiplier now, and the time
   to maturity. Pick a stock, then an amount (dollars or a chip), and a dashed
   slice shows where the wedge will land. Tap a wedge to collect it (matured)
-  or sell early. The back is your payroll: a donut of lobbyists by charity,
-  your rank, and the records. A taxed cash-out flips the coin; the day's first
-  load tosses it in.
+  or sell early (selling a ride early also pays the half of the tax it
+  deferred). The back is
+  TrickleTown: the village on the coin, with the payroll (lobbyists by
+  charity), your rank, and the records under it. A taxed cash-out flips the
+  coin; the day's first load tosses it in.
+- TrickleTown (tails) has a construction zone with one lot per plot. Tapping
+  a lot, on the coin or in the list, opens the Site Office: three pitches to
+  build from, then upgrade proposals as cards (pitch vs. objection) that
+  unlock over time or on conditions. The advisors' daily cards live in
+  TrickleTown Hall, the same card modal.
 - Play-money tax hires lobbyists at a dollar a head; they are never shown as
   dollars. Fractional lobbyists are drawn clipped to the fraction, head first.
 - Outcomes get a deadpan tier name (Pocket change, Nice, Heater, Legend, Paper

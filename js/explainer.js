@@ -91,7 +91,7 @@ window.Explainer = (function () {
           <text x="20" y="136" class="x-small">buy: ×1</text><text x="256" y="136" text-anchor="end" class="x-small">${r.hold_hours}h: ×10</text>
           <circle cx="256" cy="26" r="9" class="x-gold"/>
           <line x1="110" y1="80" x2="110" y2="124" class="x-early"/><text x="110" y="136" text-anchor="middle" class="x-small">sell early: ×4</text>`),
-        body: 'Your bet starts at the real move and ramps to ten times it (five for crypto). Sell early any time, or let a winner ride.',
+        body: 'Your bet starts at the real move and ramps to ten times it (five for crypto). Sell early any time, or let a winner ride: half the tax now, and the multiplier keeps climbing.',
         fine: 'Investments can reach $0. They cannot go below $0. Legal checked.',
       },
       {
@@ -157,7 +157,7 @@ window.Explainer = (function () {
           <rect x="168" y="58" width="76" height="46" fill="#fff" stroke="#8EA3AC"/>
           <rect x="200" y="62" width="12" height="26" fill="#2E9C72"/><rect x="193" y="69" width="26" height="12" fill="#2E9C72"/>
           <text x="206" y="130" text-anchor="middle" class="x-tag down">− upkeep</text>`),
-        body: 'Casinos and tenements pay into your daily allowance. Co-ops and clinics cost upkeep. One building per lot, each with upgrades to buy.',
+        body: 'Tap an empty lot and pick from three pitches. Casinos and tenements pay into your daily allowance; co-ops and clinics cost upkeep. Later, each building gets proposals for upgrades.',
         fine: 'Every lot offers an extractive option, a compromise, and a decent one. We put them in that order for a reason.',
       },
       {
@@ -193,7 +193,7 @@ window.Explainer = (function () {
           <path d="M160 82 L240 82 A40 40 0 0 1 160 82 Z" fill="#9BC48F"/>
           <rect x="186" y="54" width="12" height="28" fill="#9FB6C2"/><rect x="204" y="66" width="18" height="16" fill="#E7C48F"/>
           <text x="200" y="134" text-anchor="middle" class="x-tag gold">tails: bonus</text>`),
-        body: 'Ignore TrickleTown and the stock game works exactly the same. Drop by when you want a bigger allowance or cheaper lobbyists: tap Speak with your advisors, play the day\'s cards, buy a building or an upgrade. The ▲▼ hints show which way each choice pushes.',
+        body: 'Ignore TrickleTown and the stock game works exactly the same. Once you\'ve built something, though, the residents expect you to show up: unplayed cards cost a little happiness. Drop by when you want a bigger allowance or cheaper lobbyists: tap Speak with your advisors, play the day\'s cards, buy a building or an upgrade. The ▲▼ hints show which way each choice pushes.',
         fine: 'Unanswered issues expire at midnight. Dolores will mention it. Preston will invoice for it.',
         next: 'Visit TrickleTown',
       },
