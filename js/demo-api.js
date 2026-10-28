@@ -76,6 +76,12 @@
     const live = valueOf(p, price, matured ? new Date(p.matures_at).getTime() : Date.now()); if (matured) live.value = p.matured_value;
     return { ...p, matured, seconds_left: matured ? 0 : Math.max(0, Math.round((new Date(p.matures_at) - Date.now()) / 1000)), ride_count: p.ride_count || 0, origin_invested: p.origin_invested != null ? p.origin_invested : p.invested, price, quote_error: false, ...live, preview: settle(p.invested, live.value) };
   }
+  // The village, seeded with a "luxury" high-rise and slightly worn-down residents.
+  const town = TownRules.fresh();
+  town.plots.housing = 'pinnacle';
+  town.happiness = 48; town.health = 52;
+  TownRules.tick(town, { day: today, uid: 1 });
+
   const donations = [
     { charity_id: 6, amount: 4.5, user: 'guest_demo' }, { charity_id: 4, amount: 2.1, user: 'guest_demo' }, { charity_id: 1, amount: 0.9, user: 'guest_demo' },
     { charity_id: 1, amount: 61.25, user: 'ravi_k' }, { charity_id: 2, amount: 48, user: 'ravi_k' }, { charity_id: 4, amount: 33.1, user: 'erin' },
@@ -123,7 +129,7 @@
       return {
         user: { ...publicUser(), quarter_donated: round2(byCharity.reduce((s, c) => s + c.amount, 0)) },
         day: { key: today, number: 12, quarter: '2026-Q4', resets_at: resetsAt(), quarter_ends_at: quarterEndsAt(), tz: 'America/Chicago' },
-        allowance: null, rules: RULES, positions: open, history, donations_by_charity: byCharity,
+        allowance: null, rules: RULES, positions: open, history, donations_by_charity: byCharity, town: TownRules.view(town),
         crowd: { picks, buys: 21, players: 9 },
         today_donated: history.filter((h) => h.closed_day === today).reduce((s, h) => s + h.tax, 0),
       };
@@ -165,6 +171,18 @@
       const p = { id: nextId++, symbol: a.symbol, name: a.name, asset_type: a.type, multiplier: a.multiplier, invested: amount, entry_price: q.price, opened_at: new Date().toISOString(), opened_day: today, matures_at: new Date(Date.now() + HOLD_MS).toISOString(), status: 'open' };
       positions.push(p); return { ok: true, position: shape(p), cash: user.cash, quote: q };
     }
+    if (path === '/town/decide') {
+      const r = TownRules.decide(town, String(body.issue_id || ''), body.side, user.cash);
+      if (r.error) fail(r.error);
+      user.cash = round2(Math.max(0, user.cash + r.cash));
+      return { ok: true, cash_change: r.cash, user: publicUser(), town: TownRules.view(town) };
+    }
+    if (path === '/town/build') {
+      const r = TownRules.build(town, String(body.slot || ''), String(body.key || ''), user.cash);
+      if (r.error) fail(r.error);
+      user.cash = round2(user.cash + r.cash);
+      return { ok: true, user: publicUser(), town: TownRules.view(town) };
+    }
     if (path === '/ride') {
       const p = positions.find((x) => x.id === Number(body.position_id)); if (!p) fail('No such position.', 404); if (p.status !== 'open') fail('Already collected.');
       settleMatured();
@@ -187,10 +205,12 @@
       if (s.tax > 0) {
         charity = CHARITIES.find((c) => c.id === Number(body.charity_id)) || CHARITIES.find((c) => c.id === user.charity_id) || CHARITIES[0];
       }
-      Object.assign(p, { status: 'closed', closed_day: today, closed_at: new Date().toISOString(), proceeds: live.value, profit: s.profit, tax: s.tax, tier: s.tier, charity_id: charity ? charity.id : null, collected: !!p.matured_at });
-      user.cash = round2(user.cash + s.net); user.total_donated = round2(user.total_donated + s.tax); user.realized_pnl = round2(user.realized_pnl + s.profit); if (charity) user.charity_id = charity.id;
-      if (s.tax > 0) donations.push({ charity_id: charity.id, amount: s.tax, user: user.username });
-      return { ok: true, user: publicUser(), receipt: { position_id: p.id, symbol: p.symbol, name: p.name, invested: p.invested, value: live.value, ...live, ...s, collected: !!p.matured_at, exit_price: exitPrice, charity } };
+      const hireCost = TownRules.hireCost(town);
+      const lobbyists = s.tax > 0 ? round2(s.tax / hireCost) : 0;
+      Object.assign(p, { status: 'closed', closed_day: today, closed_at: new Date().toISOString(), proceeds: live.value, profit: s.profit, tax: s.tax, lobbyists, tier: s.tier, charity_id: charity ? charity.id : null, collected: !!p.matured_at });
+      user.cash = round2(user.cash + s.net); user.total_donated = round2(user.total_donated + lobbyists); user.realized_pnl = round2(user.realized_pnl + s.profit); if (charity) user.charity_id = charity.id;
+      if (lobbyists > 0) donations.push({ charity_id: charity.id, amount: lobbyists, user: user.username });
+      return { ok: true, user: publicUser(), receipt: { position_id: p.id, symbol: p.symbol, name: p.name, invested: p.invested, value: live.value, ...live, ...s, lobbyists, hire_cost: hireCost, collected: !!p.matured_at, exit_price: exitPrice, charity } };
     }
     fail('Not found.', 404);
   }
@@ -201,7 +221,7 @@
   const origGet = get;
   get = async function (path) {
     const out = await origGet(path);
-    if (path === '/me' && firstMe) { firstMe = false; out.allowance = { amount: 120, streak: 3 }; }
+    if (path === '/me' && firstMe) { firstMe = false; out.allowance = { amount: 120 + TownRules.income(town), streak: 3, base: 120, town_income: TownRules.income(town) }; }
     return out;
   };
 

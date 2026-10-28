@@ -183,10 +183,11 @@
       }
       if (me.allowance) {
         tossCoin();
-        const bonus = me.allowance.amount - me.rules.daily_base;
-        setTimeout(() => toast(bonus > 0
-          ? `Day ${me.user.streak} of your streak: ${money(me.allowance.amount, { whole: true })} landed on the coin.`
-          : `${money(me.allowance.amount, { whole: true })} of fake money landed on the coin. Carve it up.`), REDUCED ? 0 : 1100);
+        const a = me.allowance;
+        const ti = a.town_income || 0;
+        const village = ti ? ` (${money(a.base != null ? a.base : a.amount - ti, { whole: true })} stipend ${ti > 0 ? '+' : '−'} ${money(Math.abs(ti), { whole: true })} ${ti > 0 ? 'from' : 'upkeep for'} Lobbyton)` : '';
+        const quit = me.town && me.town.report && me.town.report.quit > 0 ? ` ${lobby(me.town.report.quit)} quit overnight.` : '';
+        setTimeout(() => toast(`${me.user.streak > 1 ? `Day ${me.user.streak} of your streak: ` : ''}${money(a.amount, { whole: true })} landed on the coin${village}.${quit}`, 4200), REDUCED ? 0 : 1100);
       }
     } catch (e) {
       if (e.status === 401) { API.setToken(null); route(); return; }
@@ -230,11 +231,15 @@
     return `${svg}<div class="coin-center">${center}</div><button class="coin-tap" type="button" aria-label="Flip the coin"></button>`;
   }
 
+  function pendingIssues() {
+    return state.me && state.me.town ? state.me.town.issues.filter((i) => !i.chosen).length : 0;
+  }
+
   function coinBackMarkup() {
     const me = state.me;
-    const q = me.user.quarter_donated || 0;
-    const svg = Coin.back({ slices: me.donations_by_charity.filter((c) => c.amount > 0).map((c) => ({ name: c.name, amount: c.amount })) });
-    return `${svg}<div class="coin-center"><b>${esc(lobbyN(q))}</b><span>lobbyist${round2(q) === 1 ? '' : 's'} this quarter<br>Lobbyfest in ${esc(untilLong(me.day.quarter_ends_at))}</span></div><button class="coin-tap" type="button" aria-label="Flip the coin back"></button>`;
+    const q = Math.max(0, me.user.quarter_donated || 0);
+    const svg = Coin.village({ town: me.town, pop: round2(q), pending: pendingIssues() });
+    return `${svg}<button class="coin-tap village-tap" type="button" aria-label="Flip the coin back"></button>`;
   }
 
   // Redraw only the coin faces. Keeps the carve panel (and its focus) intact.
@@ -291,9 +296,10 @@
   }
 
   function captionMarkup() {
+    const n = pendingIssues();
     return state.flipped
-      ? `<div class="side-label"><b>Tails.</b> Your lobbyist army. <span class="muted">Heads is your portfolio.</span></div><button class="btn quiet small" id="btn-flip">Flip to portfolio</button>`
-      : `<div class="side-label"><b>Heads.</b> Your portfolio. <span class="muted">Tails is your lobbyist army.</span></div><button class="btn quiet small" id="btn-flip">Flip to lobbyists</button>`;
+      ? `<div class="side-label"><b>Tails.</b> Your lobbyist village. <span class="muted">Heads is your portfolio.</span></div><button class="btn quiet small" id="btn-flip">Flip to portfolio</button>`
+      : `<div class="side-label"><b>Heads.</b> Your portfolio. <span class="muted">Tails is your village.</span></div><button class="btn small ${n ? 'primary' : 'quiet'}" id="btn-flip">${n ? `Village: ${n} issue${n === 1 ? '' : 's'}` : 'Flip to village'}</button>`;
   }
 
   function flip(to) {
@@ -589,45 +595,183 @@
     }
   }
 
-  // Back: this quarter's army, Lobbyfest, career rank, records.
+  // --- Tails: the village panel -----------------------------------------------------------
+
+  const CLUE_LABEL = { allowance: 'Allowance', cash: 'Cash now', happiness: 'Happiness', hiring: 'Hiring cost', health: 'Health' };
+  const TIER_LABEL = { bad: 'Extractive', compromise: 'Compromise', good: 'Decent' };
+
+  // ▲▼ hints, never exact numbers. Green means good for you.
+  function clueChips(clues) {
+    return `<span class="clues">${clues.map((c) => {
+      const good = c.k === 'hiring' ? c.dir < 0 : c.dir > 0;
+      return `<span class="clue ${good ? 'good' : 'bad'}">${esc(CLUE_LABEL[c.k])} ${(c.dir > 0 ? '▲' : '▼').repeat(c.n)}</span>`;
+    }).join('')}</span>`;
+  }
+
+  function meter(label, value, opts = {}) {
+    const warn = opts.warnBelow != null && value < opts.warnBelow;
+    return `<div class="meter ${warn ? 'warn' : ''}">
+      <div class="meter-top"><span>${esc(label)}</span><b>${value}</b></div>
+      <div class="meter-bar"><i style="--w:${value}%"></i>${opts.warnBelow != null ? `<s style="--at:${opts.warnBelow}%"></s>` : ''}</div>
+      ${opts.note ? `<div class="meter-note">${opts.note}</div>` : ''}
+    </div>`;
+  }
+
+  function reportLine(r) {
+    if (!r || r.first_day) return '';
+    const bits = [];
+    bits.push(r.income >= 0 ? `Lobbyton paid <b>${money(r.income)}</b> into your allowance` : `Lobbyton's upkeep took <b>${money(-r.income)}</b> from your allowance`);
+    if (r.happy_delta) bits.push(`happiness ${r.happy_delta > 0 ? '▲' : '▼'}${Math.abs(r.happy_delta)}`);
+    if (r.health_delta) bits.push(`health ${r.health_delta > 0 ? '▲' : '▼'}${Math.abs(r.health_delta)}`);
+    let out = `Overnight: ${bits.join(', ')}.`;
+    if (r.quit > 0) out += ` <b class="down">${esc(lobby(r.quit))} quit.</b> Reason given: "the conditions."`;
+    if (r.ignored) out += ` You ignored ${r.ignored} issue${r.ignored === 1 ? '' : 's'} yesterday. They noticed.`;
+    return `<p class="v-report">${out}</p>`;
+  }
+
+  function issueCard(i) {
+    const pitch = (who, p) => {
+      const chosen = i.chosen === who, other = i.chosen && !chosen;
+      return `<div class="pitch ${who} ${chosen ? 'chosen' : ''} ${other ? 'passed' : ''}">
+        <div class="who">${who === 'preston' ? Coin.preston(40) : Coin.dolores(40)}<span><b>${who === 'preston' ? 'Preston Yield' : 'Dolores Pike'}</b><small>${who === 'preston' ? 'Value Extraction Partner' : 'Lobbyist for Lobbyists'}</small></span></div>
+        <q>${esc(p.line)}</q>
+        ${clueChips(p.clues)}
+        ${i.chosen ? (chosen ? `<div class="verdict">You went with ${who === 'preston' ? 'Preston' : 'Dolores'}: ${esc(p.label)}.</div>` : '')
+          : `<button type="button" class="btn small ${who === 'preston' ? 'quiet' : 'quiet'}" data-decide="${esc(i.id)}" data-side="${who}">${esc(p.label)}${p.cost ? ` <span class="muted">(${money(p.cost, { whole: true })})</span>` : ''}</button>`}
+      </div>`;
+    };
+    return `<article class="issue ${i.chosen ? 'done' : ''}">
+      <header><span class="issue-tag">${i.general ? "Today's headline" : 'In your village'}</span><h4>${esc(i.title)}</h4><p>${esc(i.setup)}</p></header>
+      <div class="pitches">${pitch('preston', i.preston)}${pitch('dolores', i.dolores)}</div>
+    </article>`;
+  }
+
+  function plotCard(p, cost) {
+    const open = !p.building || state.plotOpen === p.slot;
+    const options = open ? `<div class="options">${p.options.filter((o) => o.key !== p.key).map((o) => `
+      <div class="option tier-${o.tier}">
+        <div class="option-head"><span class="tier-badge">${TIER_LABEL[o.tier]}</span><b>${esc(o.name)}</b></div>
+        <div class="option-pitch">${o.pitch.who === 'preston' ? Coin.preston(28) : Coin.dolores(28)}<q>${esc(o.pitch.line)}</q></div>
+        ${clueChips(o.clues)}
+        <button type="button" class="btn small ${o.tier === 'good' ? 'primary' : 'quiet'}" data-build="${esc(p.slot)}" data-key="${esc(o.key)}">Build it (${money(cost, { whole: true })})</button>
+      </div>`).join('')}</div>` : '';
+    return `<article class="plot">
+      <div class="plot-head"><h4>${esc(p.label)}</h4>${p.building
+        ? `<span><span class="tier-badge tier-${p.building.tier}">${TIER_LABEL[p.building.tier]}</span> <b>${esc(p.building.name)}</b></span>`
+        : '<span class="muted">Empty lot</span>'}</div>
+      ${p.building && !open ? `<div class="plot-now">${clueChips(p.options.find((o) => o.key === p.key).clues)}<button type="button" class="linkish" data-replace="${esc(p.slot)}">Replace it</button></div>` : ''}
+      ${p.building && open ? '<button type="button" class="linkish" data-replace="">Keep it</button>' : ''}
+      ${options}
+    </article>`;
+  }
+
+  // Back: the village, today's agenda, the plots, then the payroll and records.
   function backMarkup() {
     const me = state.me;
-    const { user, history, day } = me;
+    const { user, history, day, town } = me;
     const given = me.donations_by_charity.filter((c) => c.amount > 0);
-    const q = user.quarter_donated || 0;
+    const q = Math.max(0, user.quarter_donated || 0);
     const badges = user.badges, next = badges.next;
     const have = badges.earned.length ? badges.earned[badges.earned.length - 1] : null;
     const prevAt = have ? have.at : 0;
     const progress = next ? Math.min(100, ((user.total_donated - prevAt) / (next.at - prevAt)) * 100) : 100;
+    const pending = pendingIssues();
     return `
       <div class="side-head">
-        <h2>Lobbyist army</h2>
+        <h2>Lobbyton</h2>
         <span class="muted">Lobbyfest in <b data-fest="${esc(day.quarter_ends_at)}">${esc(untilLong(day.quarter_ends_at))}</b>.</span>
       </div>
-      <section class="records">
-        <div class="lobby-row"><b>${esc(lobbyN(q))}</b>${q > 0 ? lobbyists(q) : '<span class="muted">Nobody on the payroll yet this quarter.</span>'}</div>
-        <p class="fest">On ${esc(festDate(day.quarter_ends_at))} every lobbyist in the game marches off to Lobbyfest. They vote, the real money is split between the charities by headcount, and everyone's payroll resets to zero. Your rank stays.</p>
+      <div class="lobby-row"><b>${esc(lobbyN(q))}</b>${q > 0 ? lobbyists(q) : '<span class="muted">Nobody lives here yet. Collect a profit and the tax hires your first resident.</span>'}</div>
 
+      <section class="meters">
+        <div class="meter money"><div class="meter-top"><span>Village income</span><b class="${town.income >= 0 ? 'up' : 'down'}">${town.income >= 0 ? '+' : '−'}${money(Math.abs(town.income))}/day</b></div><div class="meter-note">added to tomorrow's allowance</div></div>
+        <div class="meter money"><div class="meter-top"><span>Recruiter's rate</span><b>${money(town.hire_cost)}</b></div><div class="meter-note">tax per lobbyist. Happier is cheaper.</div></div>
+        ${meter('Happiness', town.happiness)}
+        ${meter('Health', town.health, { warnBelow: town.quit_below, note: town.health < town.quit_below ? `<b class="down">They're quitting: about ${Math.round(town.quit_rate * 100)}% a night.</b>` : `Below ${town.quit_below}, they start quitting.` })}
+      </section>
+      ${reportLine(town.report)}
+
+      <section class="agenda" id="agenda">
+        <h3>Today's agenda ${pending ? `<span class="count">${pending}</span>` : '<span class="muted">· all decided</span>'}</h3>
+        ${town.issues.map(issueCard).join('')}
+        ${pending ? '<p class="muted small">Undecided issues expire at midnight, and being ignored is bad for morale.</p>' : ''}
+      </section>
+
+      <section class="plots">
+        <h3>The village</h3>
+        ${town.plots.map((p) => plotCard(p, town.build_cost)).join('')}
+      </section>
+
+      <section class="records">
+        <h3>Payroll</h3>
+        <p class="fest">On ${esc(festDate(day.quarter_ends_at))} every lobbyist in the game marches off to Lobbyfest. They vote, the real money is split between the charities by headcount, and every village empties for the next quarter. Your buildings and your rank stay.</p>
         ${given.length ? `<ul class="given">${given.map((c, i) => `
           <li><span><span class="sw" style="background:${CHARITY_COLORS[i % 6]}"></span>${esc(c.name)}</span><span>${lobbyists(c.amount, { mini: true, max: 12 })} <b>${esc(lobbyN(c.amount))}</b></span></li>`).join('')}</ul>` : ''}
-
-        <h2>Career</h2>
-        <div class="rank"><b>${have ? esc(have.name) : 'No rank yet'}</b><span class="muted">${have ? `is your rank, for ${esc(lobby(user.total_donated))} hired all time.` : 'Collect a profit and the tax hires your first one.'}</span></div>
+        <div class="rank"><b>${have ? esc(have.name) : 'No rank yet'}</b><span class="muted">${have ? `is your rank, for ${esc(lobby(user.total_donated))} hired all time.` : 'Ranks count every lobbyist you ever hire.'}</span></div>
         <div class="rank-bar"><i style="--w:${progress.toFixed(1)}%"></i></div>
         <div class="rank-line">${next ? `${esc(next.name)} at ${next.at} lobbyists. ${lobbyN(next.at - user.total_donated)} to go.` : 'There is nothing above this.'}</div>
-
-        <h2>Records</h2>
-        ${history.length ? `<ul class="history">${history.map((h) => `
-          <li>
+        <details class="records-more"><summary>Records</summary>
+        ${history.length ? `<ul class="history">${history.map((h) => {
+          const hired = h.lobbyists != null ? h.lobbyists : h.tax;
+          return `<li>
             <span><span class="tier">${esc(h.tier)}</span> &nbsp;${esc(h.symbol)} ${money(h.invested)} → ${money(h.proceeds)} <span class="muted">${h.collected ? 'collected' : h.proceeds > 0 ? 'sold early' : 'buried'}</span></span>
-            <span class="to">${h.tax > 0 ? `${esc(lobby(h.tax))} for ${esc(h.charity_name)}` : shortDate(h.closed_at)}</span>
-          </li>`).join('')}</ul>` : `<p class="muted">Nothing collected yet. The records start when you do.</p>`}
-        <div class="row-actions"><button class="btn quiet small" id="btn-flip-back">Flip it back</button><a class="btn quiet small" href="#trickle">The whole lobby</a></div>
+            <span class="to">${hired > 0 ? `${esc(lobby(hired))} for ${esc(h.charity_name)}` : shortDate(h.closed_at)}</span>
+          </li>`;
+        }).join('')}</ul>` : `<p class="muted">Nothing collected yet. The records start when you do.</p>`}
+        </details>
+        <div class="row-actions"><button class="btn quiet small" id="btn-flip-back">Flip to portfolio</button><a class="btn quiet small" href="#trickle">The whole lobby</a></div>
       </section>`;
   }
 
+  // After any village change, redraw the coin, the caption and the panel in place.
+  function refreshVillage(town, user) {
+    state.me.town = town;
+    if (user) state.me.user = { ...state.me.user, ...user };
+    paintCoin();
+    const cap = $('.coin-caption');
+    if (cap) { cap.innerHTML = captionMarkup(); $('#btn-flip').onclick = () => flip(); }
+    const y = window.scrollY;
+    renderUnder();
+    window.scrollTo({ top: y });
+  }
+
+  const DECIDED = {
+    preston: ['Preston is delighted. He is already drafting the press release.', 'Preston gives you a thumbs-up and a business card. You already have six.', 'Preston nods. Somewhere, a number went up.'],
+    dolores: ['Dolores nods once. From her, that is a standing ovation.', 'Dolores writes something on her clipboard. It might be your name. It might be "fine."', 'Dolores says "huh." It is the warmest thing she has said all week.'],
+  };
+
   function wireBack() {
     const b = $('#btn-flip-back'); if (b) b.onclick = () => flip(false);
+    $$('[data-decide]').forEach((btn) => {
+      btn.onclick = async () => {
+        if (state.busy) return;
+        state.busy = true; btn.disabled = true;
+        try {
+          const r = await API.post('/town/decide', { issue_id: btn.dataset.decide, side: btn.dataset.side });
+          const lines = DECIDED[btn.dataset.side];
+          toast(lines[Math.floor(Math.random() * lines.length)], 3200);
+          refreshVillage(r.town, r.user);
+        } catch (e) { toast(e.message, 3600); btn.disabled = false; }
+        finally { state.busy = false; }
+      };
+    });
+    $$('[data-replace]').forEach((btn) => {
+      btn.onclick = () => { state.plotOpen = btn.dataset.replace || null; renderUnder(); };
+    });
+    $$('[data-build]').forEach((btn) => {
+      btn.onclick = async () => {
+        if (state.busy) return;
+        state.busy = true; btn.disabled = true;
+        try {
+          const r = await API.post('/town/build', { slot: btn.dataset.build, key: btn.dataset.key });
+          state.plotOpen = null;
+          const b = r.town.plots.find((p) => p.slot === btn.dataset.build).building;
+          toast(b.tier === 'bad' ? `${b.name} is up. Preston is already invoicing.` : b.tier === 'good' ? `${b.name} is up. Dolores almost smiled.` : `${b.name} is up. Nobody is thrilled. Nobody is suing.`, 3600);
+          refreshVillage(r.town, r.user);
+        } catch (e) { toast(e.message, 3600); btn.disabled = false; }
+        finally { state.busy = false; }
+      };
+    });
   }
 
   // --- collect / sell sheet ----------------------------------------------------------------
@@ -649,6 +793,8 @@
     const win = s.profit > 0, bust = p.busted, mat = p.matured;
     const tierClass = bust || s.profit < 0 ? 'loss' : win ? 'win' : '';
     const rate = Math.round(state.me.rules.tax_rate * 100);
+    const rateNow = state.me.town ? state.me.town.hire_cost : 1;
+    const hired = win ? round2(s.tax / rateNow) : 0;
     const pre = defaultCharityId();
     const charityOptions = state.charities.map((c) => `<option value="${c.id}" ${c.id === pre ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
     const verb = bust ? 'Bury it' : mat ? 'Collect' : 'Sell early';
@@ -661,16 +807,17 @@
         <li><span>${esc(p.name)} ${mat ? 'moved' : 'has moved'} ${pct(p.real_pct)}${mat ? ` by the time it matured, ${ago(p.matured_at)}` : ''}</span><b class="${dir(p.real_pct)}">${pct(p.real_pct)}</b></li>
         <li><span>${mat ? `Multiplier at maturity` : `Multiplier right now`}${mat ? '' : `, climbing to ${mult(p.multiplier)} in ${left(p.matures_at)}`}</span><b>${mult(p.multiplier_now)}</b></li>
         <li><span>${mat ? 'Frozen at' : 'Worth right now'}</span><b>${money(p.value)} <span class="${dir(p.swing_pct)}" style="font-size:14px">${pct(p.swing_pct, 0)}</span></b></li>
-        ${win ? `<li><span>Profit</span><b class="up">${money(s.profit)}</b></li><li><span>Tax, ${rate}% of profit, hires ${esc(lobby(s.tax))}</span><b>${money(s.tax)}</b></li>` : ''}
+        ${win ? `<li><span>Profit</span><b class="up">${money(s.profit)}</b></li><li><span>Tax, ${rate}% of profit, hires ${esc(lobby(hired))}</span><b>${money(s.tax)}</b></li>` : ''}
         ${!win && s.profit < 0 ? `<li><span>Loss. Not taxed. That would be cruel.</span><b class="down">${money(s.profit)}</b></li>` : ''}
         <li class="total"><span>Back onto the coin as bills</span><b>${money(s.net)}</b></li>
       </ul>
       ${win ? `<div class="hire-row">
         <div class="hire-side"><span class="muted">${money(s.tax)} of tax</span>${billsRow(s.tax, { max: 12 })}</div>
         <span class="hire-arrow" aria-hidden="true">→</span>
-        <div class="hire-side"><span class="muted">${esc(lobby(s.tax))}</span>${lobbyists(s.tax, { max: 12 })}</div>
-      </div>` : ''}
-      ${win || (!mat && !bust) ? `<label class="field charity-pick"><span>${win ? `${esc(lobby(s.tax))} for` : 'If it lands as a profit when you tap, the tax hires lobbyists for'}</span><select id="sell-charity">${charityOptions}</select></label>` : ''}
+        <div class="hire-side"><span class="muted">${esc(lobby(hired))}</span>${lobbyists(hired, { max: 12 })}</div>
+      </div>
+      <p class="muted" style="font-size:13px;margin-top:-6px">The recruiter's rate is ${money(rateNow)} per lobbyist today${rateNow < 1 ? ', because your village is happy' : rateNow > 1 ? ', because your village is miserable and word gets around' : ''}.</p>` : ''}
+      ${win || (!mat && !bust) ? `<label class="field charity-pick"><span>${win ? `${esc(lobby(hired))} for` : 'If it lands as a profit when you tap, the tax hires lobbyists for'}</span><select id="sell-charity">${charityOptions}</select></label>` : ''}
       ${!mat && !bust ? `<p class="muted" style="font-size:13px">These numbers are a snapshot; the sale happens at whatever the market says when you tap. Or wait: in ${left(p.matures_at)} it matures at ${mult(p.multiplier)} and freezes at whatever ${esc(p.name)} is doing then.</p>` : ''}
       ${mat && !bust ? `<div class="ride-box">
         <b>Or let it ride.</b>
@@ -716,9 +863,10 @@
       await loadMe();
       const how = rc.collected ? 'Collected' : rc.busted ? 'Buried' : 'Sold early';
       if (rc.tax > 0) {
-        toast(`${rc.tier}. ${how}: ${money(rc.tax)} of tax hired ${lobby(rc.tax)} for ${rc.charity.name}.`, 4200);
+        const hiredNow = rc.lobbyists != null ? rc.lobbyists : rc.tax;
+        toast(`${rc.tier}. ${how}: ${money(rc.tax)} of tax hired ${lobby(hiredNow)} for ${rc.charity.name}. They're moving into Lobbyton.`, 4200);
         flip(true);
-        await hireAnimation(rc.tax);
+        await hireAnimation(hiredNow);
         state.flipTimer = setTimeout(() => { if (state.flipped) flip(false); }, 3200);
       } else {
         toast(rc.busted ? `${rc.tier}. ${p.symbol} is in the ground.` : `${rc.tier}. ${how} for ${money(rc.net)}, back on the coin.`);
@@ -908,7 +1056,11 @@
         <p>Tap a wedge. A matured one collects in full: a profit is taxed ${Math.round(rules.tax_rate * 100)}%, a loss isn't, and the rest turns back into bills on the coin. Or let it ride: the whole frozen value goes back on the same stock at today's price for another ${rules.hold_hours} hours, untaxed, with the multiplier starting over. Nobody gets hired, and it can still go to zero. A live wedge can be sold early at the current price and the current, smaller multiplier, if you'd rather not find out.</p>
 
         <h2>Lobbyists</h2>
-        <p>Every dollar of tax hires one lobbyist for a charity you pick. They are not dollars. You can hire a fraction of a lobbyist; it looks about how you'd expect. Flip the coin to see your payroll, your rank, and every cash-out on record.</p>
+        <p>Your tax hires lobbyists for a charity you pick, at about a dollar a head. They are not dollars. You can hire a fraction of a lobbyist; it looks about how you'd expect.</p>
+
+        <h2>Lobbyton</h2>
+        <p>Flip the coin and you'll find where your lobbyists live. You own the village. Each lot holds one building, and every building is a choice: extractive ones (tenements, a casino) pay into your daily allowance and wear your lobbyists down; decent ones (a co-op, a clinic) cost you upkeep and keep them well. Happiness sets the recruiter's rate: happy lobbyists make hiring cheaper. Health keeps them around: below 40, they start quitting overnight, and quitters don't go to Lobbyfest.</p>
+        <p>Every day Preston Yield, your value extraction partner, and Dolores Pike, lobbyist for your lobbyists, bring you one or two issues: one everyone gets, one from your own village. Each pitch shows which way it will push your allowance, happiness, hiring cost, and health, but not by how much. Ignore them and they expire at midnight, which nobody enjoys.</p>
 
         <h2>Lobbyfest</h2>
         <p>At midnight Central on the last day of every quarter, every lobbyist in the game marches off to Lobbyfest. The ads on this site earn real dollars, and that's when all of it is split between the charities on the Lobby page by headcount: a charity with a third of the lobbyists gets a third of the money. Then every payroll resets to zero and the next quarter starts. Your fake tax is a vote on where the real money goes. Nothing you do here costs you anything. That's the whole point.</p>

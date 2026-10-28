@@ -70,10 +70,26 @@ window.Explainer = (function () {
           ${suit(141, 34, '', 0.9)}
           <path d="M196 70 L216 70" class="x-arrow"/><path d="M210 64 L218 70 L210 76" class="x-arrow"/>
           ${suit(224, 52, 'pop p1')}${suit(246, 52, 'pop p2')}
-          <text x="140" y="140" text-anchor="middle" class="x-small">$1 of tax = 1 lobbyist</text>
+          <text x="140" y="140" text-anchor="middle" class="x-small">~$1 of tax = 1 lobbyist</text>
         </svg>`,
-        body: `Cash out a profit and ${pct}% of it is taxed. Not to the government, silly. To your <b>Local Lobbyist Recruiter</b>, who converts every dollar into one (1) lobbyist for the charity of your choice. Losses are untaxed. We're not monsters. We're a holding company.`,
+        body: `Cash out a profit and ${pct}% of it is taxed. Not to the government, silly. To your <b>Local Lobbyist Recruiter</b>, who converts it into lobbyists for the charity of your choice, at about a dollar a head. Happy lobbyists refer their friends, so the rate improves. Losses are untaxed. We're not monsters. We're a holding company.`,
         fine: 'Fractional lobbyists are hired fractionally. Please do not ask which fraction.',
+      },
+      {
+        title: 'House your lobbyists',
+        art: `<svg viewBox="0 0 280 150" class="x-art">
+          <rect x="0" y="104" width="280" height="46" fill="#9BC48F"/>
+          <rect x="40" y="44" width="26" height="60" fill="#9FB6C2" stroke="#4F6874"/><path d="M40 44 L53 34 L66 44 Z" fill="#D4A72C"/>
+          <text x="53" y="122" text-anchor="middle" class="x-small">extract</text>
+          <rect x="118" y="70" width="44" height="34" fill="#E7C48F" stroke="#8A6A3A"/><path d="M114 70 L140 52 L166 70 Z" fill="#B0412E"/>
+          <text x="140" y="122" text-anchor="middle" class="x-small">compromise</text>
+          <rect x="206" y="66" width="44" height="38" fill="#fff" stroke="#8EA3AC"/><rect x="224" y="72" width="8" height="22" fill="#2E9C72"/><rect x="217" y="79" width="22" height="8" fill="#2E9C72"/>
+          <text x="228" y="122" text-anchor="middle" class="x-small">care</text>
+          ${suit(92, 64, 'pop p1', 0.8)}${suit(176, 64, 'pop p2', 0.8)}
+          <text x="140" y="144" text-anchor="middle" class="x-small">flip the coin: tails is Lobbyton</text>
+        </svg>`,
+        body: 'Your lobbyists need somewhere to live, and you own all of it. Flip the coin to visit <b>Lobbyton</b>. Build tenements and casinos and they pay into your allowance. Build co-ops and clinics and they cost you, but happy lobbyists are cheaper to hire and healthy ones don\'t quit. Every day your advisor <b>Preston</b> and their advocate <b>Dolores</b> each make you an offer. You choose.',
+        fine: 'Lobbyton is a company town. Company towns are historically very fun for the company.',
       },
       {
         title: 'Reinvest, or let it ride',

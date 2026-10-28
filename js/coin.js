@@ -170,5 +170,134 @@ window.Coin = (function () {
     </svg>`;
   }
 
-  return { front, back };
+  // --- Tails: the village --------------------------------------------------------
+
+  // The two advocates, as small portraits. size is the rendered width in px.
+  function preston(size = 40) {
+    return `<svg class="advocate preston" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="20" fill="#E7EEF1"/>
+      <path d="M6 40 C6 30 12 27 20 27 C28 27 34 30 34 40 Z" fill="#1B2F4A"/>
+      <path d="M17 27 L20 38 L23 27 Z" fill="#fff"/><path d="M19 28 L21 28 L21.6 35 L20 37 L18.4 35 Z" fill="#D4A72C"/>
+      <circle cx="20" cy="17" r="8" fill="#E9C6A1"/>
+      <path d="M11.5 15 C12 8 19 7 25 9 C28 10 29 13 28.5 15 C26 12 21 11.5 17 13 C15 13.5 13 14.5 11.5 15 Z" fill="#2A2018"/>
+      <path d="M16.5 20.5 Q20 23.5 23.5 20.5" stroke="#7A3B2A" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+      <circle cx="17" cy="17" r="0.9" fill="#1B1B1B"/><circle cx="23" cy="17" r="0.9" fill="#1B1B1B"/>
+    </svg>`;
+  }
+  function dolores(size = 40) {
+    return `<svg class="advocate dolores" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="20" fill="#E7EEF1"/>
+      <path d="M6 40 C6 30 12 27 20 27 C28 27 34 30 34 40 Z" fill="#2F7A6B"/>
+      <rect x="23" y="29" width="9" height="11" rx="1" fill="#C9A46A"/><rect x="24.5" y="31" width="6" height="7" fill="#fff"/>
+      <circle cx="20" cy="17" r="8" fill="#C99A72"/>
+      <circle cx="20" cy="7.5" r="4" fill="#8E8A86"/>
+      <path d="M11.8 17 C11.5 11 15 9 20 9 C25 9 28.5 11 28.2 17 C27 13.5 24 12.5 20 12.5 C16 12.5 13 13.5 11.8 17 Z" fill="#8E8A86"/>
+      <circle cx="16.8" cy="17.5" r="2.3" fill="none" stroke="#1B1B1B" stroke-width="1"/><circle cx="23.2" cy="17.5" r="2.3" fill="none" stroke="#1B1B1B" stroke-width="1"/>
+      <path d="M19.1 17.5 L20.9 17.5" stroke="#1B1B1B" stroke-width="1"/>
+      <path d="M17.5 22 L22.5 22" stroke="#6A3B2A" stroke-width="1.2" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  // Buildings are drawn centred on x with their base on y.
+  const BUILDINGS = {
+    empty: (x, y) => `
+      <rect x="${x - 34}" y="${y - 30}" width="68" height="30" class="b-lot"/>
+      <line x1="${x}" y1="${y - 30}" x2="${x}" y2="${y - 52}" class="b-post"/>
+      <rect x="${x - 18}" y="${y - 66}" width="36" height="16" rx="2" class="b-sign"/>
+      <text x="${x}" y="${y - 55}" text-anchor="middle" class="b-sign-text">EMPTY LOT</text>`,
+    tenement: (x, y) => `
+      <g transform="rotate(-2 ${x} ${y})">
+        <rect x="${x - 36}" y="${y - 44}" width="34" height="44" class="b-tene"/>
+        <rect x="${x - 2}" y="${y - 58}" width="36" height="58" class="b-tene dark"/>
+        <rect x="${x - 30}" y="${y - 70}" width="26" height="26" class="b-tene"/>
+        ${[0, 1, 2].map((r) => [0, 1].map((c) => `<rect x="${x + 4 + c * 14}" y="${y - 52 + r * 16}" width="8" height="8" class="b-win ${(r + c) % 3 === 0 ? 'broken' : 'dim'}"/>`).join('')).join('')}
+        ${[0, 1].map((r) => [0, 1].map((c) => `<rect x="${x - 30 + c * 14}" y="${y - 38 + r * 16}" width="8" height="8" class="b-win dim"/>`).join('')).join('')}
+        <path d="M${x - 26} ${y - 46} Q${x - 10} ${y - 40} ${x + 6} ${y - 46}" class="b-line"/>
+        <rect x="${x - 20}" y="${y - 44}" width="5" height="7" fill="#C04A35"/><rect x="${x - 10}" y="${y - 43}" width="5" height="7" fill="#E7C24A"/>
+      </g>`,
+    pinnacle: (x, y) => `
+      <line x1="${x + 26}" y1="${y}" x2="${x + 26}" y2="${y - 112}" class="b-crane"/><line x1="${x + 26}" y1="${y - 112}" x2="${x - 30}" y2="${y - 112}" class="b-crane"/>
+      <line x1="${x - 18}" y1="${y - 112}" x2="${x - 18}" y2="${y - 100}" class="b-crane thin"/>
+      <rect x="${x - 15}" y="${y - 104}" width="30" height="104" class="b-tower"/>
+      <path d="M${x - 15} ${y - 104} L${x} ${y - 118} L${x + 15} ${y - 104} Z" class="b-gold"/>
+      ${Array.from({ length: 8 }, (_, r) => [0, 1, 2].map((c) => `<rect x="${x - 11 + c * 8}" y="${y - 96 + r * 11}" width="5" height="6" class="b-win ${(r * 3 + c) % 4 === 0 ? 'lit' : 'dim'}"/>`).join('')).join('')}
+      <rect x="${x - 40}" y="${y - 70}" width="25" height="12" class="b-banner"/><text x="${x - 27.5}" y="${y - 61}" text-anchor="middle" class="b-banner-text">LUXURY</text>`,
+    coop: (x, y) => `
+      <rect x="${x - 36}" y="${y - 30}" width="32" height="30" class="b-house a"/><path d="M${x - 40} ${y - 30} L${x - 20} ${y - 48} L${x} ${y - 30} Z" class="b-roof"/>
+      <rect x="${x + 2}" y="${y - 34}" width="32" height="34" class="b-house b"/><path d="M${x - 2} ${y - 34} L${x + 18} ${y - 52} L${x + 38} ${y - 34} Z" class="b-roof"/>
+      <rect x="${x - 24}" y="${y - 22}" width="8" height="8" class="b-win lit"/><rect x="${x + 14}" y="${y - 26}" width="8" height="8" class="b-win lit"/>
+      <rect x="${x - 4}" y="${y - 12}" width="8" height="12" class="b-door"/>
+      <circle cx="${x + 40}" cy="${y - 18}" r="9" class="b-tree"/><rect x="${x + 39}" y="${y - 10}" width="2" height="10" class="b-trunk"/>
+      <text x="${x - 20}" y="${y - 34}" text-anchor="middle" class="b-heart">♥</text>`,
+    casino: (x, y) => `
+      <rect x="${x - 38}" y="${y - 44}" width="76" height="44" class="b-casino"/>
+      <rect x="${x - 38}" y="${y - 50}" width="76" height="8" class="b-gold"/>
+      ${Array.from({ length: 10 }, (_, i) => `<circle cx="${x - 34 + i * 7.5}" cy="${y - 46}" r="1.6" class="b-bulb" style="animation-delay:${i * 0.12}s"/>`).join('')}
+      <text x="${x}" y="${y - 54}" text-anchor="middle" class="b-neon">$ $ $</text>
+      <rect x="${x - 10}" y="${y - 22}" width="20" height="22" class="b-door gold"/>
+      <text x="${x}" y="${y - 28}" text-anchor="middle" class="b-casino-text">LUCKY LOBBY</text>`,
+    store: (x, y) => `
+      <rect x="${x - 34}" y="${y - 40}" width="68" height="40" class="b-store"/>
+      ${Array.from({ length: 6 }, (_, i) => `<rect x="${x - 36 + i * 12}" y="${y - 40}" width="12" height="10" class="${i % 2 ? 'b-awn-w' : 'b-awn-r'}"/>`).join('')}
+      <rect x="${x - 30}" y="${y - 56}" width="60" height="14" class="b-sign"/>
+      <text x="${x}" y="${y - 46}" text-anchor="middle" class="b-sign-text">COMPANY STORE</text>
+      <rect x="${x - 8}" y="${y - 22}" width="16" height="22" class="b-door"/>
+      <rect x="${x - 28}" y="${y - 24}" width="14" height="12" class="b-win lit"/><rect x="${x + 14}" y="${y - 24}" width="14" height="12" class="b-win lit"/>`,
+    clinic: (x, y) => `
+      <rect x="${x - 32}" y="${y - 44}" width="64" height="44" class="b-clinic"/>
+      <rect x="${x - 6}" y="${y - 40}" width="12" height="24" class="b-cross"/><rect x="${x - 12}" y="${y - 34}" width="24" height="12" class="b-cross"/>
+      <rect x="${x - 8}" y="${y - 14}" width="16" height="14" class="b-door"/>
+      <rect x="${x - 26}" y="${y - 32}" width="12" height="10" class="b-win lit"/><rect x="${x + 14}" y="${y - 32}" width="12" height="10" class="b-win lit"/>`,
+  };
+
+  // town: the /me town view. pop: this quarter's lobbyists. pending: issues awaiting a decision.
+  function village({ town, pop, pending }) {
+    const hp = town.happiness / 100, hl = town.health / 100;
+    const sky0 = mix('#8E9AA0', '#7FC3DD', hp), sky1 = mix('#C7CED1', '#E6F4F8', hp);
+    const ground = mix('#9C8F6E', '#7DB27A', hl), ground2 = mix('#857A5C', '#5E9A5E', hl);
+    const plots = Object.fromEntries(town.plots.map((p) => [p.slot, p.key]));
+    const n = Math.min(14, Math.ceil(pop - 1e-9));
+    const frac = round2(pop - Math.floor(pop));
+    const sick = town.health < town.quit_below;
+    const sad = town.happiness < 30;
+    let people = '';
+    for (let i = 0; i < n; i++) {
+      const x = 62 + ((i * 47) % 186) + (i % 3) * 3;
+      const y = 218 + ((i * 29) % 30);
+      const down = sick && i % 3 === 1;
+      const clip = i === n - 1 && frac > 0 ? ` style="clip-path: inset(0 0 ${Math.round((1 - frac) * 100)}% 0)"` : '';
+      people += down
+        ? `<g class="v-person down" transform="translate(${x} ${y + 12}) rotate(-90) scale(0.75)"${clip}>${LOBBYIST_PATHS}</g>`
+        : `<g class="v-walk" style="animation-delay:${(i % 5) * 0.6}s"><g class="v-person" transform="translate(${x} ${y}) scale(0.75)"${clip}>${LOBBYIST_PATHS}${sad && i % 4 === 0 ? '<rect x="6" y="-14" width="14" height="10" class="v-protest"/><line x1="13" y1="-4" x2="13" y2="12" class="v-protest-stick"/>' : ''}</g></g>`;
+    }
+    const weather = hp > 0.55
+      ? `<circle cx="252" cy="70" r="13" class="v-sun"/>`
+      : `<g class="v-cloud"><ellipse cx="238" cy="72" rx="20" ry="9"/><ellipse cx="252" cy="66" rx="13" ry="9"/></g>${hp < 0.3 ? '<g class="v-cloud dark"><ellipse cx="96" cy="84" rx="22" ry="9"/><ellipse cx="110" cy="78" rx="12" ry="8"/></g>' : ''}`;
+    const advocates = pending > 0 ? `
+      <g class="v-advocate a1" transform="translate(98 262)">${preston(36).replace(/<svg[^>]*>/, '').replace('</svg>', '')}<g transform="translate(26 -10)"><rect width="16" height="14" rx="3" class="v-bubble"/><text x="8" y="11" text-anchor="middle" class="v-bubble-text">!</text></g></g>
+      <g class="v-advocate a2" transform="translate(186 262)">${dolores(36).replace(/<svg[^>]*>/, '').replace('</svg>', '')}<g transform="translate(26 -10)"><rect width="16" height="14" rx="3" class="v-bubble"/><text x="8" y="11" text-anchor="middle" class="v-bubble-text">!</text></g></g>` : '';
+    return `<svg class="coin-svg village" viewBox="0 0 320 320" aria-label="Your lobbyist village">
+      ${body(true)}
+      <defs>
+        <clipPath id="v-clip"><circle cx="${CX}" cy="${CY}" r="${R + 1}"/></clipPath>
+        <linearGradient id="v-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky0}"/><stop offset="1" stop-color="${sky1}"/></linearGradient>
+      </defs>
+      <g clip-path="url(#v-clip)">
+        <rect x="0" y="0" width="320" height="200" fill="url(#v-sky)"/>
+        ${weather}
+        <rect x="0" y="196" width="320" height="130" fill="${ground}"/>
+        <path d="M0 214 Q160 200 320 214 L320 222 Q160 208 0 222 Z" fill="${ground2}" opacity=".5"/>
+        <text x="160" y="46" text-anchor="middle" class="v-title">LOBBYTON</text>
+        <text x="160" y="62" text-anchor="middle" class="v-pop">pop. ${esc(pop % 1 ? pop.toFixed(2).replace(/0$/, '') : pop)}</text>
+        ${BUILDINGS[plots.housing || 'empty'](104, 200)}
+        ${BUILDINGS[plots.square || 'empty'](220, 200)}
+        ${people}
+        ${advocates}
+      </g>
+    </svg>`;
+  }
+
+  const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+  return { front, back, village, preston, dolores };
 })();
