@@ -132,8 +132,11 @@
     window.scrollTo({ top: 0 });
   }
 
+  const UNCONFIGURED = !API.demo && /YOUR-HEROKU-APP/.test((window.TRICKLE_CONFIG || {}).API_BASE || '');
+
   async function route() {
     const hash = (location.hash || '#today').slice(1);
+    if (UNCONFIGURED) { showScreen('welcome'); renderUnconfigured(); return; }
     if (!API.token()) { showScreen('welcome'); renderWelcome(); return; }
     const name = ['today', 'trickle', 'leaders', 'how'].includes(hash) ? hash : 'today';
     const firstLoad = !state.me;
@@ -152,6 +155,16 @@
   }
 
   // --- welcome ----------------------------------------------------------------------
+
+  function renderUnconfigured() {
+    setSignedIn(false);
+    $('#screen-welcome').innerHTML = `
+      <div class="welcome">
+        <h1 class="hero">Not connected yet.</h1>
+        <p>This copy of Trickle Down doesn't know where its backend lives. In <code>config.js</code>, set <code>API_BASE</code> to your Heroku app's URL (see DEPLOY.md), then reload.</p>
+        <p class="muted">Want to see the game without a backend? <a href="?demo">Open the demo</a>: invented prices, made-up charities, nothing saved.</p>
+      </div>`;
+  }
 
   function renderWelcome() {
     setSignedIn(false);
@@ -191,9 +204,7 @@
       renderToday();
       if (!Explainer.seen('main') && !state.oriented) {
         state.oriented = true;
-        setTimeout(() => Explainer.open({ deck: 'main', rules: me.rules, onClose: () => maybeTownIntro(600) }), me.allowance && !REDUCED ? 1700 : 300);
-      } else {
-        maybeTownIntro(me.allowance && !REDUCED ? 2200 : 400);
+        setTimeout(() => Explainer.open({ deck: 'main', rules: me.rules }), me.allowance && !REDUCED ? 1700 : 300);
       }
       if (me.allowance) {
         tossCoin();
@@ -256,7 +267,7 @@
     setTimeout(() => {
       const me = state.me;
       if (!me || !me.town || !me.town.unlocked || Explainer.seen('town') || Explainer.isOpen()) return;
-      if (state.tab !== 'today') return;
+      if (state.tab !== 'today' || !state.flipped || $('#dlg-hire').open) return;
       Explainer.open({ deck: 'town', onDone: () => { if (!state.flipped) flip(true); setTimeout(() => { const a = $('#agenda'); if (a) a.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }, 500); } });
     }, delay);
   }
@@ -331,9 +342,10 @@
         ? `<div class="side-label"><b>Tails.</b> Under construction. <span class="muted">Heads is your portfolio.</span></div><button class="btn quiet small" id="btn-flip">Flip to portfolio</button>`
         : `<div class="side-label"><b>Heads.</b> Your portfolio. <span class="muted">Tails is a secret.</span></div><button class="btn quiet small" id="btn-flip">Flip the coin</button>`;
     }
+    const unmet = !Explainer.seen('town');
     return state.flipped
       ? `<div class="side-label"><b>Tails.</b> TrickleTown, where your lobbyists live. <span class="muted">Heads is your portfolio.</span></div><button class="btn quiet small" id="btn-flip">Flip to portfolio</button>`
-      : `<div class="side-label"><b>Heads.</b> Your portfolio. <span class="muted">Tails is your village.</span></div><button class="btn small ${n ? 'primary' : 'quiet'}" id="btn-flip">${n ? `Village: ${n} issue${n === 1 ? '' : 's'}` : 'Flip to village'}</button>`;
+      : `<div class="side-label"><b>Heads.</b> Your portfolio. <span class="muted">${unmet ? 'Your lobbyists are waiting on tails.' : 'Tails is your village.'}</span></div><button class="btn small ${n || unmet ? 'primary' : 'quiet'}" id="btn-flip">${unmet ? 'Meet your lobbyists' : n ? `Village: ${n} issue${n === 1 ? '' : 's'}` : 'Flip to village'}</button>`;
   }
 
   function flip(to) {
@@ -345,6 +357,8 @@
     if (cap) { cap.innerHTML = captionMarkup(); $('#btn-flip').onclick = () => flip(); }
     hideTip();
     renderUnder();
+    // The first visit to an open village gets the tour, after the flip lands.
+    if (state.flipped && !state.ceremony && state.me && state.me.town && state.me.town.unlocked && !Explainer.seen('town')) maybeTownIntro(REDUCED ? 100 : 750);
   }
 
   // The day's first load: the coin is tossed in and lands.
@@ -1222,11 +1236,17 @@
       const how = rc.collected ? 'Collected' : rc.busted ? 'Buried' : 'Sold early';
       if (rc.tax > 0) {
         const hiredNow = rc.lobbyists != null ? rc.lobbyists : rc.tax;
-        toast(`${rc.tier}. ${how}: ${money(rc.tax)} of tax hired ${lobby(hiredNow)} for ${rc.charity.name}. They're moving into TrickleTown.`, 4200);
-        flip(true);
-        await hireAnimation(hiredNow);
-        maybeTownIntro(900);
-        state.flipTimer = setTimeout(() => { if (state.flipped && !$('#dlg-advisors').open && !Explainer.isOpen()) flip(false); }, 3200);
+        const t = state.me.town;
+        if (t && t.unlocked && !Explainer.seen('town')) {
+          // The hire that opened the town: a ceremony, then a clear "flip the
+          // coin" before the tour, so nobody mistakes the tour for orientation.
+          openHireCeremony(rc, hiredNow, how);
+        } else {
+          toast(`${rc.tier}. ${how}: ${money(rc.tax)} of tax hired ${lobby(hiredNow)} for ${rc.charity.name}. They're moving into TrickleTown.`, 4200);
+          flip(true);
+          await hireAnimation(hiredNow);
+          state.flipTimer = setTimeout(() => { if (state.flipped && !$('#dlg-advisors').open && !Explainer.isOpen()) flip(false); }, 3200);
+        }
       } else {
         toast(rc.busted ? `${rc.tier}. ${p.symbol} is in the ground.` : `${rc.tier}. ${how} for ${money(rc.net)}, back on the coin.`);
       }
@@ -1234,6 +1254,71 @@
       $('#sell-error').textContent = e.message; $('#sell-error').hidden = false;
       $('#sell-submit').disabled = false; $('#sell-submit').textContent = 'Try again';
     } finally { state.busy = false; }
+  }
+
+  // The first lobbyist: the tax walks across the desk and comes out a person,
+  // the player reads what just happened, and chooses to flip the coin. The
+  // TrickleTown tour opens after the flip, not before.
+  function openHireCeremony(rc, hiredNow, how) {
+    const count = Math.min(10, Math.max(1, Math.ceil(hiredNow - 1e-9)));
+    const dlg = $('#dlg-hire');
+    $('#hire-title').textContent = hiredNow >= 2 ? 'Your first lobbyists' : 'Your first lobbyist';
+    $('#hire-body').innerHTML = `
+      <div class="receipt-tier win">${esc(rc.tier)}.</div>
+      <p>${how} ${esc(rc.symbol)}: ${money(rc.profit)} of profit, ${money(rc.tax)} of it taxed. Not to the government. To your recruiter.</p>
+      <div class="hire-scene" aria-hidden="true">
+        <div class="hire-from">${billsRow(Math.max(1, rc.tax), { max: count })}</div>
+        <div class="hire-desk"><b>RECRUITER</b><span>${money(rc.hire_cost || 1)} a head</span></div>
+        <div class="hire-to">${lobbyists(hiredNow, { max: count })}</div>
+      </div>
+      <p class="hire-line"><b>${esc(lobby(hiredNow))}</b> hired for <b>${esc(rc.charity.name)}</b>. They've moved into <b>TrickleTown</b>, the company town on the other side of your coin. You own it. They'd like a word.</p>
+      <button type="button" class="btn primary wide" id="hire-flip">Flip the coin to meet them</button>
+      <button type="button" class="linkish center" id="hire-later">Later. Back to the portfolio.</button>`;
+    dlg.showModal();
+    const targets = $$('#hire-body .hire-to .lobbyist');
+    targets.forEach((t) => t.classList.add('arriving'));
+    setTimeout(() => deskAnimation(targets), REDUCED ? 0 : 350);
+    $('#hire-later').onclick = () => { dlg.close(); renderUnder(); };
+    $('#hire-flip').onclick = async () => {
+      dlg.close();
+      state.ceremony = true; // the flip must not start the tour; we do, after the bills land
+      try { flip(true); await hireAnimation(hiredNow); } finally { state.ceremony = false; }
+      maybeTownIntro(300);
+    };
+  }
+
+  // Inside the ceremony: each bill crosses the desk and unfolds into a person.
+  async function deskAnimation(targets) {
+    const from = $('#hire-body .hire-from');
+    if (!from || !targets.length) return;
+    if (REDUCED) { targets.forEach((t) => t.classList.remove('arriving')); return; }
+    const bills = $$('.billsvg', from);
+    const flights = targets.map((t, i) => new Promise((resolve) => {
+      const b = bills[Math.min(i, bills.length - 1)];
+      const r0 = b.getBoundingClientRect(), r1 = t.getBoundingClientRect();
+      const fly = document.createElement('div');
+      fly.className = 'flyer';
+      fly.innerHTML = `<span class="fly-bill">${BILL}</span><span class="fly-person">${LOBBYIST}</span>`;
+      fly.style.left = `${r0.left}px`; fly.style.top = `${r0.top}px`;
+      document.body.appendChild(fly);
+      const dx = r1.left - r0.left, dy = r1.top - r0.top;
+      const delay = i * 140, dur = 1100;
+      const path = fly.animate(
+        [{ transform: 'translate(0,0)', opacity: 1, offset: 0 }, { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 26}px) scale(1.15)`, opacity: 1, offset: 0.5 }, { transform: `translate(${dx}px, ${dy}px)`, opacity: 1, offset: 1 }],
+        { duration: dur, delay, easing: 'cubic-bezier(.3,.1,.3,1)', fill: 'forwards' },
+      );
+      fly.querySelector('.fly-bill').animate(
+        [{ transform: 'rotateY(0deg)', opacity: 1, offset: 0 }, { transform: 'rotateY(0deg)', opacity: 1, offset: 0.42 }, { transform: 'rotateY(90deg)', opacity: 0, offset: 0.58 }, { transform: 'rotateY(90deg)', opacity: 0, offset: 1 }],
+        { duration: dur, delay, fill: 'forwards' },
+      );
+      fly.querySelector('.fly-person').animate(
+        [{ transform: 'rotateY(-90deg)', opacity: 0, offset: 0 }, { transform: 'rotateY(-90deg)', opacity: 0, offset: 0.56 }, { transform: 'rotateY(0deg)', opacity: 1, offset: 0.74 }, { transform: 'rotateY(0deg)', opacity: 1, offset: 1 }],
+        { duration: dur, delay, fill: 'forwards' },
+      );
+      const done = () => { t.classList.remove('arriving'); fly.remove(); resolve(); };
+      path.finished.then(done).catch(done);
+    }));
+    await Promise.all(flights);
   }
 
   // Bills fly out of the coin into the payroll row and turn into lobbyists on the way.
@@ -1629,24 +1714,32 @@
 
   function openAuth(mode) {
     state.authMode = mode;
-    const title = { login: 'Sign in', register: 'Create an account', claim: 'Keep this account' }[mode];
+    const code = mode === 'code';
+    const title = { login: 'Sign in', register: 'Create an account', claim: 'Keep this account', code: 'Use a code' }[mode];
     const blurb = {
       login: 'Pick up where you left off.',
       register: 'A username and a password. That\'s it.',
       claim: 'Give your guest account a name and a password, or link Google, so it follows you to other devices. Everything you\'ve done comes with it.',
+      code: 'On the device that\'s already signed in: Account → Use on another device. Type the code it shows here. It works once and lasts 15 minutes.',
     }[mode];
     $('#auth-title').textContent = title;
     $('#auth-blurb').textContent = blurb;
-    $('#auth-submit').textContent = title;
-    $('#auth-switch').hidden = mode === 'claim';
+    $('#auth-submit').textContent = code ? 'Sign in with the code' : title;
+    $('#auth-fields').hidden = code;
+    $('#auth-code-field').hidden = !code;
+    $('#auth-user').required = !code; $('#auth-pass').required = !code; $('#auth-code').required = code;
+    $('#auth-switch').hidden = mode === 'claim' || code;
     $('#auth-switch').textContent = mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in';
+    $('#auth-code-link').hidden = mode === 'claim';
+    $('#auth-code-link').textContent = code ? 'Back to username and password' : 'Signed in on another device? Use a code';
     $('#auth-pass').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
     $('#auth-pass').placeholder = mode === 'login' ? '' : 'at least 8 characters';
     $('#auth-error').hidden = true;
-    $('#auth-user').value = ''; $('#auth-pass').value = '';
+    $('#auth-user').value = ''; $('#auth-pass').value = ''; $('#auth-code').value = '';
     $('#dlg-auth').showModal();
-    mountGoogle('auth-google', mode === 'claim' ? 'link' : 'login');
-    setTimeout(() => $('#auth-user').focus(), 50);
+    $('#auth-google').hidden = code;
+    if (!code) mountGoogle('auth-google', mode === 'claim' ? 'link' : 'login');
+    setTimeout(() => (code ? $('#auth-code') : $('#auth-user')).focus(), 50);
   }
 
   async function submitAuth(ev) {
@@ -1654,13 +1747,13 @@
     if (state.busy) return;
     const username = $('#auth-user').value.trim();
     const password = $('#auth-pass').value;
-    const path = { login: '/auth/login', register: '/auth/register', claim: '/auth/claim' }[state.authMode];
+    const path = { login: '/auth/login', register: '/auth/register', claim: '/auth/claim', code: '/auth/redeem-code' }[state.authMode];
     state.busy = true; $('#auth-submit').disabled = true;
     try {
-      const r = await API.post(path, { username, password });
+      const r = await API.post(path, state.authMode === 'code' ? { code: $('#auth-code').value.trim() } : { username, password });
       API.setToken(r.token);
       $('#dlg-auth').close();
-      toast(state.authMode === 'claim' ? `You're ${r.user.username} now. It'll remember you.` : `Hi, ${r.user.username}.`);
+      toast(state.authMode === 'claim' ? `You're ${r.user.username} now. It'll remember you.` : state.authMode === 'code' ? `This is ${r.user.username}'s coin now, here too.` : `Hi, ${r.user.username}.`);
       state.me = null;
       location.hash = '#today'; route();
     } catch (e) {
@@ -1669,6 +1762,62 @@
   }
 
   // --- account sheet ----------------------------------------------------------------------------------
+
+  // "Use on another device": a code the other device types into Sign in.
+  const deviceSection = () => `
+      <details class="acct-section" id="acct-device">
+        <summary>Use on another device</summary>
+        <p class="muted small">Get a code here, then on the other device tap Sign in → “Signed in on another device? Use a code.” It works once and lasts 15 minutes. No password needed.</p>
+        <button type="button" class="btn small" id="acct-code-btn">Get a code</button>
+        <div class="device-code" id="acct-code" hidden></div>
+      </details>`;
+  const adminSection = (u) => (u.is_admin ? `
+      <details class="acct-section admin">
+        <summary>Admin</summary>
+        <p class="muted small">Testing only. Grants are real rows: the lobbyists go on the boards and into your town.</p>
+        <form id="acct-grant-form" class="acct-form">
+          <label class="field"><span>Cash to add</span><input id="acct-grant-cash" type="number" min="0" step="1" placeholder="0" inputmode="numeric"></label>
+          <label class="field"><span>Lobbyists to add</span><input id="acct-grant-lob" type="number" min="0" step="0.01" placeholder="0" inputmode="decimal"></label>
+          <button type="submit" class="btn small">Grant</button>
+        </form>
+        <div class="row-actions" style="margin-top:8px"><button type="button" class="btn quiet small danger" id="acct-reset">Reset my account</button></div>
+      </details>` : '');
+  function wireShared() {
+    const err = (m) => { const e = $('#account-error'); e.textContent = m; e.hidden = false; };
+    const codeBtn = $('#acct-code-btn');
+    if (codeBtn) codeBtn.onclick = async () => {
+      codeBtn.disabled = true;
+      try {
+        const r = await API.post('/auth/device-code');
+        const box = $('#acct-code');
+        box.hidden = false;
+        box.innerHTML = `<b>${esc(r.code)}</b><span class="muted small">Type this on the other device within ${r.ttl_minutes} minutes.</span>`;
+        codeBtn.textContent = 'Get another code';
+      } catch (e) { err(e.message); }
+      finally { codeBtn.disabled = false; }
+    };
+    const grant = $('#acct-grant-form');
+    if (grant) grant.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const cash = Number($('#acct-grant-cash').value) || 0, lobbyists = Number($('#acct-grant-lob').value) || 0;
+      try {
+        const r = await API.post('/admin/grant', { cash, lobbyists });
+        toast(`Granted: ${cash ? money(cash) : ''}${cash && lobbyists ? ' and ' : ''}${lobbyists ? lobby(lobbyists) : ''}.`);
+        $('#dlg-account').close(); state.me = null; location.hash = '#today'; route();
+      } catch (e) { err(e.message); }
+    };
+    const reset = $('#acct-reset');
+    if (reset) reset.onclick = async () => {
+      if (reset.dataset.armed !== '1') { reset.dataset.armed = '1'; reset.textContent = 'Tap again to wipe positions, lobbyists and town'; return; }
+      try {
+        await API.post('/admin/reset');
+        toast('Reset. Fresh $100 on the next load.');
+        $('#dlg-account').close(); state.me = null; state.flipped = false;
+        try { localStorage.removeItem('trickledown.town-intro'); } catch (e) { /* fine */ }
+        location.hash = '#today'; route();
+      } catch (e) { err(e.message); }
+    };
+  }
 
   async function openAccount() {
     const u = state.me && state.me.user;
@@ -1679,10 +1828,13 @@
         <p>You're playing as <b>${esc(u.username)}</b>, a guest. It lives in this browser only.</p>
         <p class="muted">Claim it to keep your coin, your lobbyists and TrickleTown on every device.</p>
         <div class="row-actions"><button type="button" class="btn primary" id="acct-claim">Keep this account</button><button type="button" class="btn quiet" id="acct-signout">Sign out</button></div>
+        ${deviceSection()}
+        ${adminSection(u)}
         <p class="form-error" id="account-error" hidden></p>`;
       $('#dlg-account').showModal();
       $('#acct-claim').onclick = () => { $('#dlg-account').close(); openAuth('claim'); };
       $('#acct-signout').onclick = signOut;
+      wireShared();
       return;
     }
     const hasG = await googleAvailable();
@@ -1710,6 +1862,8 @@
       </details>
 
       ${hasG && !u.google ? `<details class="acct-section"><summary>Link Google</summary><div class="google-slot" id="account-google"><div id="g-btn-account"></div></div><p class="muted small">Then you can sign in with either.</p></details>` : ''}
+      ${deviceSection()}
+      ${adminSection(u)}
 
       <div class="row-actions" style="margin-top:14px">
         <button type="button" class="btn quiet small" id="acct-signout">Sign out</button>
@@ -1717,6 +1871,7 @@
       </div>
       <p class="form-error" id="account-error" hidden></p>`;
     $('#dlg-account').showModal();
+    wireShared();
     $$('#account-body a[href="#leaders"]').forEach((a) => { a.onclick = () => { $('#dlg-account').close(); }; });
     const err = (m) => { const e = $('#account-error'); e.textContent = m; e.hidden = false; };
     $('#acct-username-form').onsubmit = async (ev) => {
@@ -1749,6 +1904,7 @@
     $('#form-sell').addEventListener('submit', submitSell);
     $('#form-auth').addEventListener('submit', submitAuth);
     $('#auth-switch').onclick = () => openAuth(state.authMode === 'login' ? 'register' : 'login');
+    $('#auth-code-link').onclick = () => openAuth(state.authMode === 'code' ? 'login' : 'code');
     $('#btn-claim').onclick = () => openAuth('claim');
     $('#btn-account').onclick = openAccount;
     $('#btn-help').onclick = () => Explainer.open({ deck: 'main', rules: state.me ? state.me.rules : undefined });

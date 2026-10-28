@@ -81,11 +81,15 @@
       <div id="g-btn-auth"></div>
       <div class="or"><span>or</span></div>
     </div>
-    <label class="field"><span>Username</span><input id="auth-user" autocomplete="username" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+" autocapitalize="off" spellcheck="false"></label>
-    <label class="field"><span>Password</span><input id="auth-pass" type="password" autocomplete="current-password" required minlength="8"></label>
+    <div id="auth-fields">
+      <label class="field"><span>Username</span><input id="auth-user" autocomplete="username" minlength="3" maxlength="20" pattern="[A-Za-z0-9_]+" autocapitalize="off" spellcheck="false"></label>
+      <label class="field"><span>Password</span><input id="auth-pass" type="password" autocomplete="current-password" minlength="8"></label>
+    </div>
+    <label class="field" id="auth-code-field" hidden><span>Code from the other device</span><input id="auth-code" inputmode="text" autocapitalize="characters" autocomplete="one-time-code" spellcheck="false" placeholder="ABCD-EFGH" maxlength="9"></label>
     <p class="form-error" id="auth-error" hidden></p>
     <button type="submit" class="btn primary wide" id="auth-submit">Sign in</button>
     <button type="button" class="linkish center" id="auth-switch">New here? Create an account</button>
+    <button type="button" class="linkish center" id="auth-code-link">Signed in on another device? Use a code</button>
   </form>
 </dialog>
 
@@ -97,6 +101,17 @@
       <button type="button" class="close" data-close aria-label="Close">×</button>
     </div>
     <div id="account-body"></div>
+  </div>
+</dialog>
+
+<!-- The first hire: the tax turns into a lobbyist, then the coin flips -->
+<dialog id="dlg-hire" class="sheet hire" aria-label="Your first lobbyist">
+  <div class="sheet-body">
+    <div class="sheet-head">
+      <h2 id="hire-title">Your first lobbyist</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div id="hire-body"></div>
   </div>
 </dialog>
 

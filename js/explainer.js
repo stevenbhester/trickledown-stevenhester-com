@@ -266,7 +266,10 @@ window.Explainer = (function () {
     if (current) close(false);
     current = { deck, onDone, onClose };
     list = deck === 'town' ? townDeck() : mainDeck(r);
-    dlg.querySelector('.x-sub').textContent = deck === 'town' ? 'TrickleTown Resident Services' : 'New Associate Orientation';
+    // The two tutorials must not look like the same one: a tester who just
+    // unlocked the town should never think they're back at orientation.
+    dlg.classList.toggle('deck-town', deck === 'town');
+    dlg.querySelector('.x-sub').textContent = deck === 'town' ? 'TrickleTown Resident Services · part two' : 'New Associate Orientation';
     go(0);
     if (!dlg.open) dlg.showModal();
     dlg.querySelector('[data-x="next"]').focus();

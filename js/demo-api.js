@@ -3,7 +3,10 @@
 // wander quickly so the loop is fun to click through. Nothing is saved.
 (function () {
   const cfg = window.TRICKLE_CONFIG || {};
-  const wantDemo = /[?&]demo\b/.test(location.search) || /YOUR-HEROKU-APP/.test(cfg.API_BASE || '');
+  // Demo mode is opt-in only (?demo). A copy whose config.js still points at
+  // the placeholder backend shows a setup notice instead of quietly running
+  // the fake game.
+  const wantDemo = /[?&]demo\b/.test(location.search);
   if (!wantDemo) return;
 
   const ASSETS = [
@@ -43,7 +46,7 @@
 
   // One player, seeded so the screen has something on it.
   const today = new Date().toISOString().slice(0, 10);
-  const user = { id: 1, username: 'guest_demo', is_guest: true, cash: 100, total_donated: 0.6, realized_pnl: 2.4, streak: 3, charity_id: 6 };
+  const user = { id: 1, username: 'guest_demo', is_guest: true, cash: 100, total_donated: 0.6, realized_pnl: 2.4, streak: 3, charity_id: 6, is_admin: true };
   let nextId = 10;
   const seedNvda = find('NVDA'), seedDoge = find('DOGE'), seedKo = find('KO');
   const HOLD_MS = RULES.hold_hours * 3600e3;
@@ -221,11 +224,26 @@
     if (path.startsWith('/auth/')) {
       if (path === '/auth/google' || path === '/auth/link-google') fail('Google sign-in is not available in the demo.');
       if (path === '/auth/logout-all') return { ok: true };
+      if (path === '/auth/device-code') return { code: 'DEMO-CODE', expires_at: new Date(Date.now() + 15 * 60e3).toISOString(), ttl_minutes: 15 };
+      if (path === '/auth/redeem-code') fail("Device codes don't work in the demo; nothing is saved to begin with.");
       if (path === '/auth/username') { if (!/^[A-Za-z0-9_]{3,20}$/.test(body.username || '')) fail('Usernames are 3–20 letters, numbers or underscores.'); user.username = body.username; return { user: publicUser() }; }
       if (path === '/auth/password') { if (String(body.password || '').length < 8) fail('Passwords need at least 8 characters.'); user.has_password = true; return { token: 'demo', user: publicUser() }; }
       if (path === '/auth/claim' || path === '/auth/register') { if (!/^[A-Za-z0-9_]{3,20}$/.test(body.username || '')) fail('Usernames are 3–20 letters, numbers or underscores.'); if (String(body.password || '').length < 8) fail('Passwords need at least 8 characters.'); user.has_password = true; donations.forEach((d) => { if (d.user === user.username) d.user = body.username; }); user.username = body.username; user.is_guest = false; }
       if (path === '/auth/login') { if (!body.username) fail('Wrong username or password.', 401); user.username = body.username; user.is_guest = false; }
       return { token: 'demo', user: publicUser() };
+    }
+    if (path === '/admin/grant') {
+      const cash = Math.max(0, Number(body.cash) || 0), lob = Math.max(0, Number(body.lobbyists) || 0);
+      if (!cash && !lob) fail('Grant something: cash, lobbyists, or both.');
+      user.cash = round2(user.cash + cash); user.total_donated = round2(user.total_donated + lob);
+      if (lob) donations.push({ charity_id: user.charity_id || 1, amount: lob, user: user.username });
+      return { ok: true, user: publicUser(), town: townView() };
+    }
+    if (path === '/admin/reset') {
+      positions.length = 0; user.cash = 100; user.total_donated = 0; user.realized_pnl = 0; user.streak = 1;
+      for (let i = donations.length - 1; i >= 0; i--) if (donations[i].user === user.username) donations.splice(i, 1);
+      Object.assign(town, TownRules.fresh());
+      return { ok: true };
     }
     if (path === '/buy') {
       const a = find(body.symbol); const amount = round2(Number(body.amount));

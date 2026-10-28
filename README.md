@@ -27,12 +27,20 @@ favicon.svg       the droplet
 
 ## Demo mode
 
-Open `index.html?demo` (or any build where `config.js` still has the
-placeholder backend URL) and the game runs entirely in the browser against
-invented prices that move fast. Nothing is saved. Good for showing someone the
-loop in thirty seconds, and for working on the design without a server.
+Open `index.html?demo` and the game runs entirely in the browser against
+invented prices that move fast, with a seeded portfolio. Nothing is saved.
+Good for showing someone the loop in thirty seconds, and for working on the
+design without a server. It is opt-in only: a build whose `config.js` still
+has the placeholder backend URL shows a "not connected yet" notice (with a
+link to the demo) rather than quietly running the fake game.
 
 ## Accounts
+
+Three ways an account follows you: username + password ("Keep this
+account"), Google, or a device code (Account → "Use on another device", then
+Sign in → "Use a code" on the other device; 15 minutes, works once, guests
+included). If the backend lists your username in `ADMIN_USERNAMES`, Account
+also shows an Admin section: grant cash and lobbyists, or reset to day one.
 
 Everyone starts as a guest (lives in that browser). "Keep this account" turns
 it into a username + password account, or links a Google account, keeping
