@@ -1020,7 +1020,9 @@ input:focus { border-color: var(--water); }
 /* Landing scenery -------------------------------------------------------------- */
 body.landing { min-height: 100vh; }
 .landing-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-body.landing .masthead, body.landing main { position: relative; z-index: 1; }
+body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foot { position: relative; z-index: 1; }
+.landing-bg.game .bg-ground { bottom: 4vh; right: 2vw; width: clamp(240px, 24vw, 420px); }
+.landing-bg.game .bg-cap { margin-top: 6px; font-size: 12px; }
 .bg-rain {
   position: absolute; inset: 0; fill: var(--ink); opacity: .07;
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 12%, transparent 30%, transparent 70%, #000 88%, #000 100%);
@@ -1049,3 +1051,41 @@ body.landing .masthead, body.landing main { position: relative; z-index: 1; }
 @media (max-width: 999px) {
   .bg-rain { -webkit-mask-image: linear-gradient(180deg, #000 0, transparent 45%); mask-image: linear-gradient(180deg, #000 0, transparent 45%); opacity: .05; }
 }
+
+/* Assigning lobbyists to a charity */
+.assign { border: 1.5px solid var(--water); border-radius: 6px; padding: 10px 12px; margin: 4px 0 14px; background: var(--paper); }
+.assign-head b { font-family: var(--display); font-weight: 900; font-size: 20px; line-height: 1; }
+.assign p { font-size: 14px; margin: 6px 0 8px; }
+.assign .charity-pick { margin: 0 0 6px; }
+.assign .charity-pick > span { font-weight: 600; color: var(--ink); }
+.assign .muted.small { margin: 0; font-size: 12px; }
+
+/* First investment walkthrough */
+.first-steps { border: 2px solid var(--ink); border-radius: var(--radius); padding: 10px 12px 8px; margin: 8px 0 12px; background: var(--paper); box-shadow: 4px 4px 0 var(--ink); }
+.fs-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.fs-head b { font-family: var(--display); font-weight: 900; font-size: 22px; line-height: 1; }
+.fs-head span { font-size: 13px; color: var(--mud); }
+.first-steps ol { margin: 0; padding: 0; list-style: none; counter-reset: fs; }
+.first-steps li { position: relative; padding: 5px 0 5px 34px; font-size: 15px; color: var(--mud); counter-increment: fs; }
+.first-steps li::before { content: counter(fs); position: absolute; left: 0; top: 4px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); text-align: center; line-height: 20px; font-family: var(--display); font-weight: 900; font-size: 14px; color: var(--mud); background: var(--porcelain); }
+.first-steps li b { font-weight: 600; color: var(--mud); }
+.first-steps li.now { color: var(--ink); }
+.first-steps li.now b { color: var(--ink); }
+.first-steps li.now::before { border-color: var(--water); background: var(--water); color: #fff; }
+.first-steps li.done::before { border-color: var(--rise); background: var(--rise); color: #fff; content: '✓'; }
+.fs-gift { font-size: 14px; margin: 8px 0 2px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+.clue.num { font-variant-numeric: tabular-nums; }
+.clue-label { font-size: 12px; color: var(--mud); align-self: center; margin-right: 2px; }
+.adv-ask { font-weight: 600; color: var(--ink); margin: 6px 0 2px; }
+
+/* Today's to-do */
+.todo { border-left: 3px solid var(--water); background: var(--paper); padding: 8px 12px; margin: 10px 0 14px; font-size: 15px; }
+.todo > b { font-family: var(--display); font-weight: 900; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--water); }
+.todo ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.todo li { padding: 3px 0 3px 18px; position: relative; }
+.todo li::before { content: '○'; position: absolute; left: 0; color: var(--water); }
+.todo .linkish { text-decoration: none; color: var(--ink); text-align: left; }
+.todo .linkish:hover { color: var(--water); }
+.todo.done { border-left-color: var(--rise); }
+.todo.done b { color: var(--rise); font-family: var(--body); text-transform: none; letter-spacing: 0; font-size: 15px; }

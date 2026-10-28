@@ -79,7 +79,7 @@ window.Explainer = (function () {
           <path d="${wedge(140, 78, 26, 58, 200, 300)}" class="x-wedge slice"/>
           <text x="176" y="62" class="x-tag">NVDA</text><text x="146" y="128" class="x-tag">DOGE</text>
           <text x="52" y="140" text-anchor="middle" class="x-tag gold">your slice</text>`),
-        body: 'Stocks, crypto, funds. Real prices. Carve off as much as you like.',
+        body: 'Stocks, crypto, funds. Real prices. Carve off as much as you like. Your first buy also vests your company shares: a signing bonus, taxed like any win.',
         fine: 'Congratulations: you are now an investor. Please update your professional networking profile.',
       },
       {
@@ -122,7 +122,7 @@ window.Explainer = (function () {
           : 'This is how democracy works now. Receipts are posted on the Lobby page.',
       },
       {
-        title: 'Your first win unlocks more',
+        title: 'Day one comes with a gift',
         art: svg(`
           ${miniTown()}
           <rect x="0" y="0" width="280" height="150" fill="#EDF1F2" opacity=".82"/>
@@ -131,7 +131,7 @@ window.Explainer = (function () {
           <rect x="120" y="60" width="40" height="28" rx="4" fill="#0F2430"/>
           <text x="140" y="80" text-anchor="middle" fill="#F2D06B" font-size="16" font-weight="900">?</text>
           <text x="140" y="122" text-anchor="middle" class="x-tag">something is being built</text>`),
-        body: 'Hire your first full lobbyist and they will need somewhere to live. We will show you around then.',
+        body: `Make your first investment and your shares in Trickle Down Holdings vest: $${r.vest_amount || 40}K of pure profit, which you must sell at once. The tax hires your first lobbyists, and they need somewhere to live. We will show you around then.`,
         fine: 'Trickle Down Holdings is building something. It is either a community or a revenue stream.',
         next: 'Start playing',
       },
