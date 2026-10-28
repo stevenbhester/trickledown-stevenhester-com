@@ -940,6 +940,20 @@ input:focus { border-color: var(--water); }
 .site-options .adv-pitch .option-head { display: flex; align-items: center; gap: 8px; }
 .site-options .adv-pitch .option-head b { font-family: var(--display); font-weight: 900; font-size: 20px; }
 .adv-pitch:disabled { opacity: .55; }
+/* Prices stay readable when you can't afford them: the card is dashed, not faded. */
+.price-tag { margin-left: auto; align-self: flex-start; font-family: var(--display); font-weight: 900; font-size: 22px; line-height: 1.1; color: var(--ink); background: #fff; border: 2px solid var(--ink); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.price-tag.short { color: var(--sink); border-color: var(--sink); }
+h3 .price-tag { margin-left: 8px; font-size: 18px; vertical-align: middle; display: inline-block; }
+.adv-pitch.short { opacity: 1; border-style: dashed; cursor: not-allowed; }
+.adv-pitch.short q, .adv-pitch.short .adv-who > span { opacity: .7; }
+.adv-pitch.short .adv-label { color: var(--sink); }
+.site-prices { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 2px; font-size: 14px; }
+.site-prices span { white-space: nowrap; }
+.price-inline { font-weight: 700; white-space: nowrap; }
+.zone-prices { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; font-size: 13px; margin-top: 2px; }
+.zone-prices span { color: var(--mud); }
+.zone-text .zone-prices b { font-family: var(--body); font-size: 13px; font-weight: 700; line-height: 1.35; text-align: right; }
+.zone-text .zone-prices span { line-height: 1.35; }
 .site-office .plot-sign { margin-bottom: 6px; }
 .site-icon { display: flex; justify-content: center; margin: 4px 0 8px; }
 .site-icon .b-icon { border-radius: 6px; border: 1px solid var(--line); }
@@ -1103,3 +1117,163 @@ body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foo
 .admin-h { font-family: var(--display); font-size: 15px; font-weight: 700; margin: 14px 0 6px; }
 .acct-section.admin select { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: inherit; }
 .admin-row { flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* ---------------------------------------------------------------------------
+   TrickleTown page: one rhythm. Every section starts with the same rule and
+   heading, and gets the same air above it.
+   --------------------------------------------------------------------------- */
+.t-section { margin-top: 40px; }
+.t-section.t-top { margin-top: 18px; }
+.t-section .t-h {
+  font-family: var(--display); font-weight: 900; font-size: 24px; line-height: 1.1;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 0 0 16px; padding-top: 20px; border-top: 1px solid var(--line);
+}
+.t-section .t-h .muted { font-family: var(--body); font-weight: 400; font-size: 13px; }
+.t-note { font-size: 13px; color: var(--mud); margin: 14px 0 0; }
+.t-top .lobby-row { margin: 0 0 14px; gap: 10px; }
+.t-top .lobby-row .small { align-self: flex-end; padding-bottom: 4px; }
+.t-top .v-report { margin: 0 0 16px; }
+.t-top .meters { gap: 12px; margin: 0; }
+.t-top .meter { padding: 12px 14px; border-radius: 10px; }
+.meter-top b small { font-family: var(--body); font-size: 12px; font-weight: 600; color: var(--mud); }
+.t-section .advisors-cta { margin: 0; padding: 16px; gap: 12px 14px; border-radius: 12px; }
+.t-section .zone-grid { gap: 14px; }
+.t-section.deck .deck-coming { margin: 0 0 16px; }
+.t-section.deck > p.muted { margin: 0 0 12px; }
+.t-section .deck-grid { gap: 10px; }
+.t-section .deck-more { margin-top: 12px; }
+.t-section .fest { margin: 0 0 18px; }
+.t-section .given li { padding: 10px 0; }
+.t-section .rank { margin-bottom: 10px; }
+.t-section .rank-line { margin-bottom: 18px; }
+.t-section .records-more summary { padding: 6px 0; }
+.t-actions { margin-top: 22px; }
+.side-head { margin-bottom: 4px; }
+
+/* ---------------------------------------------------------------------------
+   The stat strip: pinned to the top of Town Hall and the Site Office.
+   --------------------------------------------------------------------------- */
+.stat-strip {
+  position: sticky; top: 0; z-index: 3;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 0 0 16px; padding: 8px 4px;
+  background: #fff; border: 1.5px solid var(--ink); border-radius: 10px;
+  box-shadow: 0 6px 12px -8px rgba(15, 36, 48, .45);
+}
+.stat-strip:empty { display: none; }
+.ss { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; padding: 0 2px; }
+.ss + .ss { border-left: 1px solid var(--line); }
+.ss > span { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--mud); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ss b { font-family: var(--display); font-weight: 900; font-size: 21px; line-height: 1.1; white-space: nowrap; }
+.ss b small { font-family: var(--body); font-size: 10px; font-weight: 600; color: var(--mud); }
+.ss b.down, .ss.warn b { color: var(--sink); }
+.ss-bar { display: block; width: 78%; height: 4px; border-radius: 2px; background: var(--porcelain); margin-top: 3px; overflow: hidden; }
+.ss-bar i { display: block; height: 100%; width: var(--w); background: var(--water); }
+.ss-bar.warn i { background: var(--sink); }
+.ss em { font-style: normal; font-size: 11px; font-weight: 700; line-height: 1.5; padding: 0 6px; border-radius: 8px; margin-top: 3px; animation: ss-pop .6s ease-out; }
+.ss em.good { background: var(--rise-tint); color: var(--rise); }
+.ss em.bad { background: var(--sink-tint); color: var(--sink); }
+@keyframes ss-pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); } }
+@media (max-width: 380px) { .ss b { font-size: 18px; } .ss > span { font-size: 9px; } }
+@media (max-width: 520px) { .ss-wide { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ss em { animation: none; } }
+
+/* Card costs: what a choice takes off the coin, in plain sight. */
+.adv-who { flex-wrap: wrap; }
+.price-tag.cost { font-size: 16px; padding: 2px 8px; }
+.price-tag.free { font-family: var(--body); font-size: 12px; font-weight: 700; color: var(--mud); border: 1.5px solid var(--line); padding: 3px 8px; }
+.adv-label .need { display: block; margin-top: 2px; color: var(--sink); font-weight: 600; }
+
+/* ---------------------------------------------------------------------------
+   Choosing a building: name and price lead, the pitch supports.
+   --------------------------------------------------------------------------- */
+.site-options { gap: 14px; }
+.build-option {
+  display: flex; flex-direction: column; gap: 12px; width: 100%; text-align: left;
+  font: inherit; color: inherit; cursor: pointer; background: #fff;
+  border: 2px solid var(--line); border-left-width: 6px; border-radius: 12px; padding: 14px 16px;
+  transition: transform 120ms ease-out, border-color 120ms;
+}
+.build-option.tier-bad { border-left-color: var(--sink); }
+.build-option.tier-compromise { border-left-color: #C9A227; }
+.build-option.tier-good { border-left-color: var(--rise); }
+.build-option:not(:disabled):hover { transform: translateY(-2px); border-top-color: var(--ink); border-right-color: var(--ink); border-bottom-color: var(--ink); }
+.build-option:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+.bo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.bo-name { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.bo-name b { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1.02; }
+.bo-price { font-family: var(--display); font-weight: 900; font-size: 38px; line-height: .95; color: var(--ink); white-space: nowrap; }
+.bo-price.short { color: var(--sink); }
+.bo-perk { font-size: 13px; font-weight: 600; color: var(--water-deep); }
+.bo-pitch { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--mud); }
+.bo-pitch svg { flex: none; margin-top: -2px; }
+.bo-pitch b { color: var(--ink); font-weight: 600; }
+.bo-pitch q { font-style: italic; }
+.bo-cta { display: block; text-align: center; font-weight: 700; font-size: 15px; padding: 10px 12px; border-radius: 8px; background: var(--ink); color: #fff; }
+.build-option.short { cursor: not-allowed; border-style: dashed; border-left-style: solid; }
+.build-option.short .bo-cta { background: transparent; color: var(--sink); border: 1.5px solid var(--sink); }
+.site-broke { font-size: 14px; color: var(--sink); font-weight: 600; margin-top: 8px; }
+
+/* ---------------------------------------------------------------------------
+   TrickleTown sections, each with its own identity (kept quiet):
+   Vitals = clinic chart, Town Hall = civic stone, Construction = site plan
+   with hazard tape, Deck = card-table felt, Payroll = warm charity paper,
+   Rank = the company staff ID.
+   --------------------------------------------------------------------------- */
+.t-section.t-panel { position: relative; margin-top: 24px; padding: 16px 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.t-section.t-panel .t-h { border-top: 0; padding-top: 0; margin: 0 0 14px; align-items: center; }
+.t-section.t-panel .t-h .muted { flex-basis: 100%; margin: -6px 0 0 40px; }
+.t-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; }
+.t-ico svg { width: 18px; height: 18px; }
+.t-title { line-height: 1; }
+.t-section.t-panel:first-of-type { margin-top: 16px; }
+
+/* Vitals: a clinic chart, cool and clean */
+.t-vitals { background: linear-gradient(180deg, #EEF6F9 0, #fff 120px) !important; border-color: #CBE0E8 !important; }
+.t-vitals .t-ico { background: var(--shallow); color: var(--water-deep); }
+.t-vitals .meter { border-color: #DCE8ED; }
+
+/* Town Hall: civic stone, a double rule like an engraved frame */
+.t-hall { background: #F5F3EE !important; border: 3px double #BDB5A5 !important; }
+.t-hall.waiting { border-color: var(--water) !important; }
+.t-hall .t-ico { background: #E7E2D7; color: #5D5545; }
+.t-hall .t-title { letter-spacing: .04em; }
+.t-section .t-hall .advisors-cta, .t-hall .advisors-cta { border: 0; box-shadow: none; padding: 0; background: transparent; }
+
+/* Construction zone: hazard tape on top, site-plan grid underneath */
+.t-zone {
+  overflow: hidden; padding-top: 24px !important; border-color: #E2D7B0 !important;
+  background-color: #FBFAF4 !important;
+  background-image: linear-gradient(rgba(24, 121, 160, .07) 1px, transparent 1px), linear-gradient(90deg, rgba(24, 121, 160, .07) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.t-zone::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 7px; background: repeating-linear-gradient(-45deg, #E2B32C 0 10px, #2A333B 10px 20px); opacity: .85; }
+.t-zone .t-ico { background: #F5E6AE; color: #6A5300; }
+
+/* The deck: a card table */
+.t-deck { --felt: #E4EFE8; background: radial-gradient(130% 80% at 50% 0%, #F1F7F3, var(--felt)) !important; border-color: #C5DACC !important; }
+.t-deck .t-ico { background: #D2E6D8; color: var(--bill-deep); }
+.t-deck .deck-wrap:not(.open)::after { background: linear-gradient(to bottom, rgba(228, 239, 232, 0), var(--felt)); }
+.t-deck .mini-card { box-shadow: 0 1px 2px rgba(15, 36, 48, .08); }
+
+/* Payroll: warm paper, where the real money goes */
+.t-payroll { background: #FCF6EE !important; border-color: #EBD8C1 !important; }
+.t-payroll .t-ico { background: #F5DFD7; color: var(--sink); }
+.t-payroll .given li { border-top-color: #EBD8C1; }
+.t-payroll .fest { border-left-color: #E2B32C; color: #6B5B49; }
+
+/* Rank: the staff ID */
+.t-rank { padding: 0 0 16px !important; overflow: hidden; border: 1.5px solid var(--ink) !important; max-width: 420px; }
+.badge-strip { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 16px; background: var(--ink); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+.badge-strip i { width: 34px; height: 7px; border-radius: 4px; background: var(--porcelain); }
+.badge-body { display: flex; gap: 14px; align-items: center; padding: 14px 16px 6px; }
+.badge-photo { flex: none; width: 60px; height: 72px; display: flex; align-items: flex-end; justify-content: center; background: var(--shallow); border-radius: 6px; overflow: hidden; }
+.badge-photo .lobbyist, .badge-photo svg { width: 30px; height: 60px; }
+.badge-who { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: baseline; min-width: 0; }
+.badge-k { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--mud); }
+.badge-v { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge-v.rank-name { font-family: var(--display); font-weight: 900; font-size: 28px; line-height: 1.05; }
+.t-rank .rank-bar { margin: 10px 16px 6px; }
+.t-rank .rank-line { margin: 0 16px; }
+.t-records { margin-top: 18px; }

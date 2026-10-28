@@ -457,6 +457,8 @@
   }
 
   const RECUR_DAYS = 7;
+  // $25K, $12.5K, $1.2M: the same shape the front end uses, for error messages.
+  const kStr = (n) => { const a = Math.abs(Number(n) || 0), r = (v) => String(Math.round(v * 10) / 10); return `${n < 0 ? '-' : ''}$${a >= 1000 ? `${r(a / 1000)}M` : `${r(a)}K`}`; };
 
   // Two cards a day. The first is the one everyone gets (keyed to the date),
   // swapped for one you haven't seen if you've already played it. The second
@@ -578,7 +580,7 @@
     if (side !== 'preston' && side !== 'dolores') return { error: 'Pick Preston or Dolores.' };
     const fx = BY_ID.get(issueId)[side].fx;
     const cash = cardCost(t, fx);
-    if (cash < 0 && cashAvailable < -cash) return { error: `That costs $${-cash}K and you have $${cashAvailable.toFixed(1)}K on the coin.` };
+    if (cash < 0 && cashAvailable < -cash) return { error: `That costs $${-cash}K and you have ${kStr(cashAvailable)} on the coin.` };
     applyFx(t, fx);
     slot.chosen = side;
     if (!t.played.includes(issueId)) t.played.push(issueId);
@@ -594,7 +596,7 @@
     if (!PLOTS[slot].options[key]) return { error: 'No such building.' };
     if (t.plots[slot] === key) return { error: "It's already there." };
     const cost = PLOTS[slot].options[key].cost || BUILD_COST;
-    if (cashAvailable < cost) return { error: `${PLOTS[slot].options[key].name} costs $${cost}K. You have $${cashAvailable.toFixed(1)}K on the coin.` };
+    if (cashAvailable < cost) return { error: `${PLOTS[slot].options[key].name} costs $${cost}K. You have ${kStr(cashAvailable)} on the coin.` };
     t.plots[slot] = key;
     t.upgrades[slot] = []; // the old building's upgrades go with it
     t.built[slot] = day;
@@ -609,7 +611,7 @@
     if (!u) return { error: `${b.name} doesn't offer that.` };
     if (t.upgrades[slot].includes(key)) return { error: 'Already built.' };
     if (!needsMet(u.needs, t, { ...ctx, cash: cashAvailable }, slot)) return { error: `${u.name} isn't on the table yet. ${needsText(u.needs)}` };
-    if (cashAvailable < u.cost) return { error: `${u.name} costs $${u.cost}K. You have $${cashAvailable.toFixed(1)}K on the coin.` };
+    if (cashAvailable < u.cost) return { error: `${u.name} costs $${u.cost}K. You have ${kStr(cashAvailable)} on the coin.` };
     t.upgrades[slot].push(key);
     return { cash: -u.cost };
   }

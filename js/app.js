@@ -937,6 +937,31 @@
     return `<span class="clues">${out.join('')}</span>`;
   }
 
+  // Where you stand, pinned to the top of Town Hall and the Site Office, so
+  // every choice is made with the numbers in view. After a choice, each stat
+  // that moved shows by how much.
+  function statSnapshot() {
+    const t = state.me.town, u = state.me.user;
+    return { cash: u.cash, income: t.income, happiness: t.happiness, health: t.health, hire: t.hire_cost };
+  }
+  function renderStats(id) {
+    const el = $(id); if (!el || !state.me || !state.me.town) return;
+    const s = statSnapshot(), prev = state.statPrev, t = state.me.town;
+    const delta = (k, fmt, upIsGood = true) => {
+      if (!prev || Math.abs(s[k] - prev[k]) < 0.005) return '';
+      const up = s[k] > prev[k];
+      return `<em class="${up === upIsGood ? 'good' : 'bad'}">${up ? '+' : '−'}${fmt(Math.abs(s[k] - prev[k]))}</em>`;
+    };
+    const bar = (v, warnAt) => `<span class="ss-bar ${warnAt != null && v < warnAt ? 'warn' : ''}"><i style="--w:${Math.max(0, Math.min(100, v))}%"></i></span>`;
+    const m = (v) => money(v);
+    el.innerHTML = `
+      <div class="ss"><span>Cash</span><b>${money(s.cash)}</b>${delta('cash', m)}</div>
+      <div class="ss"><span>Allowance</span><b class="${s.income < 0 ? 'down' : ''}">${s.income >= 0 ? '+' : '−'}${money(Math.abs(s.income), { whole: true })}<small>/day</small></b>${delta('income', m)}</div>
+      <div class="ss"><span>Happiness</span><b>${s.happiness}</b>${bar(s.happiness)}${delta('happiness', String)}</div>
+      <div class="ss ${s.health < t.quit_below ? 'warn' : ''}"><span>Health</span><b>${s.health}</b>${bar(s.health, t.quit_below)}${delta('health', String)}</div>
+      <div class="ss" title="Hiring cost: tax per lobbyist. Happier is cheaper."><span>Hiring<span class="ss-wide"> cost</span></span><b>${money(s.hire)}</b>${delta('hire', m, false)}</div>`;
+  }
+
   function meter(label, value, opts = {}) {
     const warn = opts.warnBelow != null && value < opts.warnBelow;
     return `<div class="meter ${warn ? 'warn' : ''}">
@@ -958,6 +983,16 @@
     return `<p class="v-report">${out}</p>`;
   }
 
+  // One small line icon per town section, so each reads as its own place.
+  const T_ICON = {
+    vitals: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>',
+    hall: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5"/><path d="M5 9v9M9.5 9v9M14.5 9v9M19 9v9"/><path d="M3 20h18"/></svg>',
+    zone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 21V4h12"/><path d="M6 8l4-4"/><path d="M16 4v5"/><rect x="13.5" y="9" width="5" height="4" rx="1"/><path d="M3 21h8"/></svg>',
+    deck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="11" height="15" rx="2" transform="rotate(-8 8.5 13.5)"/><rect x="10" y="3" width="11" height="15" rx="2"/></svg>',
+    payroll: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
+  };
+  const tHead = (icon, title, sub = '') => `<h3 class="t-h"><span class="t-ico">${T_ICON[icon]}</span><span class="t-title">${title}</span>${sub ? ` <span class="muted">${sub}</span>` : ''}</h3>`;
+
   // The construction zone: one tile per plot. Tap to open the Site Office.
   function zoneTile(p) {
     const b = p.building;
@@ -969,7 +1004,8 @@
       <span class="zone-text">
         <span class="plot-label">${esc(p.label)}</span>
         <b>${b ? esc(b.name) : 'Empty lot'}</b>
-        <small>${b ? `${b.total.income ? `${b.total.income > 0 ? '+' : '−'}${money(Math.abs(b.total.income), { whole: true })}/day` : 'no income'} · ${b.total.happy >= 0 ? '+' : '−'}${Math.abs(b.total.happy)} happy · ${b.total.health >= 0 ? '+' : '−'}${Math.abs(b.total.health)} health` : 'Zoned for anything. From $20K.'}</small>
+        ${b ? `<small>${b.total.income ? `${b.total.income > 0 ? '+' : '−'}${money(Math.abs(b.total.income), { whole: true })}/day` : 'no income'} · ${b.total.happy >= 0 ? '+' : '−'}${Math.abs(b.total.happy)} happy · ${b.total.health >= 0 ? '+' : '−'}${Math.abs(b.total.health)} health</small>`
+          : `<small>Zoned for anything:</small><span class="zone-prices">${p.options.map((o) => `<span>${esc(o.name)}</span><b>${money(o.cost, { whole: true })}</b>`).join('')}</span>`}
       </span>
       ${badge}
     </button>`;
@@ -1012,8 +1048,8 @@
     const heads = deck.filter((d) => d.general), headsSeen = heads.filter((d) => d.seen || d.status === 'played').length;
     const needs = (d) => (d.general ? `Everyone gets one of these ${heads.length} a day.`
       : d.status === 'locked' || d.forced ? d.needs : d.needs.replace(/^Unlock:/, 'Unlocked:'));
-    return `<section class="deck">
-      <h3>The deck <span class="muted">${deck.length - (counts.locked || 0)} of ${deck.length} unlocked</span></h3>
+    return `<section class="t-section t-panel t-deck deck">
+      ${tHead('deck', 'The deck', `${deck.length - (counts.locked || 0)} of ${deck.length} unlocked`)}
       <p class="muted small">Two cards a day: one of ${heads.length} headlines that everyone gets (you've played ${headsSeen}), and one from whatever your town has unlocked.</p>
       ${deckComing(deck)}
       <div class="deck-wrap ${state.deckOpen ? 'open' : ''}" id="deck-wrap">
@@ -1074,47 +1110,66 @@
     const progress = next ? Math.min(100, ((user.total_donated - prevAt) / (next.at - prevAt)) * 100) : 100;
     const pending = pendingIssues();
     const decided = town.issues.length - pending;
+    const costs = town.plots.flatMap((pl) => pl.options.map((o) => o.cost));
     return `
       <div class="side-head">
         <div><h2>TrickleTown</h2><div class="motto">“${esc(town.motto)}”</div></div>
         <span class="muted">Lobbyfest in <b data-fest="${esc(day.quarter_ends_at)}">${esc(untilLong(day.quarter_ends_at))}</b></span>
       </div>
 
-      <div class="lobby-row"><b>${esc(lobbyN(q))}</b>${q > 0 ? lobbyists(q) : '<span class="muted">Nobody lives here yet this quarter.</span>'}</div>
-      ${reportLine(town.report)}
-
-      <section class="meters">
-        <div class="meter money"><div class="meter-top"><span>Village income</span><b class="${town.income >= 0 ? 'up' : 'down'}">${town.income >= 0 ? '+' : '−'}${money(Math.abs(town.income))}/day</b></div><div class="meter-note">added to tomorrow's allowance</div></div>
-        <div class="meter money"><div class="meter-top"><span>Recruiter's rate</span><b>${money(town.hire_cost)}</b></div><div class="meter-note">tax per lobbyist. Happier is cheaper.</div></div>
-        ${meter('Happiness', town.happiness)}
-        ${meter('Health', town.health, { warnBelow: town.quit_below, note: town.health < town.quit_below ? `<b class="down">They're quitting: about ${Math.round(town.quit_rate * 100)}% a night.</b>` : `Below ${town.quit_below}, they start quitting.` })}
-      </section>
-
-      <section class="advisors-cta ${pending ? 'waiting' : ''}">
-        <div class="advisors-faces">${Coin.preston(52)}${Coin.dolores(52)}</div>
-        <div class="advisors-text">
-          <b>${pending ? `${pending} card${pending === 1 ? '' : 's'} on the table` : decided ? "Today's cards are played" : 'Nobody is waiting'}</b>
-          <span class="muted">${pending ? 'Preston and Dolores each have a pitch. Pick one per card.' : decided ? 'Come back tomorrow for two more. Or review how it went.' : 'The advisors are out. New cards at midnight.'}</span>
+      <section class="t-section t-panel t-vitals">
+        ${tHead('vitals', 'Vitals', 'how the village is doing today')}
+        <div class="lobby-row"><b>${esc(lobbyN(q))}</b>${q > 0 ? `${lobbyists(q)}<span class="muted small">living here this quarter</span>` : '<span class="muted">Nobody lives here yet this quarter.</span>'}</div>
+        ${reportLine(town.report)}
+        <div class="meters">
+          <div class="meter money"><div class="meter-top"><span>Allowance</span><b class="${town.income >= 0 ? 'up' : 'down'}">${town.income >= 0 ? '+' : '−'}${money(Math.abs(town.income))}<small>/day</small></b></div><div class="meter-note">what the village adds to each day's money</div></div>
+          <div class="meter money"><div class="meter-top"><span>Hiring cost</span><b>${money(town.hire_cost)}</b></div><div class="meter-note">tax per lobbyist; happier is cheaper</div></div>
+          ${meter('Happiness', town.happiness)}
+          ${meter('Health', town.health, { warnBelow: town.quit_below, note: town.health < town.quit_below ? `<b class="down">They're quitting: about ${Math.round(town.quit_rate * 100)}% a night.</b>` : `Below ${town.quit_below}, they start quitting.` })}
         </div>
-        <button type="button" class="btn ${pending ? 'primary' : 'quiet'}" id="btn-advisors">${pending ? 'Speak with your advisors' : 'Review'}</button>
       </section>
 
-      <section class="zone">
-        <h3>Construction zone <span class="muted">${town.plots.filter((p) => p.building).length} of ${town.plots.length} lots built</span></h3>
+      <section class="t-section t-panel t-hall ${pending ? 'waiting' : ''}">
+        ${tHead('hall', 'Town Hall')}
+        <div class="advisors-cta ${pending ? 'waiting' : ''}">
+          <div class="advisors-faces">${Coin.preston(52)}${Coin.dolores(52)}</div>
+          <div class="advisors-text">
+            <b>${pending ? `${pending} card${pending === 1 ? '' : 's'} on the table` : decided ? "Today's cards are played" : 'Nobody is waiting'}</b>
+            <span class="muted">${pending ? 'Preston and Dolores each have a pitch. Pick one per card.' : decided ? 'Come back tomorrow for two more. Or review how it went.' : 'The advisors are out. New cards at midnight.'}</span>
+          </div>
+          <button type="button" class="btn ${pending ? 'primary' : 'quiet'}" id="btn-advisors">${pending ? 'Speak with your advisors' : 'Review'}</button>
+        </div>
+      </section>
+
+      <section class="t-section t-panel t-zone zone">
+        ${tHead('zone', 'Construction zone', `${town.plots.filter((p) => p.building).length} of ${town.plots.length} lots built`)}
         <div class="zone-grid">${town.plots.map(zoneTile).join('')}</div>
-        <p class="muted small">Tap a lot to build on it, or to hear proposals for what's already there. Buildings cost ${money(town.build_cost, { whole: true })}; proposals unlock as the town grows.</p>
+        <p class="t-note">Tap a lot to build (${money(Math.min(...costs), { whole: true })}–${money(Math.max(...costs), { whole: true })}) or to hear upgrade proposals.</p>
       </section>
 
       ${deckMarkup(town.deck)}
 
-      <section class="records">
-        <h3>Payroll</h3>
+      <section class="t-section t-panel t-payroll records">
+        ${tHead('payroll', 'Payroll', 'where your lobbyists vote')}
         <p class="fest">On ${esc(festDate(day.quarter_ends_at))} every lobbyist in the game marches off to Lobbyfest. They vote, the real money is split between the charities by headcount, and every village empties for the next quarter. Your buildings and your rank stay.</p>
         ${given.length ? `<ul class="given">${given.map((c, i) => `
           <li><span><span class="sw" style="background:${CHARITY_COLORS[i % 6]}"></span>${esc(c.name)}</span><span>${lobbyists(c.amount, { mini: true, max: 12 })} <b>${esc(lobbyN(c.amount))}</b></span></li>`).join('')}</ul>` : ''}
-        <div class="rank"><b>${have ? esc(have.name) : 'No rank yet'}</b><span class="muted">${have ? `is your rank, for ${esc(lobby(user.total_donated))} hired all time.` : 'Ranks count every lobbyist you ever hire.'}</span></div>
+      </section>
+
+      <section class="t-section t-panel t-rank records" aria-label="Rank">
+        <div class="badge-strip"><span>Trickle Down Holdings</span><i aria-hidden="true"></i><span>Staff ID</span></div>
+        <div class="badge-body">
+          <div class="badge-photo" aria-hidden="true">${lobbyists(1)}</div>
+          <div class="badge-who">
+            <span class="badge-k">Associate</span><span class="badge-v">${esc(user.username)}</span>
+            <span class="badge-k">Title</span><span class="badge-v rank-name">${have ? esc(have.name) : 'Unranked'}</span>
+          </div>
+        </div>
         <div class="rank-bar"><i style="--w:${progress.toFixed(1)}%"></i></div>
-        <div class="rank-line">${next ? `${esc(next.name)} at ${next.at} lobbyists. ${lobbyN(next.at - user.total_donated)} to go.` : 'There is nothing above this.'}</div>
+        <div class="rank-line">${have ? `${esc(lobby(user.total_donated))} hired all time. ` : ''}${next ? `${esc(next.name)} at ${next.at}: ${lobbyN(next.at - user.total_donated)} to go.` : 'There is nothing above this.'}</div>
+      </section>
+
+      <section class="t-section t-records">
         <details class="records-more"><summary>Records</summary>
         ${history.length ? `<ul class="history">${history.map((h) => {
           const hired = h.lobbyists != null ? h.lobbyists : h.tax;
@@ -1124,7 +1179,7 @@
           </li>`;
         }).join('')}</ul>` : `<p class="muted">Nothing collected yet. The records start when you do.</p>`}
         </details>
-        <div class="row-actions"><button class="btn quiet small" id="btn-flip-back">Flip to portfolio</button><a class="btn quiet small" href="#trickle">The whole lobby</a></div>
+        <div class="row-actions t-actions"><button class="btn quiet small" id="btn-flip-back">Flip to portfolio</button><a class="btn quiet small" href="#trickle">The whole lobby</a></div>
       </section>`;
   }
 
@@ -1172,7 +1227,7 @@
     if (!state.flipped) flip(true);
     const p = plotOf(slot);
     if (!p) return;
-    site.slot = slot; site.result = null; site.i = 0;
+    site.slot = slot; site.result = null; site.i = 0; state.statPrev = null;
     site.mode = mode || (p.building ? 'office' : 'build');
     renderSite();
     const d = $('#dlg-site');
@@ -1192,19 +1247,27 @@
     return `<span class="clues">${perDay ? '<span class="clue-label">Every day:</span>' : ''}${items.join('')}</span>`;
   }
 
-  function sitePitch(o, who, costLabel, data) {
-    const w = WHO[who];
-    return `<button type="button" class="adv-pitch ${who}" ${data}>
-      <span class="adv-who">${Coin[who](44)}<span><b>${esc(w.name)}</b><small>${esc(w.role)}</small></span></span>
-      <span class="option-head"><span class="tier-badge tier-${o.tier}">${TIER_LABEL[o.tier]}</span><b>${esc(o.name)}</b></span>
-      <q>${esc(o.pitch.line)}</q>
+  const quoted = (line) => esc(String(line || '').replace(/"([^"]*)"/g, '‘$1’'));
+  // The price is always in plain sight, top right, whether or not you can
+  // afford it; short of cash, the button says how much more you need.
+  const priceTag = (cost, cash) => `<span class="price-tag ${cash < cost ? 'short' : ''}">${money(cost, { whole: true })}</span>`;
+  const buyLabel = (verb, cost, cash) => (cash < cost ? `Need ${money(cost - cash)} more` : `${verb} for ${money(cost, { whole: true })}`);
+  function sitePitch(o, who, cash) {
+    const w = WHO[who], short = cash < o.cost;
+    return `<button type="button" class="build-option tier-${o.tier} ${short ? 'short' : ''}" data-build="${esc(o.key)}" ${short ? 'disabled' : ''}>
+      <span class="bo-head">
+        <span class="bo-name"><span class="tier-badge tier-${o.tier}">${TIER_LABEL[o.tier]}</span><b>${esc(o.name)}</b></span>
+        <span class="bo-price ${short ? 'short' : ''}">${money(o.cost, { whole: true })}</span>
+      </span>
       ${effectChips(o.effects)}
-      ${o.perk ? `<span class="muted small">Perk: ${esc(o.perk)}.</span>` : ''}
-      <span class="adv-label">${esc(costLabel)}</span>
+      ${o.perk ? `<span class="bo-perk">Perk: ${esc(o.perk)}.</span>` : ''}
+      <span class="bo-pitch">${Coin[who](30)}<span><b>${esc(w.name.split(' ')[0])}:</b> <q>${quoted(o.pitch.line)}</q></span></span>
+      <span class="bo-cta">${esc(buyLabel('Build it', o.cost, cash))}</span>
     </button>`;
   }
 
   function renderSite() {
+    renderStats('#site-stats');
     const p = plotOf(site.slot);
     const stage = $('#site-stage');
     $('#site-title').textContent = `Site Office · ${p.label}`;
@@ -1217,13 +1280,13 @@
         <div class="adv-card" id="site-card">
           <div class="adv-band village">${rebuilding ? 'Rebuilding' : 'Empty lot'} · ${esc(p.label)}</div>
           <h3>${rebuilding ? `What replaces ${esc(p.building.name)}?` : 'What goes here?'}</h3>
-          <p>${rebuilding ? `Tearing it down takes its upgrades with it.` : `Three options. Each pushes your allowance, your lobbyists' happiness and their health by the numbers shown, every day, for as long as it stands.`} The cheap one pays you and wears them down; the expensive one costs you and keeps them well; the middle one is a compromise, which is a word that means "both are annoyed." Happiness sets the recruiter's rate. Health under 50 and lobbyists start quitting.</p>
-          <p class="muted small">You have ${money(cash)} on the coin.</p>
+          <p>${rebuilding ? 'Tearing it down takes its upgrades with it. ' : ''}Each building pushes these numbers every day for as long as it stands. Cheap ones pay you and wear your lobbyists down; expensive ones cost you and keep them well.</p>
+          ${p.options.some((o) => o.key !== p.key && cash >= o.cost) ? '' : `<p class="site-broke">You have ${money(cash)}. Not enough for any of them yet: collect a win, or come back tomorrow for your allowance.</p>`}
         </div>
         <div class="site-options">
-          ${p.options.filter((o) => o.key !== p.key).map((o) => sitePitch(o, o.pitch.who, `Build it for ${money(o.cost, { whole: true })}`, `data-build="${esc(o.key)}" ${cash < o.cost ? 'disabled' : ''}`)).join('')}
+          ${p.options.filter((o) => o.key !== p.key).map((o) => sitePitch(o, o.pitch.who, cash)).join('')}
         </div>
-        <div class="adv-foot">${rebuilding ? '<button type="button" class="linkish" data-site-mode="office">Keep what\'s there</button>' : '<span></span>'}<span class="muted small">${p.options.some((o) => cash < o.cost) ? `Cheapest you can't afford yet: ${money(Math.min(...p.options.filter((o) => cash < o.cost).map((o) => o.cost)) - cash)} short.` : ''}</span></div>`;
+        ${rebuilding ? '<div class="adv-foot"><button type="button" class="linkish" data-site-mode="office">Keep what\'s there</button><span></span></div>' : ''}`;
       wireSite(); return;
     }
 
@@ -1250,24 +1313,24 @@
         <div class="adv-card" id="site-card">
           <div class="adv-band village">Upgrade for ${esc(b.name)} · ${site.i + 1} of ${avail.length}</div>
           <span class="adv-tag">${TIER_LABEL[u.tier]}</span>
-          <h3>${esc(u.name)}</h3>
+          <h3>${esc(u.name)} ${priceTag(u.cost, cash)}</h3>
           <p>An add-on to ${esc(b.name)} for ${money(u.cost, { whole: true })}, one time. Buy it and it pushes the numbers below every day on top of what the building already does. Pass and it waits.</p>
           ${effectChips(u.effects)}
           <p class="muted small">${esc(u.unlocked_by || '')}</p>
         </div>
         <div class="adv-pitches">
-          <button type="button" class="adv-pitch ${who}" data-upgrade="${esc(u.key)}" ${cash < u.cost ? 'disabled' : ''}>
-            <span class="adv-who">${Coin[who](44)}<span><b>${esc(WHO[who].name)}</b><small>proposes</small></span></span>
-            <q>${esc(u.pitch.line)}</q>
-            <span class="adv-label">Buy it for ${money(u.cost, { whole: true })}</span>
+          <button type="button" class="adv-pitch ${who} ${cash < u.cost ? 'short' : ''}" data-upgrade="${esc(u.key)}" ${cash < u.cost ? 'disabled' : ''}>
+            <span class="adv-who">${Coin[who](44)}<span><b>${esc(WHO[who].name)}</b><small>proposes</small></span>${priceTag(u.cost, cash)}</span>
+            <q>${quoted(u.pitch.line)}</q>
+            <span class="adv-label">${esc(buyLabel('Buy it', u.cost, cash))}</span>
           </button>
           <button type="button" class="adv-pitch ${other}" data-pass="1">
             <span class="adv-who">${Coin[other](44)}<span><b>${esc(WHO[other].name)}</b><small>objects</small></span></span>
-            <q>${esc(u.objection)}</q>
+            <q>${quoted(u.objection)}</q>
             <span class="adv-label">Pass for now</span>
           </button>
         </div>
-        <div class="adv-foot"><button type="button" class="linkish" data-site-mode="office">Back to the office</button><span class="muted small">${cash < u.cost ? `Need ${money(u.cost - cash)} more.` : `${money(cash)} on the coin`}</span></div>`;
+        <div class="adv-foot"><button type="button" class="linkish" data-site-mode="office">Back to the office</button><span class="muted small">${cash < u.cost ? `Need ${money(u.cost - cash)} more.` : ''}</span></div>`;
       wireSite(); return;
     }
 
@@ -1284,7 +1347,8 @@
         <div class="site-icon">${Coin.buildingIcon(b.key, 200)}</div>
         <div class="plot-now">${effectChips(b.total)}${b.perk ? `<span class="muted small">Perk: ${esc(b.perk)}.</span>` : ''}</div>
         ${owned.length ? `<p class="small"><b>Built:</b> ${owned.map((u) => esc(u.name)).join(', ')}.</p>` : ''}
-        ${locked.length ? `<ul class="site-locked">${locked.map((u) => `<li><span class="lock">🔒</span> <b>${esc(u.name)}</b> <span class="muted">${esc(u.needs)}</span></li>`).join('')}</ul>` : ''}
+        ${locked.length ? `<ul class="site-locked">${locked.map((u) => `<li><span class="lock">🔒</span> <b>${esc(u.name)}</b> <span class="price-inline">${money(u.cost, { whole: true })}</span> <span class="muted">${esc(u.needs)}</span></li>`).join('')}</ul>` : ''}
+        ${avail.length ? `<p class="small"><b>Proposed:</b> ${avail.map((u) => `${esc(u.name)} <span class="price-inline">${money(u.cost, { whole: true })}</span>`).join(', ')}.</p>` : ''}
         <div class="adv-actions">
           ${avail.length ? `<button type="button" class="btn primary" data-site-mode="proposal">Hear ${avail.length === 1 ? 'the proposal' : `${avail.length} proposals`}</button>` : '<span class="muted small">No proposals today. They arrive as the town grows.</span>'}
           <button type="button" class="btn quiet" data-site-mode="build">Tear down</button>
@@ -1296,14 +1360,16 @@
   function wireSite() {
     const dlg = $('#dlg-site');
     const p = plotOf(site.slot);
-    $$('[data-site-mode]', dlg).forEach((b) => { b.onclick = () => { site.mode = b.dataset.siteMode; site.i = 0; site.result = null; renderSite(); }; });
-    $$('[data-pass]', dlg).forEach((b) => { b.onclick = () => { site.i += 1; renderSite(); }; });
+    $$('[data-site-mode]', dlg).forEach((b) => { b.onclick = () => { site.mode = b.dataset.siteMode; site.i = 0; site.result = null; state.statPrev = null; renderSite(); }; });
+    $$('[data-pass]', dlg).forEach((b) => { b.onclick = () => { site.i += 1; state.statPrev = null; renderSite(); }; });
     $$('[data-build]', dlg).forEach((b) => {
       b.onclick = async () => {
+        const before = statSnapshot();
         const r = await townPost('/town/build', { slot: site.slot, key: b.dataset.build }, b);
         if (!r) return;
         const nb = r.town.plots.find((x) => x.slot === site.slot).building;
         toast(nb.tier === 'bad' ? `${nb.name} is up. Preston is already invoicing.` : nb.tier === 'good' ? `${nb.name} is up. Dolores almost smiled.` : `${nb.name} is up. Nobody is thrilled. Nobody is suing.`, 3600);
+        state.statPrev = before;
         refreshVillage(r.town, r.user);
         site.mode = 'office'; renderSite();
       };
@@ -1312,9 +1378,11 @@
       b.onclick = async () => {
         const u = p.building.upgrades.find((x) => x.key === b.dataset.upgrade);
         const card = $('#site-card');
+        const before = statSnapshot();
         const r = await townPost('/town/upgrade', { slot: site.slot, key: b.dataset.upgrade }, b);
         if (!r) return;
         if (card && !REDUCED) { card.classList.add(`fly-${u.pitch.who}`); await new Promise((res) => setTimeout(res, 420)); }
+        state.statPrev = before;
         refreshVillage(r.town, r.user);
         site.result = { who: u.pitch.who, name: u.name, cost: u.cost, effects: u.effects, line: reaction(u.pitch.who) };
         renderSite();
@@ -1333,6 +1401,7 @@
     adv.cards = t.issues.slice();
     adv.i = Math.max(0, Math.min(adv.cards.length, startAt));
     adv.result = null;
+    state.statPrev = null;
     // Start on the first unplayed card, if any.
     const firstOpen = adv.cards.findIndex((c) => !c.chosen);
     if (startAt === 0 && firstOpen > 0) adv.i = firstOpen;
@@ -1363,15 +1432,18 @@
   function advisorPitch(i, who, played) {
     const p = i[who], w = WHO[who];
     const mine = i.chosen === who, other = i.chosen && !mine;
-    return `<button type="button" class="adv-pitch ${who} ${mine ? 'chosen' : ''} ${other ? 'passed' : ''}" data-pick="${who}" ${played ? 'disabled' : ''}>
-      <span class="adv-who">${Coin[who](44)}<span><b>${esc(w.name)}</b><small>${esc(w.role)}</small></span></span>
-      <q>${esc(p.line)}</q>
+    const cash = state.me.user.cash, short = !played && p.cost > 0 && cash < p.cost;
+    const tag = p.cost > 0 ? `<span class="price-tag cost ${short ? 'short' : ''}">Costs ${money(p.cost, { whole: true })}</span>` : '<span class="price-tag free">Free</span>';
+    return `<button type="button" class="adv-pitch ${who} ${mine ? 'chosen' : ''} ${other ? 'passed' : ''} ${short ? 'short' : ''}" data-pick="${who}" ${played || short ? 'disabled' : ''}>
+      <span class="adv-who">${Coin[who](44)}<span><b>${esc(w.name)}</b><small>${esc(w.role)}</small></span>${tag}</span>
+      <q>${quoted(p.line)}</q>
       ${clueChips(p.clues)}
-      <span class="adv-label">${mine ? '✓ ' : ''}${esc(p.label)}${p.cost ? ` <small>(${money(p.cost, { whole: true })})</small>` : ''}</span>
+      <span class="adv-label">${mine ? '✓ ' : ''}${esc(p.label)}${short ? `<small class="need">Need ${money(p.cost - cash)} more</small>` : ''}</span>
     </button>`;
   }
 
   function renderAdvisors() {
+    renderStats('#adv-stats');
     const stage = $('#adv-stage');
     const n = adv.cards.length;
     if (adv.i >= n) { stage.innerHTML = advisorsSummary(); wireAdvisors(); return; }
@@ -1417,8 +1489,8 @@
         const a = b.dataset.adv;
         if (a === 'close') dlg.close();
         else if (a === 'deck') { dlg.close(); const d = $('.deck'); if (d) d.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }
-        else if (a === 'next') { adv.result = null; adv.i += 1; renderAdvisors(); }
-        else if (a === 'prev') { adv.result = null; adv.i = Math.max(0, adv.i - 1); renderAdvisors(); }
+        else if (a === 'next') { adv.result = null; state.statPrev = null; adv.i += 1; renderAdvisors(); }
+        else if (a === 'prev') { adv.result = null; state.statPrev = null; adv.i = Math.max(0, adv.i - 1); renderAdvisors(); }
       };
     });
     const card = $('#adv-card');
@@ -1429,6 +1501,7 @@
       b.onclick = async () => {
         const c = adv.cards[adv.i];
         $$('[data-pick]', dlg).forEach((x) => { x.disabled = true; });
+        const before = statSnapshot();
         const r = await townPost('/town/decide', { issue_id: c.id, side: who }, b);
         if (!r) { $$('[data-pick]', dlg).forEach((x) => { x.disabled = false; }); return; }
         // Fly the card off toward the chosen side, then show the result.
@@ -1439,6 +1512,7 @@
         }
         c.chosen = who;
         adv.result = { id: c.id, side: who, fx: r.fx || {}, noted: !!(r.noted), crowd: r.crowd || null, line: reaction(who) };
+        state.statPrev = before;
         refreshVillage(r.town, r.user);
         adv.cards = state.me.town.issues.slice();
         renderAdvisors();
