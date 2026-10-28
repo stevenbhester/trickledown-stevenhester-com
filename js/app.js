@@ -22,6 +22,10 @@
     busy: false,
     grow: null,          // { id, t } animation of one wedge's size, t in 0..1
     flipTimer: null,
+    assetSearch: false,  // the server searches a universe too big to ship
+    assetCount: 0,
+    found: new Map(),    // symbol -> asset, from search results, so selection works off-list
+    ticker: null,        // the live-price loop: { timer, step, symbols }
   };
 
   // --- formatting ----------------------------------------------------------------
@@ -161,6 +165,7 @@
     $('#tabs').hidden = !on;
     $('#foot').hidden = !on;
     $('#masthead-day').hidden = !on;
+    if (on) clearLandingArt();
   }
 
   // --- welcome ----------------------------------------------------------------------
@@ -175,8 +180,49 @@
       </div>`;
   }
 
+  // The landing page's scenery: a tilted heads coin with a sample portfolio
+  // on the right, a tails village on the left, and a faint rain of bills in
+  // both gutters. All inline SVG, so nothing can fail to load; all decorative,
+  // so it's hidden from assistive tech and masked away from the text column.
+  function landingArt() {
+    if ($('.landing-bg')) return;
+    const sample = [
+      { id: 1, symbol: 'NVDA', invested: 40, value: 54, swing_pct: 0.35, busted: false, matured: false },
+      { id: 2, symbol: 'BTC', invested: 25, value: 27.5, swing_pct: 0.1, busted: false, matured: true },
+      { id: 3, symbol: 'DOGE', invested: 15, value: 9, swing_pct: -0.4, busted: false, matured: false },
+      { id: 4, symbol: 'KO', invested: 10, value: 10.2, swing_pct: 0.02, busted: false, matured: false },
+    ];
+    const strip = (svg) => svg.replace(/ tabindex="0"/g, '').replace(/ role="button"/g, '');
+    const heads = strip(Coin.front({ positions: sample, cash: 30, preview: null, grow: null }));
+    const town = { happiness: 72, health: 80, quit_below: 50, plots: [{ slot: 'housing', key: 'coop' }, { slot: 'square', key: 'casino' }] };
+    const tails = strip(Coin.village({ town, pop: 12, pending: 2 }));
+    const rain = `<svg class="bg-rain" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+      <defs><pattern id="rain-p" width="150" height="190" patternUnits="userSpaceOnUse">
+        <g transform="translate(18 12) rotate(-14)"><rect width="18" height="36" rx="2"/><text x="9" y="24" text-anchor="middle" font-size="13" font-weight="700">$</text></g>
+        <g transform="translate(96 54) rotate(11)"><rect width="18" height="36" rx="2"/><text x="9" y="24" text-anchor="middle" font-size="13" font-weight="700">$</text></g>
+        <g transform="translate(52 118) rotate(-5)"><rect width="18" height="36" rx="2"/><text x="9" y="24" text-anchor="middle" font-size="13" font-weight="700">$</text></g>
+        <path transform="translate(118 140) scale(0.5)" d="M16 4 C16 11 7 15.5 7 21.5 a9 9 0 0 0 18 0 C25 15.5 16 11 16 4Z"/>
+      </pattern></defs>
+      <rect width="100%" height="100%" fill="url(#rain-p)"/>
+    </svg>`;
+    const bg = document.createElement('div');
+    bg.className = 'landing-bg';
+    bg.setAttribute('aria-hidden', 'true');
+    bg.innerHTML = `${rain}
+      <div class="bg-coin bg-heads"><div class="bg-face">${heads}</div><div class="bg-cap">heads: the portfolio</div></div>
+      <div class="bg-coin bg-tails"><div class="bg-face">${tails}</div><div class="bg-cap">tails: your lobbyists</div></div>
+      <div class="bg-ground"><div class="bg-crowd">${lobbyists(9, { max: 9 })}</div></div>`;
+    document.body.appendChild(bg);
+    document.body.classList.add('landing');
+  }
+  function clearLandingArt() {
+    const bg = $('.landing-bg'); if (bg) bg.remove();
+    document.body.classList.remove('landing');
+  }
+
   function renderWelcome() {
     setSignedIn(false);
+    landingArt();
     $('#screen-welcome').innerHTML = `
       <div class="welcome">
         <h1 class="hero">Fake money. Real market. Real charity.</h1>
@@ -246,7 +292,7 @@
   }
 
   async function ensureAssets() {
-    if (!state.assets.length) state.assets = (await API.get('/assets')).assets;
+    if (!state.assets.length) { const r = await API.get('/assets'); state.assets = r.assets; state.assetSearch = !!r.search; state.assetCount = r.count || r.assets.length; }
     if (!state.charities.length) state.charities = (await API.get('/charities')).charities;
   }
 
@@ -415,6 +461,7 @@
   // --- today: layout ----------------------------------------------------------------------
 
   function renderToday() {
+    tickerStart(state.justBought); state.justBought = false;
     const me = state.me;
     if (!me) return;
     renderMasthead();
@@ -518,7 +565,7 @@
       action = `<button class="btn small primary" data-sell="${p.id}">Collect</button> <button class="btn small" data-ride="${p.id}">Ride</button>`;
     } else {
       value = `${money(p.invested)} → <b>${money(p.value)}</b> <span class="yours ${dir(p.swing_pct)}">${pct(p.swing_pct, 0)}</span>`;
-      move = `${bought} Real ${pct(p.real_pct)} at ${mult(p.multiplier_now)}. <span class="time"><span data-left="${esc(p.matures_at)}">${left(p.matures_at)}</span> to ${mult(p.multiplier)}.</span>${p.deferred_tax > 0 ? ` <span class="muted">Sell early and ${money(p.deferred_tax)} of deferred ride tax comes due.</span>` : ''}`;
+      move = `${bought} Real ${pct(p.real_pct, Math.abs(p.real_pct) < 0.01 ? 2 : 1)} at ${mult(p.multiplier_now)}. <span class="time"><span data-left="${esc(p.matures_at)}">${left(p.matures_at)}</span> to ${mult(p.multiplier)}.</span>${p.deferred_tax > 0 ? ` <span class="muted">Sell early and ${money(p.deferred_tax)} of deferred ride tax comes due.</span>` : ''}`;
       action = `<button class="btn small" data-sell="${p.id}">Sell early</button>`;
     }
     return `
@@ -539,6 +586,76 @@
       ? `<p class="muted crowd-friends" style="font-size:14px">${friends.slice(0, 4).map((f) => `<a href="#" class="player-link" data-player="${esc(f.username)}">${esc(f.username)}</a> bought ${f.symbols.map((s) => `<b>${esc(s)}</b>`).join(', ')}`).join('; ')}${friends.length > 4 ? `; and ${friends.length - 4} more` : ''}.</p>`
       : '';
     return `<p class="muted" style="font-size:14px">Everyone plays the same market. ${total} buy${total === 1 ? '' : 's'} today from ${crowd.players} player${crowd.players === 1 ? '' : 's'}: ${crowd.picks.map((c) => `<b>${esc(c.symbol)}</b> ${Math.round(c.buys / total * 100)}%`).join(', ')}.</p>${friendLine}`;
+  }
+
+  // --- The live ticker -------------------------------------------------------------
+  //
+  // Right after a buy you want to see the thing move. The server's quote
+  // cache is a minute; this loop asks for fresher quotes (?fresh=1, up to 4s
+  // old) every 3 seconds at first, then backs off to once a minute while the
+  // page stays open, and starts over fast on the next buy. Values are
+  // recomputed here with the same formula the server uses, so the coin and
+  // the rows update without a full reload.
+  const TICKER_STEPS = [3000, 3000, 3000, 3000, 5000, 5000, 5000, 8000, 8000, 12000, 15000, 20000, 30000, 45000, 60000];
+
+  function valueLive(p, px) {
+    const opened = new Date(p.opened_at).getTime(), matures = new Date(p.matures_at).getTime();
+    const k = Math.max(0, Math.min(1, (Date.now() - opened) / Math.max(1, matures - opened)));
+    const floor = Math.min(p.mult_floor != null ? p.mult_floor : 1, p.multiplier);
+    const m = floor + (p.multiplier - floor) * k;
+    const real = (px - p.entry_price) / p.entry_price;
+    const swing = m * real;
+    const raw = p.invested * (1 + swing);
+    const value = round2(Math.max(0, raw));
+    const profit = round2(value - p.invested);
+    const rate = state.me.rules.tax_rate;
+    const own = profit > 0 ? round2(profit * rate) : 0;
+    const due = round2(Math.min(Math.max(0, p.deferred_tax || 0), Math.max(0, value - own)));
+    const tax = round2(own + due);
+    return { price: px, real_pct: real, swing_pct: Math.max(-1, swing), multiplier_now: Math.round(m * 100) / 100, value, busted: raw <= 0,
+      preview: { profit, tax, deferred_tax: due, net: round2(value - tax), tier: p.preview ? p.preview.tier : '' } };
+  }
+
+  function tickerStart(fast = false) {
+    tickerStop();
+    if (!state.me || API.demo) return;
+    const symbols = [...new Set(state.me.positions.filter((p) => !p.matured && !p.quote_error).map((p) => p.symbol))];
+    if (!symbols.length) return;
+    state.ticker = { symbols, step: fast ? 0 : 6, timer: null };
+    tickerSchedule();
+  }
+  function tickerStop() { if (state.ticker && state.ticker.timer) clearTimeout(state.ticker.timer); state.ticker = null; }
+  function tickerSchedule() {
+    const t = state.ticker; if (!t) return;
+    t.timer = setTimeout(tickerTick, TICKER_STEPS[Math.min(t.step, TICKER_STEPS.length - 1)]);
+  }
+  async function tickerTick() {
+    const t = state.ticker;
+    if (!t || !state.me || state.tab !== 'today' || document.visibilityState !== 'visible') { if (t) tickerSchedule(); return; }
+    try {
+      const r = await API.get(`/quotes?symbols=${encodeURIComponent(t.symbols.join(','))}&fresh=1`);
+      let changed = false;
+      for (const p of state.me.positions) {
+        const q = r.quotes[p.symbol];
+        if (p.matured || !q || !(q.price > 0)) continue;
+        const live = valueLive(p, q.price);
+        if (live.value !== p.value || live.price !== p.price) changed = true;
+        Object.assign(p, live);
+      }
+      if (changed && !state.flipped && !$('#dlg-sell').open) {
+        paintCoin();
+        for (const p of state.me.positions) {
+          const row = $(`.position[data-id="${p.id}"]`);
+          if (!row || p.matured) continue;
+          const fresh = document.createElement('div'); fresh.innerHTML = positionRow(p);
+          const next = fresh.firstElementChild;
+          row.className = next.className;
+          row.querySelector('.value').innerHTML = next.querySelector('.value').innerHTML;
+          row.querySelector('.move').innerHTML = next.querySelector('.move').innerHTML;
+        }
+      }
+    } catch (e) { /* the next tick tries again */ }
+    if (state.ticker === t) { t.step++; tickerSchedule(); }
   }
 
   // Refresh the "3h ago" / "21h 12m" bits without rebuilding the panel.
@@ -571,7 +688,26 @@
       b.onclick = () => { setCarve(Number(b.dataset.pct) === 100 ? cash : cash * Number(b.dataset.pct) / 100); usd.focus(); };
     });
 
-    const openList = () => { list.hidden = false; renderAssetList(search.value); };
+    let searchTimer = null, searchSeq = 0;
+    const openList = () => {
+      list.hidden = false;
+      const q = search.value.trim();
+      if (!state.assetSearch || !q) { renderAssetList(q); return; }
+      // Server search: the universe is thousands of names. Debounced, and a
+      // late answer to an older keystroke is ignored.
+      renderAssetList(q, state.lastSearch && state.lastSearch.q === q ? state.lastSearch.assets : null);
+      clearTimeout(searchTimer);
+      const seq = ++searchSeq;
+      searchTimer = setTimeout(async () => {
+        try {
+          const r = await API.get(`/assets/search?q=${encodeURIComponent(q)}`);
+          if (seq !== searchSeq || search.value.trim() !== q) return;
+          r.assets.forEach((a) => state.found.set(a.symbol, a));
+          state.lastSearch = { q, assets: r.assets };
+          if (!list.hidden) renderAssetList(q, r.assets);
+        } catch (e) { /* keep whatever is showing */ }
+      }, 160);
+    };
     search.addEventListener('focus', openList);
     search.addEventListener('input', openList);
     search.addEventListener('keydown', (e) => {
@@ -587,17 +723,29 @@
     if (state.carve > 0) setCarve(state.carve);
   }
 
-  function renderAssetList(q) {
+  const moodChip = (a) => (a.mood ? `<span class="mood ${esc(a.mood)}">${esc(a.mood)} ${mult(a.multiplier)}</span>` : `<span class="mood plain">${a.kind === 'etf' ? 'ETF ' : a.type === 'crypto' ? 'Crypto ' : ''}${mult(a.multiplier)}</span>`);
+
+  // results: a server search's answer, or null to filter the featured list locally.
+  function renderAssetList(q, results = null) {
     const el = $('#asset-list');
-    if (!el || !state.assets.length) return;
+    if (!el) return;
     const needle = q.trim().toLowerCase();
-    const list = state.assets.filter((a) => !needle || a.symbol.toLowerCase().includes(needle) || a.name.toLowerCase().includes(needle));
-    if (!list.length) { el.innerHTML = `<li class="nothing">Not in the game. It's a curated list, on purpose.</li>`; return; }
-    el.innerHTML = list.slice(0, 60).map((a) => `
+    let list;
+    if (results) list = results;
+    else if (!needle) list = state.assets;
+    else list = state.assets.filter((a) => a.symbol.toLowerCase().includes(needle) || a.name.toLowerCase().includes(needle));
+    if (!list.length) {
+      el.innerHTML = results || !state.assetSearch
+        ? `<li class="nothing">Nothing by that name. Try the ticker${state.assetSearch ? `; ${state.assetCount.toLocaleString('en-US')} names are in the game` : ''}.</li>`
+        : `<li class="nothing">Searching…</li>`;
+      return;
+    }
+    const head = !needle && state.assetSearch ? `<li class="nothing">Featured. Type any US ticker or company name; ${state.assetCount.toLocaleString('en-US')} are in the game.</li>` : '';
+    el.innerHTML = head + list.slice(0, 60).map((a) => `
       <li role="option" data-symbol="${esc(a.symbol)}">
         <b>${esc(a.symbol)}</b>
         <span>${esc(a.name)}</span>
-        <span class="mood ${esc(a.mood)}">${esc(a.mood)} ${mult(a.multiplier)}</span>
+        ${moodChip(a)}
       </li>`).join('');
     $$('li[data-symbol]', el).forEach((li) => {
       // pointerdown beats the search field's blur, so the tap registers.
@@ -606,7 +754,7 @@
   }
 
   async function selectAsset(symbol) {
-    state.selected = state.assets.find((a) => a.symbol === symbol) || null;
+    state.selected = state.assets.find((a) => a.symbol === symbol) || state.found.get(symbol) || null;
     state.quote = null;
     showPicked();
     updateBuyButton();
@@ -631,7 +779,7 @@
     const qline = !q ? `Getting a price…`
       : `<b>${price(q.price)}</b> ${closed ? `last trade ${ago(q.traded_at)}` : 'right now'}${q.change_pct == null ? '' : `, today <span class="${dir(q.change_pct)}">${pct(q.change_pct)}</span>`}${q.stale ? ' <span class="down">(price feed is lagging)</span>' : ''}${closed ? `<br><span class="muted">Markets look closed. You'd buy at that price, and it won't move until they open.</span>` : ''}`;
     pk.innerHTML = `
-      <div class="picked-main"><b>${esc(a.symbol)}</b><span>${esc(a.name)}</span><span class="mood ${esc(a.mood)}">${esc(a.mood)} ${mult(a.multiplier)}</span></div>
+      <div class="picked-main"><b>${esc(a.symbol)}</b><span>${esc(a.name)}</span>${moodChip(a)}</div>
       <div class="q">${qline}</div>
       <button type="button" class="linkish" id="carve-change">Change</button>`;
     pk.hidden = false; search.hidden = true; list.hidden = true; zone.hidden = false;
@@ -661,7 +809,7 @@
     state.busy = true; $('#carve-buy').disabled = true; $('#carve-buy').textContent = 'Buying…';
     try {
       const r = await API.post('/buy', { symbol: asset.symbol, amount });
-      state.carve = 0; state.selected = null; state.quote = null;
+      state.carve = 0; state.selected = null; state.quote = null; state.justBought = true;
       toast(`${money(amount)} of ${asset.symbol} at ${price(r.quote.price)}. It matures in ${state.me.rules.hold_hours} hours.`);
       await loadMe();
       const row = $(`.position[data-id="${r.position.id}"]`);
@@ -1975,6 +2123,7 @@
   }
 
   function signOut() {
+    tickerStop();
     API.setToken(null); state.me = null; state.flipped = false;
     if ($('#dlg-account').open) $('#dlg-account').close();
     location.hash = ''; route();

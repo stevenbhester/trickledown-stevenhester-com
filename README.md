@@ -82,6 +82,15 @@ claimed one. In demo mode, `ravi_k` and `bagholder_ben` are addable.
 4. Make sure the backend's `CORS_ORIGIN` includes this site's origin
    (`https://stevenbhester.github.io` and/or your custom domain).
 
+## The picker and the ticker
+
+`GET /assets` returns the featured list; typing searches the server
+(`/assets/search?q=`), debounced, because the universe is thousands of
+names. After a buy, the live ticker polls `/quotes?fresh=1` every 3 seconds
+and backs off to a minute while the page is open; values are recomputed in
+`valueLive()` (the server's formula) and the coin and rows repaint in place.
+The demo keeps its small local list and no ticker.
+
 ## Money
 
 Play money is shown in thousands: a unit from the API is $1K, a thousand
