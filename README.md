@@ -50,7 +50,10 @@ Three ways an account follows you: username + password ("Keep this
 account"), Google, or a device code (Account → "Use on another device", then
 Sign in → "Use a code" on the other device; 15 minutes, works once, guests
 included). If the backend lists your username in `ADMIN_USERNAMES`, Account
-also shows an Admin section: grant cash and lobbyists, or reset to day one.
+also shows an Admin section, aimed at you or at a player you name: grant cash
+and lobbyists; deal any card onto today's agenda or unlock cards (one, or the
+whole deck); or reset to a brand-new account, which on your own account also
+replays the training, the gift, the first hire and the TrickleTown tour.
 
 Everyone starts as a guest (lives in that browser). "Keep this account" turns
 it into a username + password account, or links a Google account, keeping

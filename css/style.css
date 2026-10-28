@@ -769,6 +769,15 @@ input:focus { border-color: var(--water); }
 
 /* The deck */
 .deck-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+/* Two and a half rows until asked: JS sets max-height; the fade says "more below". */
+.deck-wrap { position: relative; overflow: hidden; transition: max-height .35s ease; }
+.deck-wrap:not(.open)::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: linear-gradient(to bottom, transparent, var(--paper)); pointer-events: none; }
+.deck-wrap.open { max-height: none !important; }
+.deck-more { display: flex; justify-content: center; margin-top: 6px; }
+.deck-coming { margin: 0 0 10px; padding: 8px 12px; border-left: 3px solid #C9A227; background: rgba(201, 162, 39, .09); border-radius: 0 6px 6px 0; font-size: 13px; line-height: 1.4; }
+.mini-tag.admin { color: var(--sink); }
+.mini-tag.headline { color: var(--mud); letter-spacing: .06em; text-transform: uppercase; }
+@media (prefers-reduced-motion: reduce) { .deck-wrap { transition: none; } }
 .mini-card {
   position: relative; border: 1.5px solid var(--line); border-radius: 6px; background: #fff; padding: 22px 10px 8px;
   display: flex; flex-direction: column; gap: 3px; min-height: 92px; font-size: 12px;
@@ -1089,3 +1098,8 @@ body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foo
 .todo .linkish:hover { color: var(--water); }
 .todo.done { border-left-color: var(--rise); }
 .todo.done b { color: var(--rise); font-family: var(--body); text-transform: none; letter-spacing: 0; font-size: 15px; }
+
+/* Admin: three small groups inside one panel. */
+.admin-h { font-family: var(--display); font-size: 15px; font-weight: 700; margin: 14px 0 6px; }
+.acct-section.admin select { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: inherit; }
+.admin-row { flex-wrap: wrap; gap: 6px; margin-top: 8px; }

@@ -241,10 +241,24 @@
       return { ok: true, user: publicUser(), town: townView() };
     }
     if (path === '/admin/reset') {
-      positions.length = 0; user.cash = 100; user.total_donated = 0; user.realized_pnl = 0; user.streak = 1;
+      positions.length = 0; user.cash = 100; user.total_donated = 0; user.realized_pnl = 0; user.streak = 1; user.vested = false; user.charity_id = null;
       for (let i = donations.length - 1; i >= 0; i--) if (donations[i].user === user.username) donations.splice(i, 1);
+      friends.clear();
+      for (const k of Object.keys(town)) delete town[k];
       Object.assign(town, TownRules.fresh());
-      return { ok: true };
+      TownRules.tick(town, townCtx());
+      return { ok: true, self: true };
+    }
+    if (path === '/admin/unlock') {
+      const r = TownRules.adminUnlock(town, body.all === true ? '*' : [].concat(body.issue_id || []));
+      if (!r.unlocked) fail('No such card.');
+      return { ok: true, unlocked: r.unlocked, user: publicUser(), town: townView() };
+    }
+    if (path === '/admin/deal') {
+      if (!TownRules.isUnlocked(user.total_donated)) fail("TrickleTown isn't open for this player yet: they need a lobbyist first (grant one).");
+      const r = TownRules.deal(town, String(body.issue_id || ''));
+      if (r.error) fail(r.error);
+      return { ok: true, dealt: r.dealt, user: publicUser(), town: townView() };
     }
     if (path === '/vest') {
       if (user.vested) fail('Your shares already vested. Once per associate. Policy.');

@@ -26,6 +26,7 @@
     assetCount: 0,
     found: new Map(),    // symbol -> asset, from search results, so selection works off-list
     ticker: null,        // the live-price loop: { timer, step, symbols }
+    deckOpen: false,     // the deck shows two and a half rows until asked for all
   };
 
   // --- formatting ----------------------------------------------------------------
@@ -989,23 +990,76 @@
       </section>`;
   }
 
-  // The collection: every card, with what unlocks it.
+  // The collection: every card, with what unlocks it. Locked cards that open
+  // with days played get a "coming up" line, so the deck reads as a road
+  // ahead rather than a wall of question marks.
+  function deckComing(deck) {
+    const gated = deck.filter((d) => d.status === 'locked').map((d) => {
+      const m = /^Unlock: play (\d+) days? \(you: (\d+)\)\.$/.exec(d.needs || '');
+      return m ? Number(m[1]) - Number(m[2]) : null;
+    }).filter((n) => n != null && n > 0);
+    if (!gated.length) return '';
+    const soon = Math.min(...gated), k = gated.filter((n) => n === soon).length, rest = gated.length - k;
+    const when = soon === 1 ? 'the next day you play' : `after ${soon} more days of play`;
+    return `<p class="deck-coming"><b>Coming up:</b> ${k} new card${k === 1 ? '' : 's'} ${k === 1 ? 'unlocks' : 'unlock'} ${when}${rest ? `, and ${rest} more after that just for showing up` : ''}. The rest open with what you build, hire, earn and who you bring.</p>`;
+  }
   function deckMarkup(deck) {
     const order = { today: 0, played: 1, available: 2, locked: 3 };
-    const sorted = [...deck].sort((a, b) => order[a.status] - order[b.status]);
+    // Same status: the town's own cards before the headlines, so the first
+    // rows show what's particular to you.
+    const sorted = [...deck].sort((a, b) => order[a.status] - order[b.status] || (a.general ? 1 : 0) - (b.general ? 1 : 0));
     const counts = deck.reduce((m, d) => { m[d.status] = (m[d.status] || 0) + 1; return m; }, {});
+    const heads = deck.filter((d) => d.general), headsSeen = heads.filter((d) => d.seen || d.status === 'played').length;
+    const needs = (d) => (d.general ? `Everyone gets one of these ${heads.length} a day.`
+      : d.status === 'locked' || d.forced ? d.needs : d.needs.replace(/^Unlock:/, 'Unlocked:'));
     return `<section class="deck">
       <h3>The deck <span class="muted">${deck.length - (counts.locked || 0)} of ${deck.length} unlocked</span></h3>
-      <p class="muted small">Two cards a day: one everyone gets, one from whatever your town has unlocked. The rest are waiting.</p>
-      <div class="deck-grid">${sorted.map((d) => `
-        <div class="mini-card ${d.status} ${d.general ? 'general' : ''}">
-          <span class="mini-status">${{ today: 'In hand', played: 'Played today', available: 'In the pile', locked: 'Locked' }[d.status]}</span>
-          <b>${d.status === 'locked' ? '???' : esc(d.title)}</b>
-          ${d.consequence ? '<span class="mini-tag">consequences</span>' : d.followup ? '<span class="mini-tag followup">follow-up</span>' : ''}
-          <span class="mini-needs">${d.general ? 'Everyone gets this one.' : d.status === 'locked' ? esc(d.needs) : esc(d.needs.replace(/^Unlock:/, 'Unlocked:'))}</span>
-          ${d.seen && d.status !== 'played' ? '<span class="mini-seen">✓ played before</span>' : ''}
-        </div>`).join('')}</div>
+      <p class="muted small">Two cards a day: one of ${heads.length} headlines that everyone gets (you've played ${headsSeen}), and one from whatever your town has unlocked.</p>
+      ${deckComing(deck)}
+      <div class="deck-wrap ${state.deckOpen ? 'open' : ''}" id="deck-wrap">
+        <div class="deck-grid">${sorted.map((d) => `
+          <div class="mini-card ${d.status} ${d.general ? 'general' : ''}">
+            <span class="mini-status">${{ today: 'In hand', played: 'Played today', available: 'In the pile', locked: 'Locked' }[d.status]}</span>
+            <b>${d.status === 'locked' ? '???' : esc(d.title)}</b>
+            ${d.consequence ? '<span class="mini-tag">consequences</span>' : d.followup ? '<span class="mini-tag followup">follow-up</span>' : d.general ? '<span class="mini-tag headline">headline</span>' : ''}
+            <span class="mini-needs">${esc(needs(d))}</span>
+            ${d.forced && d.status !== 'locked' ? '<span class="mini-tag admin">opened by admin</span>' : ''}
+            ${d.seen && d.status !== 'played' ? '<span class="mini-seen">✓ played before</span>' : ''}
+          </div>`).join('')}</div>
+      </div>
+      <div class="deck-more"><button type="button" class="btn quiet small" id="deck-toggle" aria-controls="deck-wrap" aria-expanded="${state.deckOpen ? 'true' : 'false'}">${state.deckOpen ? 'Show fewer' : `Show all ${deck.length} cards`}</button></div>
     </section>`;
+  }
+  // Two and a half rows, measured, so the cut lands mid-card at any width and
+  // it's obvious there's more underneath.
+  function wireDeck() {
+    const wrap = $('#deck-wrap'), btn = $('#deck-toggle');
+    if (!wrap || !btn) return;
+    const fit = () => {
+      if (state.deckOpen) { wrap.style.maxHeight = ''; return; }
+      // Not laid out yet (mid-flip, or hidden): try again shortly.
+      if (!wrap.offsetParent || !wrap.clientWidth) { setTimeout(() => { if (wrap.isConnected) fit(); }, 120); return; }
+      const cards = [...wrap.querySelectorAll('.mini-card')];
+      const tops = [...new Set(cards.map((c) => c.offsetTop))].sort((a, b) => a - b);
+      if (tops.length <= 3) { wrap.style.maxHeight = ''; wrap.classList.add('open'); btn.parentElement.hidden = true; return; }
+      const row3 = cards.filter((c) => c.offsetTop === tops[2]);
+      const h = tops[2] + Math.max(...row3.map((c) => c.offsetHeight)) / 2;
+      wrap.style.maxHeight = `${Math.round(h)}px`;
+    };
+    fit();
+    btn.onclick = () => {
+      state.deckOpen = !state.deckOpen;
+      wrap.classList.toggle('open', state.deckOpen);
+      btn.setAttribute('aria-expanded', state.deckOpen ? 'true' : 'false');
+      btn.textContent = state.deckOpen ? 'Show fewer' : `Show all ${wrap.querySelectorAll('.mini-card').length} cards`;
+      fit();
+      if (!state.deckOpen) { const d = $('.deck'); if (d && d.getBoundingClientRect().top < 0) d.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }
+    };
+    if (!state.deckResize) {
+      state.deckResize = true;
+      let raf = 0;
+      window.addEventListener('resize', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { const w = $('#deck-wrap'); if (w && !state.deckOpen) wireDeck(); }); });
+    }
   }
 
   function backMarkup() {
@@ -1105,6 +1159,7 @@
     const b = $('#btn-flip-back'); if (b) b.onclick = () => flip(false);
     const adv = $('#btn-advisors'); if (adv) adv.onclick = () => openAdvisors();
     $$('[data-site]').forEach((btn) => { btn.onclick = () => openSite(btn.dataset.site); });
+    wireDeck();
   }
 
   // --- The Site Office: build a plot, hear proposals --------------------------------------
@@ -1974,7 +2029,7 @@
 
         <h2>TrickleTown</h2>
         <p>Flip the coin and you'll find where your lobbyists live. You own the village. Each lot holds one building, and every building is a choice: extractive ones (tenements, a casino) pay into your daily allowance and wear your lobbyists down; decent ones (a co-op, a clinic) cost you upkeep and keep them well. Happiness sets the recruiter's rate, from $1.3K a head in a miserable town to $750 in a happy one, every point counting, so a well-run village turns the same tax into more lobbyists. Health keeps them around: below 50 they start quitting overnight, a few percent a night at first and a fifth of the payroll at zero, and quitters don't go to Lobbyfest. The Company Store, for what it's worth, takes 20% off anything a card costs. More money to play with, or cheaper lobbyists who stay. Pick, or split the difference.</p>
-        <p>Every day Preston Yield, your value extraction partner, and Dolores Pike, lobbyist for your lobbyists, bring two cards to TrickleTown Hall: one everyone gets, one from whatever your own village has unlocked. Each pitch shows which way it will push your allowance, happiness, hiring cost, and health, but not by how much; you see the real numbers once you've played it. Leave a card unplayed and it expires at midnight; once you've built something, the residents notice being ignored (a couple of happiness points a night, never more). Some choices leave a mark, and a later card knocks because of it. The deck shows every card and what unlocks it: a building, an upgrade, a headcount, cash on the coin at dawn, friends, a streak, a town in trouble, or a town doing suspiciously well.</p>
+        <p>Every day Preston Yield, your value extraction partner, and Dolores Pike, lobbyist for your lobbyists, bring two cards to TrickleTown Hall: one everyone gets, one from whatever your own village has unlocked. Each pitch shows which way it will push your allowance, happiness, hiring cost, and health, but not by how much; you see the real numbers once you've played it. Leave a card unplayed and it expires at midnight; once you've built something, the residents notice being ignored (a couple of happiness points a night, never more). Some choices leave a mark, and a later card knocks because of it. The deck shows every card, what unlocks it and how close you are: days played, a building, an upgrade, a headcount, cash on the coin at dawn, friends, a streak, a town in trouble, or a town doing suspiciously well.</p>
         <p>The construction zone has one lot per plot. Tap a lot to open its Site Office: an empty lot gets three pitches to choose from, each with its price (from ${money(20, { whole: true })} for the slum to ${money(60, { whole: true })} for the decent option) and its exact daily push on allowance, happiness and health, and a built one gets proposals for upgrades as they unlock: a few days after building, at a certain headcount or cash on the coin, or when the town is in a certain state. Each proposal is a card, the proposer's pitch against the other advocate's objection. Upgrades push the same four numbers every day, the same way buildings do, and tearing a building down takes its upgrades with it.</p>
 
         <h2>Lobbyfest</h2>
@@ -2120,16 +2175,36 @@
         <button type="button" class="btn small" id="acct-code-btn">Get a code</button>
         <div class="device-code" id="acct-code" hidden></div>
       </details>`;
+  // Testing tools, only for ADMIN_USERNAMES. Every action defaults to your own
+  // account; type a player's name to aim it at theirs instead.
+  const adminCardOptions = () => {
+    const deck = (state.me && state.me.town && state.me.town.deck) || [];
+    const label = { today: 'in hand', played: 'played today', available: 'in the pile', locked: 'locked' };
+    return [...deck].sort((a, b) => a.title.localeCompare(b.title))
+      .map((d) => `<option value="${esc(d.id)}">${esc(d.title)} · ${label[d.status] || d.status}${d.general ? ' · headline' : ''}</option>`).join('');
+  };
   const adminSection = (u) => (u.is_admin ? `
-      <details class="acct-section admin">
+      <details class="acct-section admin" id="acct-admin">
         <summary>Admin</summary>
-        <p class="muted small">Testing only. Grants are real rows: the lobbyists go on the boards and into your town.</p>
+        <p class="muted small">Testing only. Everything here is real: grants land on the boards, resets delete rows.</p>
+        <label class="field"><span>Player <em class="muted">(blank = you)</em></span><input id="acct-admin-who" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" placeholder="${esc(u.username)}"></label>
+        <h4 class="admin-h">Grant</h4>
         <form id="acct-grant-form" class="acct-form">
-          <label class="field"><span>Cash to add</span><input id="acct-grant-cash" type="number" min="0" step="1" placeholder="0" inputmode="numeric"></label>
+          <label class="field"><span>Cash to add ($K)</span><input id="acct-grant-cash" type="number" min="0" step="1" placeholder="0" inputmode="numeric"></label>
           <label class="field"><span>Lobbyists to add</span><input id="acct-grant-lob" type="number" min="0" step="0.01" placeholder="0" inputmode="decimal"></label>
           <button type="submit" class="btn small">Grant</button>
         </form>
-        <div class="row-actions" style="margin-top:8px"><button type="button" class="btn quiet small danger" id="acct-reset">Reset my account</button></div>
+        <h4 class="admin-h">Cards</h4>
+        <label class="field"><span>Card</span><select id="acct-card">${adminCardOptions()}</select></label>
+        <div class="row-actions admin-row">
+          <button type="button" class="btn small" id="acct-deal">Deal it today</button>
+          <button type="button" class="btn quiet small" id="acct-unlock">Unlock it</button>
+          <button type="button" class="btn quiet small" id="acct-unlock-all">Unlock every card</button>
+        </div>
+        <p class="muted small">Deal puts the card on today's agenda now (the town has to be open). Unlock puts it in the pile for future days.</p>
+        <h4 class="admin-h">Start over</h4>
+        <p class="muted small">Back to a brand-new account: no positions, lobbyists, town, friends or streak, shares unvested, $100K at the next load. On your own account this browser also forgets the training and tours, so you get the whole first-day experience again.</p>
+        <div class="row-actions"><button type="button" class="btn quiet small danger" id="acct-reset">Reset to brand new</button></div>
       </details>` : '');
   function wireShared() {
     const err = (m) => { const e = $('#account-error'); e.textContent = m; e.hidden = false; };
@@ -2145,27 +2220,66 @@
       } catch (e) { err(e.message); }
       finally { codeBtn.disabled = false; }
     };
+    // Admin: aim at yourself unless a player is named.
+    const who = () => { const w = $('#acct-admin-who'); const v = w ? w.value.trim() : ''; return v && v.toLowerCase() !== state.me.user.username.toLowerCase() ? v : ''; };
+    const aim = (body) => (who() ? { ...body, username: who() } : body);
+    const reload = (opts = {}) => {
+      $('#dlg-account').close(); state.me = null;
+      if (opts.town) state.flipped = true;
+      location.hash = '#today'; route();
+    };
+    const busy = async (btn, fn) => { if (btn.disabled) return; btn.disabled = true; try { await fn(); } catch (e) { err(e.message); } finally { btn.disabled = false; } };
     const grant = $('#acct-grant-form');
-    if (grant) grant.onsubmit = async (ev) => {
+    if (grant) grant.onsubmit = (ev) => {
       ev.preventDefault();
       const cash = Number($('#acct-grant-cash').value) || 0, lobbyists = Number($('#acct-grant-lob').value) || 0;
-      try {
-        const r = await API.post('/admin/grant', { cash, lobbyists });
-        toast(`Granted: ${cash ? money(cash) : ''}${cash && lobbyists ? ' and ' : ''}${lobbyists ? lobby(lobbyists) : ''}.`);
-        $('#dlg-account').close(); state.me = null; location.hash = '#today'; route();
-      } catch (e) { err(e.message); }
+      busy(grant.querySelector('button'), async () => {
+        await API.post('/admin/grant', aim({ cash, lobbyists }));
+        toast(`Granted${who() ? ` ${who()}` : ''}: ${cash ? money(cash) : ''}${cash && lobbyists ? ' and ' : ''}${lobbyists ? lobby(lobbyists) : ''}.`);
+        reload();
+      });
     };
+    const card = $('#acct-card');
+    const cardName = () => (card && card.selectedOptions[0] ? card.selectedOptions[0].textContent.split(' · ')[0] : 'that card');
+    const deal = $('#acct-deal');
+    if (deal) deal.onclick = () => busy(deal, async () => {
+      await API.post('/admin/deal', aim({ issue_id: card.value }));
+      toast(`Dealt “${cardName()}”${who() ? ` to ${who()}` : ''}. It's on today's agenda.`);
+      reload({ town: !who() });
+    });
+    const unlock = $('#acct-unlock');
+    if (unlock) unlock.onclick = () => busy(unlock, async () => {
+      await API.post('/admin/unlock', aim({ issue_id: card.value }));
+      toast(`Unlocked “${cardName()}”${who() ? ` for ${who()}` : ''}. It can be dealt from tomorrow.`);
+      reload();
+    });
+    const all = $('#acct-unlock-all');
+    if (all) all.onclick = () => busy(all, async () => {
+      if (all.dataset.armed !== '1') { all.dataset.armed = '1'; all.textContent = 'Tap again to open the whole deck'; return; }
+      await API.post('/admin/unlock', aim({ all: true }));
+      toast(`Every card is unlocked${who() ? ` for ${who()}` : ''}.`);
+      reload();
+    });
     const reset = $('#acct-reset');
-    if (reset) reset.onclick = async () => {
-      if (reset.dataset.armed !== '1') { reset.dataset.armed = '1'; reset.textContent = 'Tap again to wipe positions, lobbyists and town'; return; }
-      try {
-        await API.post('/admin/reset');
-        toast('Reset. Fresh $100K on the next load.');
-        $('#dlg-account').close(); state.me = null; state.flipped = false;
-        try { localStorage.removeItem('trickledown.town-intro'); } catch (e) { /* fine */ }
-        location.hash = '#today'; route();
-      } catch (e) { err(e.message); }
-    };
+    if (reset) reset.onclick = () => busy(reset, async () => {
+      if (reset.dataset.armed !== '1') { reset.dataset.armed = '1'; reset.textContent = who() ? `Tap again to wipe ${who()} back to brand new` : 'Tap again to wipe everything and start over'; return; }
+      const target = who();
+      const r = await API.post('/admin/reset', aim({}));
+      if (r.self === false || target) { toast(`${target} is brand new again. Their own browser still remembers the training they've seen.`); reload(); return; }
+      forgetFirstRun();
+      toast('Brand new. Welcome to Trickle Down Corp.');
+      reload();
+    });
+  }
+
+  // Everything this browser remembers about having played before, so a reset
+  // account replays the training, the first-investment guide, the vesting
+  // gift, the first hire and the TrickleTown tour from the top.
+  function forgetFirstRun() {
+    for (const k of ['trickledown.oriented', 'trickledown.town-intro']) { try { localStorage.removeItem(k); } catch (e) { /* private mode */ } }
+    tickerStop();
+    Object.assign(state, { flipped: false, oriented: false, ceremony: false, selected: null, quote: null, carve: 0, sell: null, deckOpen: false });
+    state.found.clear();
   }
 
   async function openAccount() {
