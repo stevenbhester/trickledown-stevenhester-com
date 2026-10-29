@@ -320,7 +320,9 @@
   async function loadMe() {
     try {
       const me = await API.get('/me');
+      legacyAchievements(me);
       state.me = me;
+      checkServer(me);
       // The server hands out a fresh token when the current one is past half
       // its life, so a guest who keeps showing up is never signed out.
       if (me.token && !API.demo) API.setToken(me.token);
@@ -1823,6 +1825,41 @@
   // Rare milestones. Each comes with a gift from Mommy & Daddy, taxed like any
   // win (so it hires lobbyists). The server records them as they're earned;
   // the popup is where the player takes the money.
+  // A server from before achievements sends `vesting` instead: { available,
+  // amount } until the day-one windfall is taken, then null. Read it as the
+  // first achievement so the gift still pops and pays (via /vest).
+  function legacyAchievements(me) {
+    if (!me || me.achievements) return;
+    const v = me.vesting;
+    const bought = !!((me.positions && me.positions.length) || (me.history && me.history.length));
+    const now = new Date().toISOString();
+    const earned = v ? !!v.available : bought, claimed = !v && bought;
+    const fb = {
+      key: 'first_buy', title: 'Skin in the Game', how: 'Make your first investment.', from: 'Daddy',
+      note: "Proud of you, champ. Here's a little something so you never have to touch the principal.",
+      gift: Number(v && v.amount) || (me.rules && Number(me.rules.vest_amount)) || 0,
+      earned_at: earned ? now : null, claimed_at: claimed ? now : null, lobbyists: null,
+      progress: earned ? null : { have: 0, need: 1 },
+    };
+    me.achievements = { list: [fb], unclaimed: earned && !claimed && fb.gift > 0 ? ['first_buy'] : [], earned: earned ? 1 : 0, total: 1, legacy: true };
+  }
+
+  // The page and the server ship separately. If the server is older than this
+  // page expects, say so to admins, loudly, instead of letting it look like
+  // missing features. Players just get the fallbacks.
+  const API_WANTS = 8;
+  function checkServer(me) {
+    if (API.demo || state.serverWarned || (me.api || 0) >= API_WANTS) return;
+    state.serverWarned = true;
+    console.warn(`Trickle Down: the server is API v${me.api || '7 or older'}; this page wants v${API_WANTS}. Deploy the latest backend.`);
+    if (!me.user || !me.user.is_admin) return;
+    const bar = document.createElement('div');
+    bar.className = 'stale-server'; bar.setAttribute('role', 'alert');
+    bar.innerHTML = `<b>Admin: the server is behind this page.</b> It reports API ${me.api ? `v${esc(String(me.api))}` : 'v7 or older'}; the page needs v${API_WANTS}. Upload the latest backend to the Heroku repo and redeploy. Until then, achievements, lobbyist assignment and newer admin tools fall back or fail. <button type="button" class="linkish">Dismiss</button>`;
+    bar.querySelector('button').onclick = () => bar.remove();
+    document.body.appendChild(bar);
+  }
+
   const achOf = (me, key) => (me && me.achievements ? me.achievements.list.find((a) => a.key === key) : null);
   const unclaimedKeys = (me) => (me && me.achievements ? me.achievements.unclaimed : []);
   // Before the first buy, the first-investment guide owns the screen.
@@ -1852,7 +1889,7 @@
   // After something that might have earned one without reloading /me (a
   // building, a friend), ask the server and pop it if so.
   async function refreshAchievements(delay = 600) {
-    if (!state.me) return;
+    if (!state.me || state.me.achievements.legacy) return;
     try { state.me.achievements = await API.get('/achievements'); } catch (e) { return; }
     renderTrophyCount();
     maybeAchievement(delay);
@@ -1905,10 +1942,13 @@
     const btn = $('#ach-claim'); btn.disabled = true; btn.textContent = 'Depositing…';
     try {
       const sel = $('#ach-charity');
-      const r = await API.post('/achievements/claim', { key, charity_id: sel && sel.value ? Number(sel.value) : undefined });
+      const charity_id = sel && sel.value ? Number(sel.value) : undefined;
+      // An older server only knows the day-one gift, as "/vest".
+      const r = state.me.achievements.legacy ? await API.post('/vest', { charity_id }) : await API.post('/achievements/claim', { key, charity_id });
       $('#dlg-ach').close();
       await loadMe();
       const rc = r.receipt;
+      if (rc && !rc.gift) { const a = achOf(state.me, key) || {}; Object.assign(rc, { gift: true, vested: false, name: a.title, tier: 'Gift', achievement: { key, title: a.title, from: a.from } }); }
       const hiredNow = rc.lobbyists || 0;
       const t = state.me.town;
       if (hiredNow > 0 && t && t.unlocked && !Explainer.seen('town')) openHireCeremony(rc, hiredNow, 'Gift');

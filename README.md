@@ -84,6 +84,14 @@ claimed one. In demo mode, `ravi_k` and `bagholder_ben` are addable.
    your other GitHub Pages sites.
 4. Make sure the backend's `CORS_ORIGIN` includes this site's origin
    (`https://stevenbhester.github.io` and/or your custom domain).
+5. Each release: bump the `?v=` on the script and stylesheet tags in
+   `index.html` so no browser mixes a cached old file with new ones. If the
+   release needs a newer server, raise `API_WANTS` in `js/app.js` to match
+   `API_VERSION` in the backend's `src/routes.js`; signed in as an admin,
+   the page shows a yellow bar while the server is behind.
+6. This repo is only the page. Server files (`src/`, `scripts/`, `Procfile`,
+   `package.json`, `app.json`) belong in the Heroku repo; here they're just
+   public clutter.
 
 ## The picker and the ticker
 

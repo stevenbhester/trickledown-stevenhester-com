@@ -1492,3 +1492,13 @@ body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foo
 .board-h .muted { font-family: var(--body); font-weight: 400; font-size: 13px; margin-left: 6px; }
 tr.fold { display: none; }
 .board-more { display: block; margin: 6px 0 0; font-size: 13px; }
+
+/* Admin-only: the server is older than the page (see checkServer in app.js). */
+.stale-server {
+  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 60;
+  max-width: 640px; margin: 0 auto; padding: 12px 14px;
+  background: #FFF4D6; color: #3A2A00; border: 2px solid #C98A00; border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .25); font-size: 14px; line-height: 1.45;
+}
+.stale-server b { display: block; margin-bottom: 2px; }
+.stale-server .linkish { margin-left: 6px; color: inherit; font-weight: 600; }
