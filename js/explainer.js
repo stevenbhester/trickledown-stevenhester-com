@@ -42,6 +42,7 @@ window.Explainer = (function () {
 
   function mainDeck(r) {
     const pct = Math.round(r.tax_rate * 100);
+    const fmtK = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
     return [
       {
         kicker: 'Welcome to Trickle Down',
@@ -74,7 +75,7 @@ window.Explainer = (function () {
         next: 'And the charity part?',
       },
       {
-        title: 'Wins hire lobbyists',
+        title: 'Your gains hire lobbyists',
         art: svg(`
           ${bill(32, 70, 'hop h1')}${bill(56, 70, 'hop h2')}
           ${arrow(78, 102, 70)}
@@ -83,8 +84,8 @@ window.Explainer = (function () {
           ${suit(141, 34, '', 0.9)}
           ${arrow(196, 216, 70)}
           ${suit(224, 52, 'pop p1')}${suit(246, 52, 'pop p2')}`),
-        body: `${pct}% of every win is tax. The tax hires lobbyists for your charity. Every quarter at Lobbyfest, the charity with the most lobbyists gets the biggest share of the real money.`,
-        fine: r.demo ? 'The money will be real. The charities in this demo are not.' : 'Receipts are posted on the Lobby page.',
+        body: `Only your gains are taxed, at ${pct}%. Put in $50K, collect $60K: the gain is $10K, so $${fmtK(10 * pct / 100)}K is tax. Losses aren't taxed. The tax hires lobbyists for your charity. Every quarter at Lobbyfest, the charity with the most lobbyists gets the biggest share of the real money.`,
+        fine: r.demo ? 'The money will be real. The charities in this demo are not.' : 'Receipts are posted on the Lobbyfest page.',
         next: 'Got it',
       },
       {
@@ -95,7 +96,7 @@ window.Explainer = (function () {
           <rect x="96" y="40" width="88" height="56" rx="6" fill="#fff" stroke="#0F2430" stroke-width="2"/>
           <text x="140" y="76" text-anchor="middle" fill="#0F2430" font-size="22" font-weight="900">$${r.vest_amount || 40}K</text>
           <text x="140" y="122" text-anchor="middle" class="x-tag">from Mommy &amp; Daddy</text>`),
-        body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K, taxed like any win. That tax hires your first lobbyists, and they need somewhere to live. That's TrickleTown, on the other side of your coin. We'll show you around when you get there.`,
+        body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K. It's all gain, so ${pct}% of it is tax. That tax hires your first lobbyists, and they need somewhere to live. That's TrickleTown, on the other side of your coin. We'll show you around when you get there.`,
         fine: 'Nothing about this is normal. Everything about it is legal.',
         next: 'Start playing',
       },

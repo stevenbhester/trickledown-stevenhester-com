@@ -6,13 +6,13 @@ that runs on GitHub Pages; the API it talks to lives in `heroku-trickledown`.
 No build step. Plain HTML, CSS, and JS.
 
 ```
-index.html        the shell: masthead, tabs, screens, bottom sheets
+index.html        the shell: masthead (with the ☰ menu), screens, bottom sheets
 config.js         API_BASE and SITE_URL — the only thing you must edit
 css/style.css     the whole look; design tokens at the top
 js/coin.js        draws the coin (SVG): wedges, bills, the village, the advocates
 js/town.js        TrickleTown rules + the card deck (byte-identical to the backend's src/town.js)
 js/explainer.js   the two tutorials
-js/app.js         screens, carving, collect/sell/ride, the flip, TrickleTown Hall, the Site Office, boards, friends, player sheets
+js/app.js         screens, carving, collect/sell/ride, the flip, TrickleTown Hall, the Site Office, the menu, leaderboards, friends, profiles and walls
 js/api.js         fetch wrapper with the auth token
 js/demo-api.js    in-memory fake API for demo mode (see below)
 favicon.svg       the droplet
@@ -64,16 +64,26 @@ everywhere. Google sign-in appears only when the backend reports a client id
 lives in `localStorage` and goes out as a Bearer header; see the backend
 README's Security section for the rest.
 
-## Friends
+## The menu, profiles, friends
 
-Leaders → Friends: add anyone by username. It's one-way and silent; they see
-you only if they add you back. You get a friends-only toggle on both boards,
-a "erin bought NVDA" line under the crowd strip on Today, and a sheet for any
-player (tap a name anywhere): their coin with live wedges, standing, rank,
-cash in play, favourite charity, and a summary of their village. Guests can
-add friends but can't be added, since a guest's name isn't shareable; the
-account sheet and the share card both carry your username once you've
-claimed one. In demo mode, `ravi_k` and `bagholder_ben` are addable.
+Today's game is the page. Everything else is behind ☰: your profile,
+Leaderboards, Friends, Lobbyfest & charities, Trophies, How to play, Account.
+
+Every username opens a profile (`#u/<name>`; yours is `#profile`): a
+Robinhood-style chart of trading gains (positions only: gifts and town
+spending don't move it; scrub it, 1W / 1M / 3M / All), win rate and best and
+worst trades, what they're holding, their town (scores, buildings and
+upgrades, how often they side with Preston or Dolores), lobbyists by
+charity, trophies, and a wall.
+
+Friends (☰ → Friends): add anyone by username. It's one-way and silent;
+they see you only if they add you back. You get a friends-only board, a
+"erin bought NVDA" line under the crowd strip on Today, and adding someone
+lets them read and write on your wall. Nobody else can. You can delete
+anything on your wall; they can delete their own posts. A red dot on ☰ means
+someone wrote on yours. Guests can add friends but can't be added, since a
+guest's name isn't shareable. In demo mode, `ravi_k` and `bagholder_ben` are
+addable, and erin's and ravi_k's walls are open to you.
 
 ## Deploy to GitHub Pages
 
@@ -85,7 +95,10 @@ claimed one. In demo mode, `ravi_k` and `bagholder_ben` are addable.
 4. Make sure the backend's `CORS_ORIGIN` includes this site's origin
    (`https://stevenbhester.github.io` and/or your custom domain).
 5. Each release: bump the `?v=` on the script and stylesheet tags in
-   `index.html` so no browser mixes a cached old file with new ones. If the
+   `index.html`, and put the same value in `version.txt`. The page checks
+   `version.txt` (uncached) on load and when the tab comes back; if a newer
+   build is live it reloads itself once, so nobody sits on a cached old page
+   for GitHub Pages' ten minutes. If the
    release needs a newer server, raise `API_WANTS` in `js/app.js` to match
    `API_VERSION` in the backend's `src/routes.js`; signed in as an admin,
    the page shows a yellow bar while the server is behind.

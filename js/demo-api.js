@@ -96,12 +96,12 @@
     ['first_buy', 'Skin in the Game', 'Make your first investment.', 'Daddy', 40, "Proud of you, champ. Here's a little something so you never have to touch the principal."],
     ['first_win', 'Realized Gains', 'Cash out a profit.', 'Mommy', 20, 'Your first real money! Daddy got misty. Buy yourself something with a crest on it.'],
     ['first_bust', 'Character Building', 'Lose a whole position.', 'Daddy', 25, 'Everybody loses one. I lost a shipping line. This should cover it.'],
-    ['networking', 'Networking', 'Add 3 friends.', 'Mommy', 15, 'Wonderful, darling. Who are their parents?'],
+    ['networking', 'Networking', 'Add 3 friends.', 'Mommy', 20, 'Wonderful, darling. Who are their parents?'],
     ['streak_7', 'Creature of Habit', 'Play 7 days in a row.', 'Mommy', 30, 'A whole week! You get the discipline from my side.'],
     ['landlord', 'Landlord', 'Build on every lot in TrickleTown.', 'Daddy', 40, 'Property. Finally, a real job.'],
     ['let_it_ride', 'Let It Ride', 'Ride the same position twice.', 'Daddy', 40, 'Never take money off the table. Your grandfather never did, and look at him. Well, look at his portrait.'],
     ['legend', 'Legendary', 'Cash out at Legend tier (double your money or better).', 'Mommy', 50, "I told everyone at the club. They're asking who your advisor is."],
-    ['power_broker', 'Power Broker', 'Hire 50 lobbyists, career.', 'Mommy', 60, 'Fifty! Your father had forty and they named an interchange after him.'],
+    ['power_broker', 'Power Broker', 'Hire 500 lobbyists, career.', 'Mommy', 60, 'Five hundred! Your father had four hundred and they named an interchange after him.'],
     ['streak_30', 'Clocked In', 'Play 30 days in a row.', 'Daddy', 100, 'Thirty days without missing one. Nobody in this family has ever done that. Not even at the office.'],
     ['seven_figures', 'Seven Figures', 'Have $1M on the coin at once.', 'Daddy', 100, "A million! They say the first one is the hardest. I wouldn't know."],
   ].map(([key, title, how, from, gift, note]) => ({ key, title, how, from, gift, note }));
@@ -115,8 +115,8 @@
       rides: Math.max(0, ...mine.map((p) => p.ride_count || 0)), friends: friends.size, streak: user.streak, cash: user.cash, lob: user.total_donated,
       built: Object.values(town.plots).filter(Boolean).length, lots: Object.keys(town.plots).length,
     };
-    const met = { first_buy: s.bought >= 1, first_win: s.won, first_bust: s.bust, networking: s.friends >= 3, streak_7: s.streak >= 7, landlord: s.built >= s.lots, let_it_ride: s.rides >= 2, legend: s.legend, power_broker: s.lob >= 50, streak_30: s.streak >= 30, seven_figures: s.cash >= 1000 };
-    const prog = { first_buy: [Math.min(s.bought, 1), 1], networking: [Math.min(s.friends, 3), 3], streak_7: [Math.min(s.streak, 7), 7], streak_30: [Math.min(s.streak, 30), 30], landlord: [s.built, s.lots], let_it_ride: [Math.min(s.rides, 2), 2], power_broker: [Math.min(Math.floor(s.lob), 50), 50], seven_figures: [Math.min(Math.floor(s.cash), 1000), 1000] };
+    const met = { first_buy: s.bought >= 1, first_win: s.won, first_bust: s.bust, networking: s.friends >= 3, streak_7: s.streak >= 7, landlord: s.built >= s.lots, let_it_ride: s.rides >= 2, legend: s.legend, power_broker: s.lob >= 500, streak_30: s.streak >= 30, seven_figures: s.cash >= 1000 };
+    const prog = { first_buy: [Math.min(s.bought, 1), 1], networking: [Math.min(s.friends, 3), 3], streak_7: [Math.min(s.streak, 7), 7], streak_30: [Math.min(s.streak, 30), 30], landlord: [s.built, s.lots], let_it_ride: [Math.min(s.rides, 2), 2], power_broker: [Math.min(Math.floor(s.lob), 500), 500], seven_figures: [Math.min(Math.floor(s.cash), 1000), 1000] };
     for (const a of ACH) if (met[a.key] && !earned.has(a.key)) earned.set(a.key, { earned_at: new Date().toISOString(), claimed_at: null, lobbyists: null });
     const list = ACH.map((a) => { const e = earned.get(a.key); const p = prog[a.key]; return { ...a, earned_at: e ? e.earned_at : null, claimed_at: e ? e.claimed_at : null, lobbyists: e ? e.lobbyists : null, progress: !e && p ? { have: p[0], need: p[1], money: a.key === 'seven_figures' } : null }; });
     return { list, unclaimed: list.filter((a) => a.earned_at && !a.claimed_at).map((a) => a.key), earned: list.filter((a) => a.earned_at).length, total: list.length };
@@ -153,20 +153,80 @@
   const seenAt = (h) => (h < 24 ? 'today' : h < 24 * 7 ? 'this week' : h < 24 * 30 ? 'this month' : 'a while ago');
   const friendRow = (p) => ({ username: p.username, streak: p.streak, total_donated: p.donated, quarter_donated: quarterOf(p.username), badges: badgesFor(p.donated), cash: p.cash, last_seen: seenAt(p.hours_ago), town: p.town ? { happiness: p.town.happiness, motto: p.town.motto } : null });
   // A public profile, shaped like GET /players/:username on the server.
+  // A trading history like the server's: realized profit by the day it was
+  // realized, running total, gifts excluded, open positions added at "now".
+  const addDay = (d, n) => { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd + n)).toISOString().slice(0, 10); };
+  function perfFromCloses(closes, open, firstDay) {
+    const byDay = new Map();
+    for (const c of closes) { const r = byDay.get(c.d) || { pnl: 0, n: 0, wins: 0 }; r.pnl += c.profit; r.n += 1; if (c.profit > 0) r.wins += 1; byDay.set(c.d, r); }
+    const series = []; let total = 0, closed = 0, wins = 0;
+    if (firstDay) {
+      let d = addDay(firstDay, -1); series.push({ d, v: 0 });
+      while (d < today) { d = addDay(d, 1); const r = byDay.get(d); if (r) { total += r.pnl; closed += r.n; wins += r.wins; } series.push({ d, v: round2(total) }); }
+    }
+    const best = closes.filter((c) => c.profit > 0).sort((a, b) => b.profit - a.profit)[0];
+    const worst = closes.filter((c) => c.profit < 0).sort((a, b) => a.profit - b.profit)[0];
+    const open_pnl = round2(open.reduce((sum, x) => sum + (x.value - x.invested), 0));
+    const pick = (c) => (c ? { symbol: c.symbol, profit: round2(c.profit), pct: c.invested ? c.profit / c.invested : null, day: c.d, tier: c.tier || null } : null);
+    return { series, realized: round2(total), open_pnl, total: round2(total + open_pnl), closed, wins, best: pick(best), worst: pick(worst), since: firstDay };
+  }
+  // Other players get a seeded month of trading that ends at their realized total.
+  function seededCloses(p) {
+    const out = []; const days = 34; const syms = ['NVDA', 'TSLA', 'BTC', 'KO', 'SOL', 'DOGE', 'AAPL', 'GME'];
+    let sum = 0;
+    for (let i = 0; i < days; i++) {
+      const r = hash(`${p.username}:${i}`); if (r < 0.35) continue;
+      const inv = round2(40 + r * 160); const profit = round2(inv * (hash(`${p.username}~${i}`) - 0.45) * 0.6);
+      out.push({ d: addDay(today, -(days - i)), symbol: syms[Math.floor(r * 997) % syms.length], invested: inv, profit }); sum += profit;
+    }
+    // Nudge the last few so the total lands on the realized_pnl the boards show.
+    const gap = (p.realized_pnl - sum) / 3; for (let k = 1; k <= 3 && out.length - k >= 0; k++) out[out.length - k].profit = round2(out[out.length - k].profit + gap);
+    return out;
+  }
+  // Walls: the demo player's has a post from erin; erin's is open to you (she added you).
+  const walls = new Map([
+    ['guest_demo', [{ id: 2, author: 'erin', body: 'Saw the Pinnacle went up. Bold. The view from the 40th floor is mostly the casino.', at: ago(5) }]],
+    ['erin', [{ id: 1, author: 'ravi_k', body: 'Co-op tour Saturday? Bring the good snacks.', at: ago(30) }]],
+    ['ravi_k', []],
+  ]);
+  let wallNext = 10, wallSeen = false;
+  const addedYouSet = new Set(['erin', 'ravi_k']);
+  const wallOpenTo = (owner) => owner.toLowerCase() === user.username.toLowerCase() || addedYouSet.has(owner);
+  const wallFor = (owner) => (walls.get(owner) || []).map((w) => ({ ...w, mine: w.author === user.username, can_delete: w.author === user.username || owner === user.username }));
+  const ownerName = (name) => (name.toLowerCase() === user.username.toLowerCase() ? user.username : (findPlayer(name) || {}).username);
+  const SEED_SIDES = { ravi_k: { preston: 4, dolores: 15 }, erin: { preston: 9, dolores: 8 }, moonshot_mia: { preston: 13, dolores: 2 } };
+  const SEED_EARNED = { ravi_k: ['first_buy', 'first_win', 'networking', 'streak_7', 'landlord'], erin: ['first_buy', 'first_win', 'streak_7'], bagholder_ben: ['first_buy', 'first_bust'], moonshot_mia: ['first_buy', 'first_win', 'let_it_ride'] };
+
   function profileOf(name) {
     if (name.toLowerCase() === user.username.toLowerCase()) {
       settleMatured();
       const mine = positions.filter((p) => p.status === 'open').map(shape);
       const tv = TownRules.isUnlocked(user.total_donated) ? townView() : null;
-      return { username: user.username, is_guest: user.is_guest, streak: user.streak, total_donated: user.total_donated, quarter_donated: quarterOf(user.username), badges: badgesFor(user.total_donated), cash: user.cash,
-        in_play: round2(user.cash + mine.reduce((s, p) => s + p.value, 0)), positions: mine, top_charity: 'Puddle Preservation League', last_seen: 'today',
-        town: tv ? { happiness: tv.happiness, income: tv.income, motto: tv.motto, buildings: tv.plots.map((pl) => (pl.building ? { slot: pl.slot, key: pl.key, name: pl.building.name, tier: pl.building.tier } : { slot: pl.slot, key: null })) } : null,
-        is_friend: false, added_you: false, is_you: true };
+      const closes = positions.filter((p) => (p.status === 'closed' || p.status === 'rolled')).map((p) => ({ d: p.closed_day, symbol: p.symbol, invested: p.invested, profit: p.profit, tier: p.tier }));
+      const firstDay = positions.filter((p) => p.status !== 'gift' && p.status !== 'vested').map((p) => p.opened_day || p.closed_day).filter(Boolean).sort()[0] || null;
+      const mineDon = donations.filter((d) => d.user === user.username);
+      wallSeen = true;
+      return { username: user.username, is_guest: user.is_guest, joined: addDay(today, -11) + 'T15:00:00Z', streak: user.streak, total_donated: user.total_donated, quarter_donated: quarterOf(user.username), badges: badgesFor(user.total_donated), cash: user.cash,
+        in_play: round2(user.cash + mine.reduce((s, p) => s + p.value, 0)), positions: mine, performance: perfFromCloses(closes, mine, firstDay),
+        lobbyists_by_charity: CHARITIES.map((c) => ({ name: c.name, slug: c.slug, amount: round2(mineDon.filter((d) => d.charity_id === c.id).reduce((s2, d) => s2 + d.amount, 0)) })).filter((c) => c.amount > 0),
+        top_charity: 'Puddle Preservation League', last_seen: 'today',
+        achievements: { earned: achView().list.filter((a) => a.earned_at).map((a) => ({ key: a.key, title: a.title, how: a.how, at: a.earned_at })), total: ACH.length },
+        town: tv ? { happiness: tv.happiness, income: tv.income, hire_cost: tv.hire_cost, motto: tv.motto, sides: { ...(town.sides || { preston: 0, dolores: 0 }) },
+          buildings: tv.plots.map((pl) => (pl.building ? { slot: pl.slot, label: pl.label, key: pl.key, name: pl.building.name, tier: pl.building.tier, days: pl.days, upgrades: pl.building.upgrades.filter((x) => x.owned).map((x) => ({ name: x.name, tier: x.tier })) } : { slot: pl.slot, label: pl.label, key: null })) } : null,
+        is_friend: false, added_you: false, is_you: true, wall: { open: true, max: 280, posts: wallFor(user.username) } };
     }
     const p = findPlayer(name); if (!p) fail('No player by that name.', 404);
     const open = p.positions().map(shape);
-    return { ...friendRow(p), is_guest: false, in_play: round2(p.cash + open.reduce((s, x) => s + x.value, 0)), positions: open, top_charity: p.top_charity, town: p.town,
-      is_friend: friends.has(p.username), added_you: p.username === 'erin' || p.username === 'ravi_k', is_you: false };
+    const town2 = p.town ? { ...p.town, hire_cost: round2(Math.max(0.5, 1.4 - 0.9 * Math.pow(p.town.happiness / 100, 1.5))), sides: SEED_SIDES[p.username] || { preston: 3, dolores: 3 },
+      buildings: p.town.buildings.map((b) => ({ ...b, label: b.slot === 'housing' ? 'Housing' : 'Town square', days: b.key ? 6 : 0, upgrades: [] })) } : null;
+    const share = [0.55, 0.3, 0.15];
+    return { ...friendRow(p), is_guest: false, joined: addDay(today, -40) + 'T15:00:00Z', in_play: round2(p.cash + open.reduce((s2, x) => s2 + x.value, 0)), positions: open,
+      performance: perfFromCloses(seededCloses(p), open, addDay(today, -34)),
+      lobbyists_by_charity: [p.top_charity, ...CHARITIES.map((c) => c.name).filter((n) => n !== p.top_charity).slice(hash(p.username) * 4 | 0, (hash(p.username) * 4 | 0) + 2)].map((n, i) => ({ name: n, amount: round2(quarterOf(p.username) * share[i]) })),
+      top_charity: p.top_charity, town: town2,
+      achievements: { earned: (SEED_EARNED[p.username] || ['first_buy']).map((k) => { const a = ACH.find((x) => x.key === k); return { key: k, title: a.title, how: a.how, at: ago(200) }; }), total: ACH.length },
+      is_friend: friends.has(p.username), added_you: addedYouSet.has(p.username), is_you: false,
+      wall: wallOpenTo(p.username) ? { open: true, max: 280, posts: wallFor(p.username) } : { open: false } };
   }
 
   const badgesFor = (d) => ({ earned: BADGES.filter((b) => d >= b.at), next: BADGES.find((b) => d < b.at) || null });
@@ -218,6 +278,7 @@
         friend_count: friends.size,
         vesting: null,
         achievements: achView(),
+        wall_unread: wallSeen ? 0 : (walls.get(user.username) || []).filter((w) => w.author !== user.username).length,
         today_donated: history.filter((h) => h.closed_day === today).reduce((s, h) => s + h.tax, 0),
       };
     }
@@ -225,6 +286,11 @@
     if (path === '/friends') {
       const list = [...friends].map(findPlayer).filter(Boolean).map(friendRow).sort((a, b) => b.quarter_donated - a.quarter_donated || a.username.localeCompare(b.username));
       return { friends: list, added_you: 2, max: 50, your_username: user.username, is_guest: user.is_guest };
+    }
+    if (/^\/players\/[^/]+\/wall$/.test(path)) {
+      const owner = ownerName(decodeURIComponent(path.split('/')[2])); if (!owner) fail('No player by that name.', 404);
+      if (!wallOpenTo(owner)) fail(`Only people ${owner} has added can see this wall.`, 403);
+      return { posts: wallFor(owner), max: 280 };
     }
     if (path.startsWith('/players/')) return { player: profileOf(decodeURIComponent(path.slice(9))) };
     if (path === '/auth/options') return { google: false, google_client_id: null, password_min: 8 };
@@ -375,6 +441,26 @@
       user.cash = round2(user.cash + r.cash);
       const dealt = TownRules.dealNewUnlocks(town, townCtx());
       return { ok: true, user: publicUser(), town: townView(), fresh_cards: dealt.map((id) => (TownRules.ISSUES.find((i) => i.id === id) || {}).title) };
+    }
+    if (/^\/players\/[^/]+\/wall$/.test(path)) {
+      const owner = ownerName(decodeURIComponent(path.split('/')[2])); if (!owner) fail('No player by that name.', 404);
+      if (!wallOpenTo(owner)) fail(`Only people ${owner} has added can write here.`, 403);
+      // Same clean-up as the server's cleanWallBody.
+      const text = String(body.body || '').normalize('NFC').replace(/\r\n?|[\u2028\u2029\u0085]/g, '\n').replace(/(?!\n|\u200D)[\p{Cc}\p{Cf}]/gu, '')
+        .replace(/[\u115F\u1160\u3164\uFFA0\u2800]/g, '').replace(/(\p{M}{2})\p{M}+/gu, '$1').replace(/[ \t]*\n[ \t]*/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+      if (!text) fail('Write something first.');
+      if ([...text].length > 280) fail('Keep it to 280 characters.');
+      if (!walls.has(owner)) walls.set(owner, []);
+      walls.get(owner).unshift({ id: wallNext++, author: user.username, body: text, at: new Date().toISOString() });
+      return { ok: true, posts: wallFor(owner) };
+    }
+    if (/^\/wall\/\d+\/delete$/.test(path)) {
+      const id = Number(path.split('/')[2]);
+      for (const [owner, list] of walls) {
+        const i = list.findIndex((w) => w.id === id);
+        if (i >= 0) { if (list[i].author !== user.username && owner !== user.username) break; list.splice(i, 1); return { ok: true, posts: wallFor(owner) }; }
+      }
+      fail('No such post.', 404);
     }
     if (path === '/friends/add') {
       const t = findPlayer(body.username);

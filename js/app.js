@@ -7,6 +7,8 @@
   const SITE = (window.TRICKLE_CONFIG.SITE_URL || location.origin).replace(/^https?:\/\//, '');
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const CHARITY_COLORS = ['#1879A0', '#2C9BC4', '#0F5873', '#63B6D3', '#1B6E8C', '#9ED3E4'];
+  // This page's build: the ?v= that index.html loaded app.js with.
+  const BUILD = (() => { try { return new URL(document.currentScript.src).searchParams.get('v') || ''; } catch (e) { return ''; } })();
 
   // While any popup is open, the page behind it is frozen in place: only the
   // popup scrolls. (Body fixed at its scroll offset; iOS ignores overflow
@@ -76,8 +78,8 @@
   const moneySplit = (n) => { const m = moneyParts(n) || { sign: '', num: '0', unit: '' }; return `${m.sign}<small>$</small>${esc(m.num)}${m.unit ? `<small>${m.unit}</small>` : ''}`; };
   const pct = (p, digits = 1) => {
     if (p === null || p === undefined || Number.isNaN(p)) return '—';
-    const v = p * 100;
-    return `${v > 0 ? '+' : ''}${v.toFixed(digits)}%`;
+    const v = p * 100, f = Math.abs(v).toFixed(digits);
+    return `${Number(f) === 0 ? '' : v > 0 ? '+' : '−'}${f}%`; // a true minus, like money()
   };
   const dir = (p) => (p > 0 ? 'up' : p < 0 ? 'down' : '');
   // Real prices, in real dollars.
@@ -169,7 +171,6 @@
 
   function showScreen(name) {
     $$('.screen').forEach((s) => { s.hidden = s.id !== `screen-${name}`; });
-    $$('#tabs a').forEach((a) => a.classList.toggle('active', a.dataset.tab === name));
     state.tab = name;
     window.scrollTo({ top: 0 });
   }
@@ -180,18 +181,26 @@
     const hash = (location.hash || '#today').slice(1);
     if (UNCONFIGURED) { showScreen('welcome'); renderUnconfigured(); return; }
     if (!API.token()) { showScreen('welcome'); renderWelcome(); return; }
-    const name = ['today', 'trickle', 'leaders', 'how'].includes(hash) ? hash : 'today';
+    // #u/<name> is someone's profile; #profile is yours. #trickle is the old
+    // name for the Lobbyfest page, kept so old links land somewhere.
+    let name = hash, who = null;
+    if (hash.startsWith('u/')) { name = 'profile'; try { who = decodeURIComponent(hash.slice(2)); } catch (e) { who = null; } }
+    if (hash === 'lobby') name = 'trickle';
+    if (!['today', 'trickle', 'leaders', 'friends', 'profile', 'how'].includes(name)) name = 'today';
     const firstLoad = !state.me;
     if (firstLoad) { await loadMe(); if (!API.token()) return; }
     showScreen(name);
     if (name === 'today' && !firstLoad) loadMe();
     if (name === 'trickle') loadTrickle();
     if (name === 'leaders') loadLeaders();
+    if (name === 'friends') loadFriends();
+    if (name === 'profile') loadProfile(who || (state.me && state.me.user.username));
     if (name === 'how') renderHow();
   }
 
   function setSignedIn(on) {
-    $('#tabs').hidden = !on;
+    $('#btn-menu').hidden = !on;
+    $('#btn-help').hidden = on; // signed in, "How to play" lives in the menu
     $('#foot').hidden = !on;
     $('#masthead-day').hidden = !on;
     $('#btn-trophies').hidden = !on;
@@ -284,7 +293,7 @@
         <h1 class="hero">Fake money. Real market. Real charity.</h1>
         <ul class="pitch">
           <li><b>$100K a day</b> of fake money. Put it on real stocks, hold 24 hours, and the move is multiplied ×10.</li>
-          <li><b>Wins are taxed.</b> The tax hires lobbyists for the charity you pick.</li>
+          <li><b>Your gains are taxed</b>, never what you put in. The tax hires lobbyists for the charity you pick.</li>
           <li><b>Every quarter</b> this site's real ad money goes to the charities with the most lobbyists.</li>
         </ul>
         <button class="training" id="btn-orient" type="button">
@@ -332,6 +341,7 @@
       setSignedIn(true);
       renderToday();
       renderTrophyCount();
+      updateMenuDot();
       if (me.fresh_cards && me.fresh_cards.length) setTimeout(() => announceCards(me.fresh_cards), me.allowance ? 5400 : 800);
       if (!state.justBought) maybeAchievement(me.allowance && !REDUCED ? 2600 : 900);
       if (!Explainer.seen('main') && !state.oriented) {
@@ -364,7 +374,7 @@
     const { day, user } = state.me;
     $('#day-number').textContent = `Day ${day.number}`;
     $('#day-countdown').textContent = `New money in ${countdown(day.resets_at)}`;
-    $('#foot-user').textContent = user.is_guest ? `Playing as ${user.username}` : `Signed in as ${user.username}`;
+    $('#foot-user').innerHTML = `${user.is_guest ? 'Playing as' : 'Signed in as'} <a href="#profile">${esc(user.username)}</a>`;
     $('#btn-claim').hidden = !user.is_guest;
   }
 
@@ -1767,7 +1777,7 @@
         <li><span>You put in${mat ? '' : `, ${ago(p.opened_at)}`}</span><b>${money(p.invested)}</b></li>
         <li><span>${esc(p.name)} moved ${pct(p.real_pct)}, at ${mult(p.multiplier_now)}${mat ? '' : ` (${mult(p.multiplier)} in ${left(p.matures_at)})`}</span><b class="${dir(p.swing_pct)}">${pct(p.swing_pct, 0)}</b></li>
         <li><span>${mat ? 'Worth at maturity' : 'Worth right now'}</span><b>${money(p.value)}</b></li>
-        ${win ? `<li><span>Tax, ${rate}% of the ${money(s.profit)} profit${deferred > 0 ? '' : `. Hires ${esc(lobby(hired))}`}</span><b>${minus(ownTax)}</b></li>` : ''}
+        ${win ? `<li><span>Tax, ${rate}% of the ${money(s.profit)} gain${deferred > 0 ? '' : `. Hires ${esc(lobby(hired))}`}</span><b>${minus(ownTax)}</b></li>` : ''}
         ${!win && s.profit < 0 ? `<li><span>Loss. Not taxed.</span><b class="down">${money(s.profit)}</b></li>` : ''}
         ${deferred > 0 ? `<li><span>Deferred ride tax, due on an early sale. ${win ? 'Together they hire' : 'Hires'} ${esc(lobby(hired))}</span><b>${minus(deferred)}</b></li>` : ''}
         <li class="total"><span>Back onto the coin</span><b>${money(s.net)}</b></li>
@@ -1880,7 +1890,7 @@
   // The page and the server ship separately. If the server is older than this
   // page expects, say so to admins, loudly, instead of letting it look like
   // missing features. Players just get the fallbacks.
-  const API_WANTS = 8;
+  const API_WANTS = 9;
   function checkServer(me) {
     if (API.demo || state.serverWarned || (me.api || 0) >= API_WANTS) return;
     state.serverWarned = true;
@@ -2000,7 +2010,7 @@
       </div>
       <ul class="receipt ach-receipt">
         <li><span>The gift. A bonus, pure profit.</span><b class="up">+${money(a.gift)}</b></li>
-        <li><span>Tax, ${Math.round(rate * 100)}%, like any win. Hires ${esc(lobby(hired))}</span><b>${minus(tax)}</b></li>
+        <li><span>Tax, ${Math.round(rate * 100)}% of the gain (all of it is gain). Hires ${esc(lobby(hired))}</span><b>${minus(tax)}</b></li>
         <li class="total"><span>Onto your coin as bills</span><b>${money(net)}</b></li>
       </ul>
       ${assignBox({ hired, selectId: 'ach-charity' })}
@@ -2054,13 +2064,13 @@
           <span class="tro-how">${esc(a.how)}</span>
           ${status === 'claimed' ? `<span class="tro-meta">Earned ${date(a.earned_at)} · ${money(a.gift, { whole: true })} from ${esc(a.from)}${a.lobbyists ? ` · hired ${esc(lobby(a.lobbyists))}` : ''}</span>`
             : status === 'waiting' ? `<button type="button" class="btn small primary" data-open-gift="${esc(a.key)}">Open ${esc(a.from)}'s gift: ${money(a.gift, { whole: true })}</button>`
-            : `<span class="tro-meta">Gift: ${money(a.gift, { whole: true })} from ${esc(a.from)}</span>${pr ? `<span class="tro-prog"><i style="--w:${Math.round((pr.have / pr.need) * 100)}%"></i></span><span class="tro-meta">${pr.money ? `${money(pr.have)} of ${money(pr.need)}` : `${pr.have} of ${pr.need}`}</span>` : ''}`}
+            : `<span class="tro-meta">Gift at today's money: ${money(a.gift, { whole: true })} from ${esc(a.from)}</span>${pr ? `<span class="tro-prog"><i style="--w:${Math.round((pr.have / pr.need) * 100)}%"></i></span><span class="tro-meta">${pr.money ? `${money(pr.have)} of ${money(pr.need)}` : `${pr.have} of ${pr.need}`}</span>` : ''}`}
         </div>
       </li>`;
     };
     const order = [...A.list].sort((x, y) => (x.claimed_at ? 1 : x.earned_at ? 0 : 2) - (y.claimed_at ? 1 : y.earned_at ? 0 : 2));
     $('#trophies-body').innerHTML = `
-      <p class="tro-lede"><b>${A.earned} of ${A.total}.</b> Rare on purpose. Each one comes with a gift from Mommy &amp; Daddy, taxed like any win.</p>
+      <p class="tro-lede"><b>${A.earned} of ${A.total}.</b> Rare on purpose. Each one comes with a gift from Mommy &amp; Daddy, all gain, so it's taxed and hires lobbyists. Past the first few, the gift grows with the money you have in play. The richer you are, the more they send. Naturally.</p>
       <ul class="tro-list">${order.map(row).join('')}</ul>`;
     $$('[data-open-gift]', $('#trophies-body')).forEach((b) => { b.onclick = () => { $('#dlg-trophies').close(); openAchievement(b.dataset.openGift); }; });
     $('#dlg-trophies').showModal();
@@ -2205,12 +2215,13 @@
 
   async function loadTrickle() {
     const el = $('#screen-trickle');
-    el.innerHTML = `<h1>The lobby</h1><p class="lede">Loading…</p>`;
+    el.innerHTML = `${backLink()}<h1>Lobbyfest</h1><p class="lede">Loading…</p>`;
     try {
       const t = await API.get('/trickle');
       const max = Math.max(...t.charities.map((c) => c.share), 0.0001);
       el.innerHTML = `
-        <h1>The lobby</h1>
+        ${backLink()}
+        <h1>Lobbyfest</h1>
         <p class="lede">Where the real money goes. At Lobbyfest, ${t.demo ? 'the' : "this site's"} ad money is split between these charities by how many lobbyists each has.</p>
         ${t.demo ? `<div class="note warn">Demo: the charities are made up and no real money is moving yet.</div>` : ''}
         <div class="lobby-stats">
@@ -2235,44 +2246,43 @@
         </ul>
         <p class="muted small">Every quarter starts at zero. Career totals and ranks carry over.</p>`;
     } catch (e) {
-      el.innerHTML = `<h1>The lobby</h1><p class="lede">${esc(e.message)}</p>`;
+      el.innerHTML = `${backLink()}<h1>Lobbyfest</h1><p class="lede">${esc(e.message)}</p>`;
     }
   }
 
-  // --- leaders ----------------------------------------------------------------------------------
+  // --- leaderboards -----------------------------------------------------------------------------
 
-  // Leaders: the boards (everyone, or just your friends), and the friends
-  // list itself. Adding a friend is one-way: you see them, they don't see you
-  // until they add you back. Usernames link to a player sheet.
+  // The boards, for everyone or just your friends. Every name opens that
+  // player's profile.
   const leaders = { scope: 'all' };
 
-  const playerLink = (name, cls = '') => `<a href="#" class="player-link ${cls}" data-player="${esc(name)}">${esc(name)}</a>`;
+  const playerLink = (name, cls = '') => `<a href="#u/${encodeURIComponent(name)}" class="player-link ${cls}" data-player="${esc(name)}">${esc(name)}</a>`;
+  function openPlayer(name) { if (name) location.hash = `#u/${encodeURIComponent(name)}`; }
+  const backLink = () => '<a href="#today" class="back-link">← Back to today</a>';
 
   async function loadLeaders() {
     const el = $('#screen-leaders');
-    el.innerHTML = `<h1>Leaders</h1><p class="lede">Loading…</p>`;
-    const signedIn = !!(state.me && API.token());
+    el.innerHTML = `${backLink()}<h1>Leaderboards</h1><p class="lede">Loading…</p>`;
     try {
-      const friendsOnly = leaders.scope === 'friends' && signedIn;
-      const [b, f] = await Promise.all([
-        API.get(friendsOnly ? '/leaderboard?friends=1' : '/leaderboard'),
-        signedIn ? API.get('/friends').catch(() => null) : Promise.resolve(null),
-      ]);
+      const friendsOnly = leaders.scope === 'friends';
+      const b = await API.get(friendsOnly ? '/leaderboard?friends=1' : '/leaderboard');
       const meName = state.me ? state.me.user.username : null;
       const rowCls = (u) => (u === meName ? 'me' : '');
-      const friends = f ? f.friends : [];
+      const fold = (i, r) => (i >= 10 && r.username !== meName ? 'fold' : '');
       el.innerHTML = `
-        <h1>Leaders</h1>
-        ${signedIn ? `<div class="scope-toggle" role="tablist">
+        ${backLink()}
+        <h1>Leaderboards</h1>
+        <p class="lede">Tap anyone to see their profile: how their trading has gone, what they're holding, their town.</p>
+        <div class="scope-toggle" role="tablist">
           <button class="chip ${friendsOnly ? '' : 'on'}" data-scope="all" role="tab">Everyone</button>
-          <button class="chip ${friendsOnly ? 'on' : ''}" data-scope="friends" role="tab">Friends${friends.length ? ` (${friends.length + 1})` : ''}</button>
-        </div>` : ''}
-        <h2 class="board-h">Lobbyfest standings <span class="muted">${friendsOnly ? 'friends · ' : ''}marching in ${esc(untilLong(b.quarter_ends_at))}</span></h2>
+          <button class="chip ${friendsOnly ? 'on' : ''}" data-scope="friends" role="tab">Friends${state.me && state.me.friend_count ? ` (${state.me.friend_count + 1})` : ''}</button>
+        </div>
+        <h2 class="board-h">Most lobbyists <span class="muted">${friendsOnly ? 'friends · ' : ''}this quarter · Lobbyfest in ${esc(untilLong(b.quarter_ends_at))}</span></h2>
         ${b.all_time.length ? `
         <table class="board board-fold">
           <thead><tr><th></th><th>Player</th><th class="num">This quarter</th><th class="num">Career</th><th class="num">Streak</th></tr></thead>
           <tbody>${b.all_time.map((r, i) => `
-            <tr class="${i >= 10 && r.username !== meName ? 'fold' : ''}"><td class="rank">${i + 1}</td><td class="${rowCls(r.username)}">${playerLink(r.username)}</td><td class="num">${esc(lobbyN(r.quarter || 0))}</td><td class="num muted">${esc(lobbyN(r.donated))}</td><td class="num">${r.streak}</td></tr>`).join('')}
+            <tr class="${fold(i, r)}"><td class="rank">${i + 1}</td><td class="${rowCls(r.username)}">${playerLink(r.username)}</td><td class="num">${esc(lobbyN(r.quarter || 0))}</td><td class="num muted">${esc(lobbyN(r.donated))}</td><td class="num">${r.streak}</td></tr>`).join('')}
           </tbody>
         </table>` : `<p class="muted">${friendsOnly ? 'None of your friends have hired anyone this quarter. Lead by example.' : 'Nobody has collected a profit yet. The board is yours.'}</p>`}
 
@@ -2281,49 +2291,29 @@
         <table class="board board-fold">
           <thead><tr><th></th><th>Player</th><th>Trade</th><th class="num">Gain</th></tr></thead>
           <tbody>${b.last_24h.map((r, i) => `
-            <tr class="${i >= 10 && r.username !== meName ? 'fold' : ''}">
+            <tr class="${fold(i, r)}">
               <td class="rank">${i + 1}</td>
               <td class="${rowCls(r.username)}">${playerLink(r.username)}</td>
               <td><span class="tier">${esc(r.tier)}</span>${esc(r.symbol)} ${money(r.invested)} → ${money(r.proceeds)}</td>
               <td class="num ${dir(r.gain_pct)}">${pct(r.gain_pct, 0)}</td>
             </tr>`).join('')}
           </tbody>
-        </table>` : `<p class="muted">No cash-outs in the last day.</p>`}
+        </table>` : '<p class="muted">No cash-outs in the last day.</p>'}
 
         <h2 class="board-h">Biggest positions <span class="muted">right now</span></h2>
         ${b.biggest && b.biggest.length ? `
         <table class="board board-biggest board-fold">
           <thead><tr><th></th><th>Player</th><th>Position</th><th class="num">Worth</th></tr></thead>
           <tbody>${b.biggest.map((r, i) => `
-            <tr class="${i >= 10 && r.username !== meName ? 'fold' : ''}">
+            <tr class="${fold(i, r)}">
               <td class="rank">${i + 1}</td>
               <td class="${rowCls(r.username)}">${playerLink(r.username)}</td>
               <td><b>${esc(r.symbol)}</b> <span class="muted">${money(r.invested)} in${r.multiplier_now ? ` · ${mult(r.multiplier_now)}` : ''}${r.matured ? ' · matured' : r.ride_count ? ' · riding' : ''}</span></td>
               <td class="num"><b>${money(r.value)}</b>${r.priced && r.swing_pct != null ? ` <span class="${dir(r.swing_pct)} small">${pct(r.swing_pct, 0)}</span>` : ''}</td>
             </tr>`).join('')}
           </tbody>
-        </table>
-        ` : `<p class="muted">${friendsOnly ? 'None of your friends are holding anything right now.' : 'Nobody is holding anything right now.'}</p>`}
-
-        <section class="friends">
-          <h2>Friends</h2>
-          ${!signedIn ? `<p class="muted">Sign in to add friends and see what they're holding.</p>` : `
-          <form class="friend-add" id="friend-add" autocomplete="off">
-            <input id="friend-name" type="text" placeholder="Add by username" maxlength="20" spellcheck="false" aria-label="Username to add">
-            <button class="btn small primary" type="submit">Add</button>
-          </form>
-          <p class="muted friend-hint">${f && f.is_guest ? `You're a guest, so nobody can add <i>you</i> back. Claim your account to get a username worth sharing.` : `Your username is <b>${esc(f ? f.your_username : meName)}</b>. ${f && f.added_you ? `${f.added_you} player${f.added_you === 1 ? ' has' : 's have'} added you.` : 'Share it and get added.'} Friends are one-way; they see you only if they add you back.`}</p>
-          ${friends.length ? `<ul class="friend-list">${friends.map((u) => `
-            <li class="friend" data-player="${esc(u.username)}">
-              <div class="friend-main">
-                <b>${esc(u.username)}</b>
-                <span class="muted">${u.badges && u.badges.earned.length ? esc(u.badges.earned[u.badges.earned.length - 1].name) : 'No rank yet'} · ${esc(lobby(u.quarter_donated))} this quarter · ${u.streak}-day streak</span>
-                ${u.town ? `<span class="muted friend-town">Town: ${Math.round(u.town.happiness)} happy. “${esc(u.town.motto)}”</span>` : `<span class="muted friend-town">No village yet.</span>`}
-              </div>
-              <span class="muted friend-seen">${esc(u.last_seen || '')}</span>
-              <button class="btn quiet small" data-unfriend="${esc(u.username)}" title="Remove">×</button>
-            </li>`).join('')}</ul>` : `<p class="muted">No friends yet. Ask someone for their username${API.demo ? ' (in the demo, try <b>ravi_k</b> or <b>bagholder_ben</b>)' : ''}.</p>`}`}
-        </section>`;
+        </table>` : `<p class="muted">${friendsOnly ? 'None of your friends are holding anything right now.' : 'Nobody is holding anything right now.'}</p>`}
+        <p class="muted small">Add people on the <a href="#friends">Friends</a> page to see a board of just them.</p>`;
       $$('#screen-leaders [data-scope]').forEach((btn) => { btn.onclick = () => { leaders.scope = btn.dataset.scope; loadLeaders(); }; });
       // Ten rows per board; the rest behind one tap.
       $$('#screen-leaders .board-fold').forEach((tbl) => {
@@ -2333,18 +2323,51 @@
         more.onclick = () => { tbl.querySelectorAll('tr.fold').forEach((tr) => tr.classList.remove('fold')); more.remove(); };
         tbl.insertAdjacentElement('afterend', more);
       });
-      $$('#screen-leaders .player-link').forEach((a) => { a.onclick = (ev) => { ev.preventDefault(); openPlayer(a.dataset.player); }; });
-      $$('#screen-leaders .friend').forEach((li) => { li.onclick = (ev) => { if (ev.target.closest('[data-unfriend]')) return; openPlayer(li.dataset.player); }; });
-      $$('#screen-leaders [data-unfriend]').forEach((btn) => {
+    } catch (e) {
+      el.innerHTML = `${backLink()}<h1>Leaderboards</h1><p class="lede">${esc(e.message)}</p>`;
+    }
+  }
+
+  // --- friends ----------------------------------------------------------------------------------
+
+  // Adding a friend is one-way: you see them on your board, they don't see
+  // you until they add you back. Adding someone also lets them write on
+  // your wall.
+  async function loadFriends() {
+    const el = $('#screen-friends');
+    el.innerHTML = `${backLink()}<h1>Friends</h1><p class="lede">Loading…</p>`;
+    try {
+      const f = await API.get('/friends');
+      const friends = f.friends || [];
+      el.innerHTML = `
+        ${backLink()}
+        <h1>Friends</h1>
+        <p class="lede">Friends get their own leaderboard, and they can write on your wall.</p>
+        <form class="friend-add" id="friend-add" autocomplete="off">
+          <input id="friend-name" type="text" placeholder="Add by username" maxlength="20" spellcheck="false" aria-label="Username to add">
+          <button class="btn small primary" type="submit">Add</button>
+        </form>
+        <p class="muted friend-hint">${f.is_guest ? "You're a guest, so nobody can add <i>you</i> back. Keep your account to get a username worth sharing." : `Your username is <b>${esc(f.your_username)}</b>. ${f.added_you ? `${f.added_you} player${f.added_you === 1 ? ' has' : 's have'} added you.` : 'Share it and get added.'} It's one-way: they see you only if they add you back.`}</p>
+        ${friends.length ? `<ul class="friend-list">${friends.map((u) => `
+          <li class="friend" data-player="${esc(u.username)}">
+            <span class="avatar" style="--av:${avColor(u.username)}" aria-hidden="true">${esc(initial(u.username))}</span>
+            <div class="friend-main">
+              <b>${esc(u.username)}</b>
+              <span class="muted">${u.badges && u.badges.earned.length ? esc(u.badges.earned[u.badges.earned.length - 1].name) : 'No rank yet'} · ${esc(lobby(u.quarter_donated))} this quarter · ${u.streak}-day streak</span>
+            </div>
+            <span class="muted friend-seen">${esc(u.last_seen || '')}</span>
+            <button class="btn quiet small" data-unfriend="${esc(u.username)}" aria-label="Remove ${esc(u.username)}" title="Remove">×</button>
+          </li>`).join('')}</ul>` : `<p class="muted">No friends yet. Ask someone for their username${API.demo ? ' (in the demo, try <b>ravi_k</b> or <b>bagholder_ben</b>)' : ''}, or find people on the <a href="#leaders">leaderboards</a>.</p>`}`;
+      $$('#screen-friends .friend').forEach((li) => { li.onclick = (ev) => { if (ev.target.closest('[data-unfriend]')) return; openPlayer(li.dataset.player); }; });
+      $$('#screen-friends [data-unfriend]').forEach((btn) => {
         btn.onclick = async (ev) => {
           ev.stopPropagation();
-          try { await API.post('/friends/remove', { username: btn.dataset.unfriend }); toast(`${btn.dataset.unfriend} removed. They'll never know.`); await loadLeaders(); } catch (e) { toast(e.message, 4000); }
+          try { await API.post('/friends/remove', { username: btn.dataset.unfriend }); toast(`${btn.dataset.unfriend} removed. They'll never know.`); if (state.me) state.me.friend_count = Math.max(0, (state.me.friend_count || 1) - 1); await loadFriends(); } catch (e) { toast(e.message, 4000); }
         };
       });
-      const form = $('#friend-add');
-      if (form) form.onsubmit = (ev) => { ev.preventDefault(); addFriend($('#friend-name').value.trim()); };
+      $('#friend-add').onsubmit = (ev) => { ev.preventDefault(); addFriend($('#friend-name').value.trim()); };
     } catch (e) {
-      el.innerHTML = `<h1>Leaders</h1><p class="lede">${esc(e.message)}</p>`;
+      el.innerHTML = `${backLink()}<h1>Friends</h1><p class="lede">${esc(e.message)}</p>`;
     }
   }
 
@@ -2353,69 +2376,337 @@
     state.busy = true;
     try {
       const r = await API.post('/friends/add', { username: name });
-      toast(`${r.username} added. You can see their coin now; they can't see yours until they add you back.`, 4500);
+      toast(`${r.username} added. They're on your board now, and they can write on your wall.`, 4500);
       if (state.me) state.me.friend_count = r.friend_count;
-      await loadLeaders();
+      if (state.tab === 'friends') await loadFriends();
       refreshAchievements(1200);
-    } catch (e) { toast(e.message, 4500); }
+      return true;
+    } catch (e) { toast(e.message, 4500); return false; }
     finally { state.busy = false; }
   }
 
-  // --- player sheet --------------------------------------------------------------------------------
+  // --- profiles -----------------------------------------------------------------------------------
+  //
+  // Yours and everyone else's. The headline is a chart of how your trading
+  // has gone: profit and loss from positions only, so a gift from Mommy &
+  // Daddy or a casino you built doesn't move it. Then what they're holding,
+  // their town, their lobbyists, their trophies, and a wall their friends
+  // can write on.
 
-  async function openPlayer(name) {
-    if (!name) return;
-    const dlg = $('#dlg-player');
-    $('#player-title').textContent = name;
-    $('#player-body').innerHTML = `<p class="muted">Loading…</p>`;
-    if (!dlg.open) dlg.showModal();
+  const initial = (name) => String(name || '?').replace(/^guest_/i, '').charAt(0).toUpperCase() || '?';
+  const AV_COLORS = ['#1879A0', '#0F5873', '#2E7D5B', '#8A6A3C', '#6B4E8C', '#B0412E', '#3F7D55', '#1B6E8C'];
+  const avColor = (name) => { let h = 0; for (const c of String(name)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return AV_COLORS[h % AV_COLORS.length]; };
+  const signed = (v, opts) => `${v > 0.004 ? '+' : ''}${money(v, opts)}`;
+  const dayLabel = (d) => (d === 'now' ? 'Now' : new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  const isoAdd = (d, n) => { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd + n)).toISOString().slice(0, 10); };
+  const RANGES = [['1W', 7, 'past week'], ['1M', 30, 'past month'], ['3M', 90, 'past 3 months'], ['All', 0, 'all time']];
+  const prof = { range: '1M', p: null };
+
+  async function loadProfile(name) {
+    const el = $('#screen-profile');
+    if (!name) { location.hash = '#today'; return; }
+    if (!prof.p || prof.p.username.toLowerCase() !== String(name).toLowerCase()) el.innerHTML = `${backLink()}<p class="lede">Loading…</p>`;
     try {
       const { player: p } = await API.get(`/players/${encodeURIComponent(name)}`);
-      renderPlayer(p);
+      prof.p = p;
+      renderProfile(p);
+      if (p.is_you && state.me) { state.me.wall_unread = 0; updateMenuDot(); }
     } catch (e) {
-      $('#player-body').innerHTML = `<p class="muted">${esc(e.message)}</p>`;
+      el.innerHTML = `${backLink()}<h1>${esc(name)}</h1><p class="lede">${esc(e.message)}</p>`;
     }
   }
 
-  function renderPlayer(p) {
-    const rank = p.badges && p.badges.earned.length ? p.badges.earned[p.badges.earned.length - 1].name : 'No rank yet';
-    const open = p.positions || [];
-    const coin = Coin.front({ cash: p.cash, positions: open, size: 220, quiet: true });
-    const posRows = open.length ? open.map((x) => `
-      <li><span><b>${esc(x.symbol)}</b> ${money(x.invested)}${x.ride_count > 0 ? ` <span class="muted">riding ×${x.ride_count}</span>` : ''}${x.matured ? ' <span class="muted">matured</span>' : ''}</span><b class="${x.busted ? 'down' : dir(x.swing_pct)}">${x.busted ? 'RIP' : x.quote_error ? '—' : pct(x.swing_pct, 0)}</b></li>`).join('') : '';
-    const town = p.town;
-    $('#player-title').textContent = p.is_you ? `${p.username} (you)` : p.username;
-    $('#player-body').innerHTML = `
-      <div class="player-head">
-        <div class="player-coin" aria-hidden="true">${coin}</div>
-        <div class="player-facts">
-          <div class="player-rank">${esc(rank)}</div>
-          <ul class="player-stats">
-            <li><span>Hired this quarter</span><b>${esc(lobby(p.quarter_donated))}</b></li>
-            <li><span>Hired, career</span><b>${esc(lobby(p.total_donated))}</b></li>
-            <li><span>Streak</span><b>${p.streak} day${p.streak === 1 ? '' : 's'}</b></li>
-            <li><span>On the coin</span><b>${money(p.in_play)}</b></li>
-            ${p.top_charity ? `<li><span>Lobbies for</span><b>${esc(p.top_charity)}</b></li>` : ''}
-            ${p.achievements ? `<li><span>Trophies</span><b>${p.achievements.earned.length ? `🏆 ${p.achievements.earned.map((a) => esc(a.title)).join(', ')}` : 'None yet'}</b></li>` : ''}
-          </ul>
+  // The points for a range. The last point is "now": today's realized total
+  // plus what's open, at today's prices.
+  function perfPoints(perf, days) {
+    let pts = perf.series.map((x) => ({ d: x.d, v: x.v }));
+    if (pts.length) { const last = pts[pts.length - 1]; pts[pts.length - 1] = { d: 'now', v: round2(last.v + (perf.open_pnl || 0)) }; }
+    if (days && pts.length > 1) {
+      const end = perf.series[perf.series.length - 1].d;
+      const cutoff = isoAdd(end, -days);
+      const i = pts.findIndex((x) => x.d === 'now' || x.d >= cutoff);
+      pts = pts.slice(Math.max(0, i - 1));
+    }
+    if (pts.length === 1) pts = [{ ...pts[0], d: pts[0].d === 'now' ? perf.series[0].d : pts[0].d }, pts[0]];
+    return pts;
+  }
+
+  function perfMarkup(perf) {
+    if (!perf) return '';
+    if (!perf.series || !perf.series.length) {
+      return `<section class="prof-sec perf"><div class="perf-head"><span class="perf-eyebrow">Trading gains</span><b class="perf-total">$0</b><span class="perf-sub muted">No trades yet.</span></div></section>`;
+    }
+    const [label, days, words] = RANGES.find((r) => r[0] === prof.range) || RANGES[1];
+    const pts = perfPoints(perf, days);
+    const change = round2(pts[pts.length - 1].v - pts[0].v);
+    const tone = change > 0.004 ? 'up' : change < -0.004 ? 'down' : 'flat';
+    const W = 600, H = 180, pad = 12;
+    const vs = pts.map((p) => p.v);
+    let lo = Math.min(...vs), hi = Math.max(...vs);
+    if (hi - lo < 0.01) { lo -= 1; hi += 1; }
+    const X = (i) => (i / (pts.length - 1)) * W;
+    const Y = (v) => pad + (1 - (v - lo) / (hi - lo)) * (H - 2 * pad);
+    const path = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join('');
+    const base = Y(pts[0].v).toFixed(1);
+    prof.chart = { pts, X, Y, W, H, words, change, tone };
+    const winRate = perf.closed ? Math.round((perf.wins / perf.closed) * 100) : null;
+    return `
+      <section class="prof-sec perf tone-${tone}">
+        <div class="perf-head">
+          <span class="perf-eyebrow">Trading gains</span>
+          <b class="perf-total ${dir(perf.total)}" id="perf-total">${signed(perf.total)}</b>
+          <span class="perf-sub ${tone === 'flat' ? 'muted' : tone}" id="perf-sub">${signed(change)} ${esc(words)}</span>
         </div>
+        <div class="perf-chart" id="perf-chart" role="img" aria-label="Trading gains, ${esc(words)}: ${esc(signed(change))}">
+          <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="0" x2="${W}" y1="${base}" y2="${base}" class="perf-base"/>
+            <path d="${path}" class="perf-line"/>
+          </svg>
+          <i class="perf-cursor" hidden></i><i class="perf-dot" hidden></i>
+        </div>
+        <div class="perf-ranges" role="tablist">${RANGES.map(([l]) => `<button type="button" role="tab" class="${l === label ? 'on' : ''}" aria-selected="${l === label}" data-range="${l}">${l}</button>`).join('')}</div>
+        <ul class="perf-stats">
+          <li><span>Win rate</span><b>${winRate == null ? '—' : `${winRate}%`}</b><small>${perf.closed ? `${perf.wins} of ${perf.closed} closed` : 'nothing closed yet'}</small></li>
+          <li><span>Best trade</span><b class="${perf.best ? 'up' : ''}">${perf.best ? signed(perf.best.profit) : '—'}</b><small>${perf.best ? `${esc(perf.best.symbol)}${perf.best.pct != null ? `, ${pct(perf.best.pct, 0)}` : ''}` : 'no wins yet'}</small></li>
+          <li><span>Worst trade</span><b class="${perf.worst ? 'down' : ''}">${perf.worst ? signed(perf.worst.profit) : '—'}</b><small>${perf.worst ? `${esc(perf.worst.symbol)}${perf.worst.pct != null ? `, ${pct(perf.worst.pct, 0)}` : ''}` : 'no losses yet'}</small></li>
+          <li><span>Open now</span><b class="${dir(perf.open_pnl)}">${signed(perf.open_pnl)}</b><small>not yet collected</small></li>
+        </ul>
+        <p class="muted small perf-note">Profit and loss from buying and selling, before tax. Gifts from Mommy &amp; Daddy and TrickleTown spending don't move this line.</p>
+      </section>`;
+  }
+
+  function wirePerf() {
+    $$('#screen-profile [data-range]').forEach((b) => {
+      b.onclick = () => {
+        prof.range = b.dataset.range;
+        const sec = $('#screen-profile .perf');
+        sec.outerHTML = perfMarkup(prof.p.performance);
+        wirePerf();
+      };
+    });
+    const box = $('#perf-chart'); if (!box || !prof.chart) return;
+    const { pts, X, Y, W, H, words, change, tone } = prof.chart;
+    const cur = $('.perf-cursor', box), dot = $('.perf-dot', box);
+    const total = $('#perf-total'), sub = $('#perf-sub');
+    const rest = () => {
+      cur.hidden = true; dot.hidden = true;
+      total.textContent = signed(prof.p.performance.total); total.className = `perf-total ${dir(prof.p.performance.total)}`;
+      sub.textContent = `${signed(change)} ${words}`; sub.className = `perf-sub ${tone === 'flat' ? 'muted' : tone}`;
+    };
+    const at = (clientX) => {
+      const r = box.getBoundingClientRect();
+      const i = Math.max(0, Math.min(pts.length - 1, Math.round(((clientX - r.left) / r.width) * (pts.length - 1))));
+      const p = pts[i];
+      cur.hidden = false; dot.hidden = false;
+      cur.style.left = dot.style.left = `${(X(i) / W) * 100}%`;
+      dot.style.top = `${(Y(p.v) / H) * 100}%`;
+      total.textContent = signed(p.v); total.className = `perf-total ${dir(p.v)}`;
+      const d = round2(p.v - pts[0].v);
+      sub.textContent = `${dayLabel(p.d)} · ${signed(d)} since ${dayLabel(pts[0].d)}`; sub.className = `perf-sub ${d > 0.004 ? 'up' : d < -0.004 ? 'down' : 'muted'}`;
+    };
+    box.onpointermove = (e) => at(e.clientX);
+    box.onpointerdown = (e) => at(e.clientX);
+    box.onpointerleave = rest;
+    box.onpointerup = (e) => { if (e.pointerType !== 'mouse') rest(); };
+    box.onpointercancel = rest;
+  }
+
+  function holdingsMarkup(p) {
+    const open = p.positions || [];
+    if (!open.length) return `<section class="prof-sec"><h2>Holding now</h2><p class="muted">Nothing on the coin right now. ${money(p.cash)} in bills.</p></section>`;
+    return `<section class="prof-sec"><h2>Holding now <span class="muted">${money(p.in_play)} in play</span></h2>
+      <ul class="prof-holdings">${open.map((x) => {
+        const val = x.quote_error || x.value == null ? null : x.value;
+        const when = x.matures_at ? left(x.matures_at) : x.hours_left ? `about ${x.hours_left}h` : '';
+        const tag = x.busted ? 'gone' : x.matured ? 'matured, ready to collect' : x.ride_count > 0 ? `riding${x.ride_count > 1 ? ` ×${x.ride_count}` : ''}${when ? `, ${mult(x.multiplier)} in ${when}` : ''}` : when ? `${mult(x.multiplier)} in ${when}` : '';
+        return `<li>
+          <span class="ph-name"><b>${esc(x.symbol)}</b> <span class="muted">${esc(x.name || '')}</span><small class="muted">${esc(tag)}</small></span>
+          <span class="ph-val">${money(x.invested)} → <b>${val == null ? '—' : money(val)}</b>${x.busted ? ' <em class="down">RIP</em>' : x.swing_pct != null && !x.quote_error ? ` <em class="${dir(x.swing_pct)}">${pct(x.swing_pct, 0)}</em>` : ''}</span>
+        </li>`;
+      }).join('')}</ul>${p.positions_total > open.length ? `<p class="muted small">…and ${p.positions_total - open.length} smaller ones.</p>` : ''}</section>`;
+  }
+
+  function townMarkup(p) {
+    const t = p.town;
+    if (!t) return `<section class="prof-sec"><h2>TrickleTown</h2><p class="muted">No town yet. TrickleTown opens with the first lobbyist.</p></section>`;
+    const sides = t.sides || { preston: 0, dolores: 0 };
+    const played = (sides.preston || 0) + (sides.dolores || 0);
+    const pp = played ? Math.round((sides.preston / played) * 100) : 50;
+    const lean = !played ? 'No cards played yet.' : pp >= 65 ? 'Mostly Preston. The numbers are up.' : pp <= 35 ? 'Mostly Dolores. The people are up.' : 'Splits the difference. Both of them are annoyed.';
+    return `<section class="prof-sec prof-town"><h2>TrickleTown <span class="muted">“${esc(t.motto || '')}”</span></h2>
+      <ul class="prof-nums">
+        <li><span>Profit</span><b class="${t.income < 0 ? 'down' : 'up'}">${t.income >= 0 ? '+' : ''}${money(t.income, { whole: true })}<small>/day</small></b></li>
+        <li><span>Happiness</span><b>${Math.round(t.happiness)}</b><i class="ss-bar"><i style="--w:${Math.max(0, Math.min(100, t.happiness))}%"></i></i></li>
+        <li><span>Lobbyist price</span><b>${money(t.hire_cost)}</b></li>
+      </ul>
+      <div class="prof-lots">${(t.buildings || []).map((b) => (b.key
+        ? `<div class="prof-lot tier-${esc(b.tier || '')}"><span class="muted">${esc(b.label || b.slot)}</span><b>${esc(b.name)}</b>${b.upgrades && b.upgrades.length ? `<small>+ ${b.upgrades.map((u) => esc(u.name)).join(', ')}</small>` : ''}${b.days ? `<small class="muted">${b.days} day${b.days === 1 ? '' : 's'} standing</small>` : ''}</div>`
+        : `<div class="prof-lot empty"><span class="muted">${esc(b.label || b.slot)}</span><b>Empty lot</b></div>`)).join('')}</div>
+      <div class="prof-sides">
+        <div class="ps-head"><span>${Coin.preston(28)} Preston <b>${sides.preston || 0}</b></span><span><b>${sides.dolores || 0}</b> Dolores ${Coin.dolores(28)}</span></div>
+        <div class="ps-bar ${played ? '' : 'none'}" aria-hidden="true"><i class="ps-p" style="--w:${played ? pp : 50}%"></i><i class="ps-d"></i></div>
+        <small class="muted">${played ? `${played} card${played === 1 ? '' : 's'} played. ` : ''}${esc(lean)}</small>
       </div>
-      ${open.length ? `<ul class="receipt player-positions">${posRows}</ul>` : `<p class="muted">Nothing on the coin right now. ${money(p.cash)} in bills.</p>`}
-      ${town ? `<div class="player-town">
-        <b>TrickleTown</b> <span class="muted">${Math.round(town.happiness)} happy${town.income != null ? ` · ${money(town.income, { whole: true })}/day profit` : ''}</span>
-        <div class="player-buildings">${(town.buildings || []).map((b) => (b.key ? `<span class="chip ${esc(b.tier || '')}">${esc(b.name)}</span>` : `<span class="chip empty">Empty lot</span>`)).join('')}</div>
-        <p class="muted" style="margin:6px 0 0">“${esc(town.motto || '')}”</p>
-      </div>` : `<p class="muted" style="font-size:13px">No village yet. TrickleTown opens at the first full lobbyist.</p>`}
-      <p class="muted" style="font-size:13px">Played ${esc(p.last_seen || 'recently')}.${p.added_you && !p.is_you ? ' Has added you.' : ''}</p>
-      <div class="row-actions">
-        ${p.is_you ? '' : p.is_friend
-          ? `<button class="btn small" id="player-unfriend">Remove friend</button>`
-          : (state.me && API.token() ? `<button class="btn small primary" id="player-add">Add friend</button>` : '')}
-        <button class="btn quiet small" id="player-close">Close</button>
-      </div>`;
-    $('#player-close').onclick = () => $('#dlg-player').close();
-    const add = $('#player-add'); if (add) add.onclick = async () => { await addFriend(p.username); openPlayer(p.username); };
-    const rm = $('#player-unfriend'); if (rm) rm.onclick = async () => { try { await API.post('/friends/remove', { username: p.username }); toast(`${p.username} removed.`); if ($('#screen-leaders').classList.contains('on') || location.hash === '#leaders') loadLeaders(); openPlayer(p.username); } catch (e) { toast(e.message, 4000); } };
+    </section>`;
+  }
+
+  function lobbyMarkup(p) {
+    const rows = p.lobbyists_by_charity || [];
+    const max = Math.max(0.0001, ...rows.map((r) => r.amount));
+    return `<section class="prof-sec"><h2>Lobbyists</h2>
+      <ul class="prof-nums">
+        <li><span>This quarter</span><b>${esc(lobbyN(p.quarter_donated || 0))}</b></li>
+        <li><span>Career</span><b>${esc(lobbyN(p.total_donated || 0))}</b></li>
+        <li><span>Rank</span><b class="rank-name">${esc(p.badges && p.badges.earned.length ? p.badges.earned[p.badges.earned.length - 1].name : '—')}</b></li>
+      </ul>
+      ${rows.length ? `<ul class="prof-charities">${rows.map((r) => `<li><span>${esc(r.name)}</span><b>${esc(lobbyN(r.amount))}</b><i class="charity-bar"><i style="--w:${((r.amount / max) * 100).toFixed(1)}%"></i></i></li>`).join('')}</ul>`
+        : '<p class="muted small">No lobbyists this quarter yet.</p>'}
+    </section>`;
+  }
+
+  function trophiesMarkup(p) {
+    const a = p.achievements; if (!a) return '';
+    return `<section class="prof-sec"><h2>Trophies <span class="muted">${a.earned.length} of ${a.total}</span></h2>
+      ${a.earned.length ? `<ul class="prof-trophies">${a.earned.map((x) => `<li title="${esc(x.how || '')}">${TROPHY('sm')}<span>${esc(x.title)}</span></li>`).join('')}</ul>` : '<p class="muted small">None yet.</p>'}
+    </section>`;
+  }
+
+  function wallMarkup(p) {
+    const w = p.wall; if (!w) return '';
+    if (!w.open) {
+      return `<section class="prof-sec prof-wall"><h2>Wall</h2><p class="muted">${esc(p.username)} hasn't added you, so their wall is closed to you. Only people they've added can read it and write on it.</p></section>`;
+    }
+    const posts = w.posts || [];
+    return `<section class="prof-sec prof-wall"><h2>${p.is_you ? 'Your wall' : 'Wall'}</h2>
+      <p class="muted small">${p.is_you ? "People you've added on the Friends page can read and write here. You can delete anything." : `Only people ${esc(p.username)} has added can see this.`}</p>
+      <form class="wall-form" id="wall-form" autocomplete="off">
+        <textarea id="wall-body" rows="2" maxlength="${w.max || 280}" placeholder="${p.is_you ? 'Say something to whoever drops by' : `Write on ${esc(p.username)}'s wall`}" aria-label="Wall post"></textarea>
+        <div class="wall-row"><small class="muted" id="wall-count">${w.max || 280}</small><button type="submit" class="btn small primary" id="wall-post">Post</button></div>
+      </form>
+      ${posts.length ? `<ul class="wall-list">${posts.map((x) => `
+        <li class="wall-post">
+          <span class="avatar sm" style="--av:${avColor(x.author)}" aria-hidden="true">${esc(initial(x.author))}</span>
+          <div class="wall-main">
+            <div class="wall-meta">${playerLink(x.author)} <span class="muted">· ${esc(ago(x.at))}</span></div>
+            <p class="wall-text">${esc(x.body)}</p>
+          </div>
+          ${x.can_delete ? `<button type="button" class="wall-del" data-wall-del="${Number(x.id)}" aria-label="Delete post" title="Delete">×</button>` : ''}
+        </li>`).join('')}</ul>` : '<p class="muted small">Nothing here yet.</p>'}
+    </section>`;
+  }
+
+  function renderProfile(p) {
+    const rank = p.badges && p.badges.earned.length ? p.badges.earned[p.badges.earned.length - 1].name : 'No rank yet';
+    // The server sends the month ("2026-10"); older servers the full timestamp.
+    const since = p.joined ? new Date(/^\d{4}-\d{2}$/.test(p.joined) ? `${p.joined}-15T12:00:00` : p.joined).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : null;
+    const signedIn = !!(state.me && API.token());
+    $('#screen-profile').innerHTML = `
+      ${backLink()}
+      <header class="prof-head">
+        <span class="avatar lg" style="--av:${avColor(p.username)}" aria-hidden="true">${esc(initial(p.username))}</span>
+        <div class="prof-id">
+          <h1>${esc(p.username)}${p.is_you ? ' <span class="muted you">(you)</span>' : ''}</h1>
+          <p class="prof-meta">
+            <span class="prof-rank">${esc(rank)}</span>
+            <span>🔥 ${p.streak}-day streak</span>
+            ${since ? `<span>Playing since ${esc(since)}</span>` : ''}
+            ${!p.is_you ? `<span>Played ${esc(p.last_seen || 'recently')}</span>` : ''}
+            ${p.added_you && !p.is_you ? '<span class="prof-chip">Added you</span>' : ''}
+          </p>
+          ${p.is_you || !signedIn ? '' : `<div class="prof-actions">${p.is_friend
+            ? '<button type="button" class="btn small quiet" id="prof-unfriend">Remove friend</button>'
+            : `<button type="button" class="btn small primary" id="prof-add">Add friend</button><small class="muted prof-add-note">Adding ${esc(p.username)} also lets them read and write on your wall.</small>`}</div>`}
+        </div>
+      </header>
+      ${p.performance ? perfMarkup(p.performance) : ''}
+      ${holdingsMarkup(p)}
+      ${townMarkup(p)}
+      ${lobbyMarkup(p)}
+      ${trophiesMarkup(p)}
+      ${wallMarkup(p)}`;
+    wirePerf();
+    const add = $('#prof-add'); if (add) add.onclick = async () => { if (await addFriend(p.username)) loadProfile(p.username); };
+    const rm = $('#prof-unfriend'); if (rm) rm.onclick = async () => {
+      try { await API.post('/friends/remove', { username: p.username }); toast(`${p.username} removed.`); if (state.me) state.me.friend_count = Math.max(0, (state.me.friend_count || 1) - 1); loadProfile(p.username); } catch (e) { toast(e.message, 4000); }
+    };
+    wireWall(p);
+  }
+
+  function wireWall(p) {
+    const form = $('#wall-form');
+    const paint = (posts) => { prof.p.wall.posts = posts; const sec = $('#screen-profile .prof-wall'); sec.outerHTML = wallMarkup(prof.p); wireWall(prof.p); };
+    if (form) {
+      const ta = $('#wall-body'), count = $('#wall-count'), max = p.wall.max || 280;
+      const sync = () => { const n = [...ta.value].length; count.textContent = String(max - n); count.classList.toggle('down', n > max); };
+      ta.addEventListener('input', sync);
+      ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); form.requestSubmit(); } });
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const body = ta.value.trim();
+        if (!body || state.busy) return;
+        state.busy = true; $('#wall-post').disabled = true;
+        try { const r = await API.post(`/players/${encodeURIComponent(p.username)}/wall`, { body }); paint(r.posts); }
+        catch (err) { toast(err.message, 4000); $('#wall-post').disabled = false; }
+        finally { state.busy = false; }
+      };
+    }
+    $$('#screen-profile [data-wall-del]').forEach((b) => {
+      b.onclick = async () => {
+        try { const r = await API.post(`/wall/${Number(b.dataset.wallDel)}/delete`, {}); paint(r.posts); } catch (err) { toast(err.message, 4000); }
+      };
+    });
+  }
+
+  // --- menu -----------------------------------------------------------------------------------------
+
+  const M_ICON = {
+    today: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.2c0-1 1.1-1.7 2.5-1.7s2.5.7 2.5 1.7-1.1 1.5-2.5 1.8-2.5.8-2.5 1.8 1.1 1.7 2.5 1.7 2.5-.7 2.5-1.7"/>',
+    leaders: '<path d="M5 20V11M12 20V5M19 20v-6"/>',
+    friends: '<circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.2c2.6 0 4.4 1.5 5 4.3"/>',
+    lobby: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+    trophies: '<path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/><path d="M12 13v4M8 21h8"/>',
+    how: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6V14M12 17.2v.1"/>',
+    account: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
+    out: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/>',
+  };
+  const mIcon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${M_ICON[k]}</svg>`;
+
+  function updateMenuDot() {
+    const n = state.me ? state.me.wall_unread || 0 : 0;
+    $('#menu-dot').hidden = !n;
+    $('#btn-menu').setAttribute('aria-label', n ? `Menu, ${n} new on your wall` : 'Menu');
+  }
+
+  function openMenu() {
+    const me = state.me; if (!me) return;
+    const u = me.user, unread = me.wall_unread || 0, a = me.achievements;
+    const cur = (t) => (state.tab === t ? ' aria-current="page"' : '');
+    $('#menu-body').innerHTML = `
+      <a href="#profile" class="menu-me"${cur('profile')}>
+        <span class="avatar" style="--av:${avColor(u.username)}" aria-hidden="true">${esc(initial(u.username))}</span>
+        <span class="menu-me-text"><b>${esc(u.username)}</b><small>${unread ? `${unread} new on your wall` : 'Your profile, trading and wall'}</small></span>
+        ${unread ? `<i class="menu-count">${unread}</i>` : ''}
+      </a>
+      <a href="#today"${cur('today')}>${mIcon('today')}<span>Today's game</span></a>
+      <a href="#leaders"${cur('leaders')}>${mIcon('leaders')}<span>Leaderboards</span></a>
+      <a href="#friends"${cur('friends')}>${mIcon('friends')}<span>Friends</span>${me.friend_count ? `<small>${me.friend_count}</small>` : ''}</a>
+      <a href="#trickle"${cur('trickle')}>${mIcon('lobby')}<span>Lobbyfest &amp; charities</span></a>
+      <button type="button" data-menu-act="trophies">${mIcon('trophies')}<span>Trophies</span>${a ? `<small>${a.earned}/${a.total}</small>` : ''}</button>
+      <a href="#how"${cur('how')}>${mIcon('how')}<span>How to play</span></a>
+      <hr>
+      <button type="button" data-menu-act="account">${mIcon('account')}<span>Account</span></button>
+      <button type="button" data-menu-act="signout">${mIcon('out')}<span>Sign out</span></button>`;
+    const dlg = $('#dlg-menu');
+    $$('#menu-body a').forEach((l) => { l.onclick = () => softClose(dlg); });
+    $$('#menu-body [data-menu-act]').forEach((b) => {
+      b.onclick = async () => {
+        await softClose(dlg);
+        if (b.dataset.menuAct === 'trophies') openTrophies();
+        if (b.dataset.menuAct === 'account') openAccount();
+        if (b.dataset.menuAct === 'signout') signOut();
+      };
+    });
+    dlg.showModal();
   }
 
   // --- how -----------------------------------------------------------------------------------------
@@ -2436,13 +2727,13 @@
       ['How much money do I get?', `${money(rules.daily_base, { whole: true })} a day. Each day of your streak adds ${money(rules.streak_bonus, { whole: true })}, up to ${money(rules.daily_cap, { whole: true })}. Miss a day and it drops back to ${money(rules.daily_base, { whole: true })}. Bills you don't spend stay on the coin.`],
       [`What's the ×10?`, `Every buy rides the real market for ${h} hours, and the move is multiplied. It starts at ${mult(rules.mult_floor)} the moment you buy and climbs to ×10 at the ${h}-hour mark (×5 for crypto). The multiplier works on the move, not the money: the stock goes up 1% over the day, you're up 10%; down 1%, down 10%. At ${h} hours it matures and the value freezes. A position can fall to $0; it can't go below.`],
       ['Collect, sell early, or ride?', `<b>Collect</b> a matured position and the money comes back to the coin. <b>Sell early</b> any time at the current, smaller multiplier. <b>Ride</b> a matured winner instead: the profit so far is taxed at half rate (${pct / 2}%), and what's left goes back on the same stock for another ${h} hours with the multiplier climbing higher (×10 to ×20, then ×30). The other half of the tax is due if you sell the ride early, forgiven if you let it mature.`],
-      ['What happens when I win?', `${pct}% of the profit is tax. The tax hires <b>lobbyists</b> (about $1K a head; the exact price is set by your town's happiness) for your <b>charity</b>, which you pick at your first cash-out. Losses aren't taxed.`],
-      ['What is Lobbyfest?', `Every quarter, on the last day at midnight Central, every lobbyist in the game marches off to Lobbyfest. The ad money this site earned is split between the charities by headcount: the charity with the most lobbyists gets the biggest share. Then every village empties and the next quarter starts at zero. The Lobby page shows the standings.`],
+      ['What happens when I win?', `Only the gain is taxed, at ${pct}%, never what you put in. Put in $50K, collect $60K: the gain is $10K, so ${money(10 * pct / 100)} is tax and ${money(60 - 10 * pct / 100)} comes back to you. The tax hires <b>lobbyists</b> (about $1K a head; the exact price is set by your town's happiness) for your <b>charity</b>, which you pick at your first cash-out. Losses aren't taxed.`],
+      ['What is Lobbyfest?', `Every quarter, on the last day at midnight Central, every lobbyist in the game marches off to Lobbyfest. The ad money this site earned is split between the charities by headcount: the charity with the most lobbyists gets the biggest share. Then every village empties and the next quarter starts at zero. ☰ → Lobbyfest &amp; charities shows the standings.`],
       ['What is TrickleTown?', `The other side of your coin, where your lobbyists live. It has two scores. <b>Profit</b>: what the town adds to (or takes from) your daily money. <b>Happiness</b>: what each new lobbyist costs you, from $1.4K in a miserable town to $500 in a happy one. Two lots to build on: extractive buildings (a casino, tenements) make profit and unhappiness; decent ones (a clinic, a co-op) cost profit and make people happy. Buildings get upgrade proposals as the town grows. The Company Store takes 20% off anything a card costs.`],
       ['What are the cards?', `Each day Preston (wants profit) and Dolores (wants happiness) bring a few decisions to Town Hall: a headline everyone gets, plus cards your own town has unlocked. Pick a side on each. The arrows show which way a choice pushes; a tag says if it comes back around later. Unplayed cards expire at midnight, and once you've built something, skipping them costs a little happiness. The deck shows every card and what unlocks it.`],
       ['Can I move my lobbyists?', `Yes. TrickleTown → Assign lobbyists moves this quarter's lobbyists between charities and changes where new ones go. Past quarters already marched.`],
-      ['What are achievements?', `Rare milestones (your first buy, your first win, a week-long streak, building out the town, a million on the coin). Each comes with a one-time gift from Mommy &amp; Daddy, taxed like any win. The 🏆 at the top shows how close you are.`],
-      ['Friends and leaders?', `Add friends by username on the Leaders page. It's one-way: you see their coin and town, they see yours only if they add you back. The boards show Lobbyfest standings, the best cash-out of the last day, and the biggest positions held right now.`],
+      ['What are achievements?', `Rare milestones (your first buy, your first win, a week-long streak, building out the town, a million on the coin). Each comes with a one-time gift from Mommy &amp; Daddy. A gift is all gain, so it's taxed like one and hires lobbyists. After the first week's milestones, a gift is a share of the money you have in play, so it still matters when you're rich. The 🏆 at the top shows how close you are.`],
+      ['Profiles, friends and leaderboards?', `Everything besides today's game is in the ☰ menu. Your <b>profile</b> charts how your trading has gone (positions only: gifts and town spending don't count), plus what you're holding, your town, your lobbyists and your trophies. Tap any name on the <b>leaderboards</b> to see theirs. Add <b>friends</b> by username for a board of just them. It's one-way, and it's also who can write on your <b>wall</b>: only people you've added.`],
       ['Ranks?', `Ranks count every lobbyist you ever hire, across every Lobbyfest. <span class="badges-inline">${badgeList.map((b) => `<span class="${earned.includes(b.name) ? 'earned' : ''}"><b>${esc(b.name)}</b> ${b.at}</span>`).join('')}</span>`],
       ['Fine print', `<span class="muted">Trickle Down Holdings is a fictional company and a wholly owned subsidiary of Trickle Down Holdings. Prices come from Finnhub and CoinGecko and can be a minute or so behind. Stocks only move while the market is open; crypto never stops. A guest account lives in one browser until you keep it with a password, Google, or a device code.</span>`],
     ];
@@ -2720,7 +3011,7 @@
     body.innerHTML = `
       <div class="acct-row"><span class="muted">Signed in as</span><b>${esc(u.username)}</b></div>
       ${u.google ? `<div class="acct-row"><span class="muted">Google</span><span>Linked${u.email ? ` · ${esc(u.email)}` : ''}</span></div>` : ''}
-      <p class="muted small">Friends add you by that username; it's the only thing about you they can see. <a href="#leaders">Your friends</a>${state.me.friend_count ? ` (${state.me.friend_count})` : ''}.</p>
+      <p class="muted small">Friends add you by that username; it's the only thing about you they can see. <a href="#friends">Your friends</a>${state.me.friend_count ? ` (${state.me.friend_count})` : ''}.</p>
 
       <details class="acct-section" open>
         <summary>Change username</summary>
@@ -2751,7 +3042,7 @@
       <p class="form-error" id="account-error" hidden></p>`;
     $('#dlg-account').showModal();
     wireShared();
-    $$('#account-body a[href="#leaders"]').forEach((a) => { a.onclick = () => { $('#dlg-account').close(); }; });
+    $$('#account-body a[href="#friends"]').forEach((a) => { a.onclick = () => { $('#dlg-account').close(); }; });
     const err = (m) => { const e = $('#account-error'); e.textContent = m; e.hidden = false; };
     $('#acct-username-form').onsubmit = async (ev) => {
       ev.preventDefault();
@@ -2791,6 +3082,8 @@
     $('#btn-claim').onclick = () => openAuth('claim');
     $('#btn-account').onclick = openAccount;
     $('#btn-help').onclick = () => Explainer.open({ deck: 'main', rules: state.me ? state.me.rules : undefined, finale: !API.token(), onFinale: welcomeFinale });
+    $('#btn-menu').onclick = openMenu;
+    $('#dlg-menu').addEventListener('click', (e) => { if (e.target === e.currentTarget) softClose(e.currentTarget); });
     $('#btn-signout').onclick = signOut;
     window.addEventListener('hashchange', route);
 
@@ -2811,6 +3104,29 @@
     });
   }
 
+  // GitHub Pages lets a browser reuse index.html for up to ten minutes, so a
+  // new release can sit behind an old page. Ask, uncached, which build is
+  // live (version.txt); if it's not this one, reload once to pick it up.
+  // Never mid-purchase or with a popup open; never twice for the same build.
+  function checkBuild() {
+    if (!BUILD || API.demo) return;
+    fetch(`version.txt?t=${Date.now()}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.text() : ''))
+      .then((text) => {
+        const live = text.trim();
+        if (!/^[\w.-]{1,40}$/.test(live) || live === BUILD) return;
+        if ($('dialog[open]') || state.busy || state.carve > 0 || state.selected) return; // try again next time
+        try {
+          if (sessionStorage.getItem('trickledown.reloaded-for') === live) return;
+          sessionStorage.setItem('trickledown.reloaded-for', live);
+        } catch (e) { return; }
+        location.reload();
+      })
+      .catch(() => { /* offline: keep what we have */ });
+  }
+
   wire();
   route();
+  checkBuild();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkBuild(); });
 })();

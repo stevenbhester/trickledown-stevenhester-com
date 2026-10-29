@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261029c">
+  <link rel="stylesheet" href="css/style.css?v=20261029f">
 </head>
 <body>
 
@@ -26,15 +26,9 @@
     </div>
     <button type="button" class="trophy-btn" id="btn-trophies" aria-label="Achievements" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/><path d="M12 13v4M8 21h8M9 17h6v4H9z"/></svg><b id="trophy-count">0</b></button>
     <button type="button" class="help-btn" id="btn-help" aria-label="How this works">?</button>
+    <button type="button" class="menu-btn" id="btn-menu" aria-label="Menu" aria-haspopup="dialog" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><i class="menu-dot" id="menu-dot" hidden></i></button>
   </div>
 </header>
-
-<nav class="tabs" id="tabs" hidden aria-label="Sections">
-  <a href="#today" data-tab="today">Today</a>
-  <a href="#trickle" data-tab="trickle">Lobby</a>
-  <a href="#leaders" data-tab="leaders">Leaders</a>
-  <a href="#how" data-tab="how">How</a>
-</nav>
 
 <main id="main">
   <!-- Screens are rendered by js/app.js -->
@@ -42,6 +36,8 @@
   <section id="screen-today" class="screen" hidden></section>
   <section id="screen-trickle" class="screen" hidden></section>
   <section id="screen-leaders" class="screen" hidden></section>
+  <section id="screen-friends" class="screen" hidden></section>
+  <section id="screen-profile" class="screen" hidden></section>
   <section id="screen-how" class="screen" hidden></section>
 </main>
 
@@ -140,14 +136,9 @@
 </dialog>
 
 <!-- A player's public sheet: their coin, their standing, their village -->
-<dialog id="dlg-player" class="sheet">
-  <div class="sheet-body">
-    <div class="sheet-head">
-      <h2 id="player-title">Player</h2>
-      <button type="button" class="close" data-close aria-label="Close">×</button>
-    </div>
-    <div id="player-body"></div>
-  </div>
+<!-- The menu: everything that isn't today's game -->
+<dialog id="dlg-menu" class="menu-sheet" aria-label="Menu">
+  <nav class="menu-body" id="menu-body"></nav>
 </dialog>
 
 <!-- The Site Office: build a plot, hear upgrade proposals -->
@@ -200,12 +191,12 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<script src="config.js?v=20261029c"></script>
-<script src="js/town.js?v=20261029c"></script>
-<script src="js/demo-api.js?v=20261029c"></script>
-<script src="js/api.js?v=20261029c"></script>
-<script src="js/coin.js?v=20261029c"></script>
-<script src="js/explainer.js?v=20261029c"></script>
-<script src="js/app.js?v=20261029c"></script>
+<script src="config.js?v=20261029f"></script>
+<script src="js/town.js?v=20261029f"></script>
+<script src="js/demo-api.js?v=20261029f"></script>
+<script src="js/api.js?v=20261029f"></script>
+<script src="js/coin.js?v=20261029f"></script>
+<script src="js/explainer.js?v=20261029f"></script>
+<script src="js/app.js?v=20261029f"></script>
 </body>
 </html>
