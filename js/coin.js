@@ -234,13 +234,13 @@ window.Coin = (function () {
 
   // town: the /me town view. pop: this quarter's lobbyists. pending: issues awaiting a decision.
   function village({ town, pop, pending, locked = false, progress = 0 }) {
-    const hp = town.happiness / 100, hl = town.health / 100;
+    const hp = town.happiness / 100, hl = hp; // one mood: the sky and the grass both follow happiness
     const sky0 = mix('#8E9AA0', '#7FC3DD', hp), sky1 = mix('#C7CED1', '#E6F4F8', hp);
     const ground = mix('#9C8F6E', '#7DB27A', hl), ground2 = mix('#857A5C', '#5E9A5E', hl);
     const plots = Object.fromEntries(town.plots.map((p) => [p.slot, p.key]));
     const n = Math.min(14, Math.ceil(pop - 1e-9));
     const frac = round2(pop - Math.floor(pop));
-    const sick = town.health < town.quit_below;
+    const sick = false;
     const sad = town.happiness < 30;
     let people = '';
     for (let i = 0; i < n; i++) {

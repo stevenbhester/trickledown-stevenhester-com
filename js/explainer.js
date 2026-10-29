@@ -56,31 +56,9 @@ window.Explainer = (function () {
           <text x="46" y="122" text-anchor="middle" class="x-small">fake money</text>
           <text x="139" y="122" text-anchor="middle" class="x-small">lobbyists</text>
           <text x="230" y="122" text-anchor="middle" class="x-small">real charity</text>`),
-        body: 'A daily stock game. Your wins steer real ad money to charity. Losing costs you nothing.',
-        fine: 'Presented by Trickle Down Holdings, which believes wealth trickles down and has built a website to check.',
-        next: 'Show me how',
-      },
-      {
-        title: `Get $${r.daily_base}K every day`,
-        art: svg(`
-          ${coin(140, 88, 50)}
-          ${bill(104, 20, 'fall f1', -18)}${bill(140, 8, 'fall f2', 4)}${bill(176, 20, 'fall f3', 20)}
-          <text x="140" y="96" text-anchor="middle" class="x-big">+$${r.daily_base}K</text>
-          <g class="x-days">${[0, 1, 2, 3, 4, 5, 6].map((i) => `<rect x="${12 + i * 13}" y="128" width="10" height="10" rx="2" class="${i < 4 ? 'on' : ''}"/>`).join('')}<text x="12" y="122" class="x-small">streak</text></g>`),
-        body: `Fake, obviously. Come back daily and it grows, up to $${r.daily_cap}K. Miss a day and it resets.`,
-        fine: 'Loyalty is our most valuable product. Yours, specifically.',
-      },
-      {
-        title: 'Bet it on real stocks',
-        art: svg(`
-          ${coin(140, 78, 58)}<circle cx="140" cy="78" r="26" class="x-hole"/>
-          <path d="${wedge(140, 78, 26, 58, 0, 120)}" class="x-wedge up"/>
-          <path d="${wedge(140, 78, 26, 58, 120, 190)}" class="x-wedge down"/>
-          <path d="${wedge(140, 78, 26, 58, 200, 300)}" class="x-wedge slice"/>
-          <text x="176" y="62" class="x-tag">NVDA</text><text x="146" y="128" class="x-tag">DOGE</text>
-          <text x="52" y="140" text-anchor="middle" class="x-tag gold">your slice</text>`),
-        body: 'Stocks, crypto, funds. Real prices. Carve off as much as you like. Your first buy also vests your company shares: a signing bonus, taxed like any win.',
-        fine: 'Congratulations: you are now an investor. Please update your professional networking profile.',
+        body: `You get $${r.daily_base}K of fake money every day (more on a streak). Invest it in real stocks. Your wins send this site's real ad money to charity.`,
+        fine: 'Losing costs you nothing. Legal checked.',
+        next: 'How do I win?',
       },
       {
         title: `Hold ${r.hold_hours} hours for ×10`,
@@ -90,12 +68,13 @@ window.Explainer = (function () {
           <circle r="7" class="x-runner"><animateMotion dur="3.2s" repeatCount="indefinite" path="M24 112 L256 26"/></circle>
           <text x="20" y="136" class="x-small">buy: ×1</text><text x="256" y="136" text-anchor="end" class="x-small">${r.hold_hours}h: ×10</text>
           <circle cx="256" cy="26" r="9" class="x-gold"/>
-          <line x1="110" y1="80" x2="110" y2="124" class="x-early"/><text x="110" y="136" text-anchor="middle" class="x-small">sell early: ×4</text>`),
-        body: 'Your bet starts at the real move and ramps to ten times it (five for crypto). Sell early any time, or let a winner ride: half the tax now, and the multiplier keeps climbing.',
-        fine: 'Investments can reach $0. They cannot go below $0. Legal checked.',
+          <text x="256" y="16" text-anchor="end" class="x-small">stock +1% → you +10%</text>`),
+        body: `Pick a stock, crypto or fund and say how much. It rides the real market for ${r.hold_hours} hours, and the move is multiplied: the stock goes up 1%, you go up 10%. Down 1%, down 10%. Then it matures and you collect.`,
+        fine: 'Sell early any time at a smaller multiplier. Crypto tops out at ×5.',
+        next: 'And the charity part?',
       },
       {
-        title: 'Profits hire lobbyists',
+        title: 'Wins hire lobbyists',
         art: svg(`
           ${bill(32, 70, 'hop h1')}${bill(56, 70, 'hop h2')}
           ${arrow(78, 102, 70)}
@@ -104,35 +83,20 @@ window.Explainer = (function () {
           ${suit(141, 34, '', 0.9)}
           ${arrow(196, 216, 70)}
           ${suit(224, 52, 'pop p1')}${suit(246, 52, 'pop p2')}`),
-        body: `${pct}% of every win is taxed. Not to the government, silly. To your Local Lobbyist Recruiter, at about $1K a head. Losses are free.`,
-        fine: 'Fractional lobbyists are hired fractionally. Please do not ask which fraction.',
+        body: `${pct}% of every win is tax. The tax hires lobbyists for your charity. Every quarter at Lobbyfest, the charity with the most lobbyists gets the biggest share of the real money.`,
+        fine: r.demo ? 'The money will be real. The charities in this demo are not.' : 'Receipts are posted on the Lobby page.',
+        next: 'Got it',
       },
       {
-        title: 'Lobbyists win charities real cash',
-        art: svg(`
-          <g class="x-march">${[0, 1, 2, 3, 4].map((i) => suit(6 + i * 20, 64, '', 0.85)).join('')}</g>
-          ${arrow(112, 148, 84)}
-          ${[['Ducks', 58], ['Pigeons', 34], ['Socks', 18]].map(([n, h], i) => `
-            <rect x="${160 + i * 38}" y="${108 - h}" width="28" height="${h}" class="x-bar b${i}"/>
-            <text x="${174 + i * 38}" y="124" text-anchor="middle" class="x-small">${n}</text>`).join('')}
-          <text x="268" y="24" text-anchor="end" class="x-tag gold">real money, by headcount</text>`),
-        body: "Every quarter, this site's ad revenue is split between charities by how many lobbyists each one has.",
-        fine: r.demo
-          ? 'The money will be real. The charities in this demo are not. Pigeons With Dignity regrets the inconvenience.'
-          : 'This is how democracy works now. Receipts are posted on the Lobby page.',
-      },
-      {
-        title: 'Day one comes with a gift',
+        title: 'Your first buy pays a bonus',
         art: svg(`
           ${miniTown()}
           <rect x="0" y="0" width="280" height="150" fill="#EDF1F2" opacity=".82"/>
           <rect x="96" y="40" width="88" height="56" rx="6" fill="#fff" stroke="#0F2430" stroke-width="2"/>
-          <path d="M126 60 v-8 a14 14 0 0 1 28 0 v8" fill="none" stroke="#0F2430" stroke-width="4"/>
-          <rect x="120" y="60" width="40" height="28" rx="4" fill="#0F2430"/>
-          <text x="140" y="80" text-anchor="middle" fill="#F2D06B" font-size="16" font-weight="900">?</text>
-          <text x="140" y="122" text-anchor="middle" class="x-tag">something is being built</text>`),
-        body: `Make your first investment and your shares in Trickle Down Holdings vest: $${r.vest_amount || 40}K of pure profit, which you must sell at once. The tax hires your first lobbyists, and they need somewhere to live. We will show you around then.`,
-        fine: 'Trickle Down Holdings is building something. It is either a community or a revenue stream.',
+          <text x="140" y="76" text-anchor="middle" fill="#0F2430" font-size="22" font-weight="900">$${r.vest_amount || 40}K</text>
+          <text x="140" y="122" text-anchor="middle" class="x-tag">from Mommy &amp; Daddy</text>`),
+        body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K, taxed like any win. That tax hires your first lobbyists, and they need somewhere to live. That's TrickleTown, on the other side of your coin. We'll show you around when you get there.`,
+        fine: 'Nothing about this is normal. Everything about it is legal.',
         next: 'Start playing',
       },
     ];
@@ -141,60 +105,33 @@ window.Explainer = (function () {
   function townDeck() {
     return [
       {
-        kicker: 'Your first lobbyist moved in',
+        kicker: 'Your first lobbyists moved in',
         title: 'Welcome to TrickleTown',
-        art: svg(miniTown(`${suit(120, 72, '', 0.9)}<text x="140" y="140" text-anchor="middle" class="x-tag">flip the coin: tails is TrickleTown</text>`)),
-        body: 'Your lobbyists live here now. You own all of it.',
+        art: svg(miniTown(`${suit(120, 72, '', 0.9)}<text x="140" y="140" text-anchor="middle" class="x-tag">the other side of your coin</text>`)),
+        body: 'Your lobbyists live here, and you own the place. It has two scores. Profit: what the town adds to your allowance every day. Happiness: what each new lobbyist costs you, since happy towns hire cheap.',
         fine: 'Congratulations on becoming a landlord. It happens to the best of us.',
       },
       {
-        title: 'Buildings pay or cost you',
+        title: 'Money, or people',
         art: svg(`
           <rect x="0" y="104" width="280" height="46" fill="#9BC48F"/>
           <rect x="34" y="56" width="80" height="48" fill="#8E2232"/><rect x="34" y="50" width="80" height="8" fill="#D4A72C"/>
           <text x="74" y="86" text-anchor="middle" fill="#F2D06B" font-size="20" font-weight="900">$ $ $</text>
-          <text x="74" y="130" text-anchor="middle" class="x-tag up">+ allowance</text>
+          <text x="74" y="130" text-anchor="middle" class="x-tag up">+ profit</text>
           <rect x="168" y="58" width="76" height="46" fill="#fff" stroke="#8EA3AC"/>
           <rect x="200" y="62" width="12" height="26" fill="#2E9C72"/><rect x="193" y="69" width="26" height="12" fill="#2E9C72"/>
-          <text x="206" y="130" text-anchor="middle" class="x-tag down">− upkeep</text>`),
-        body: 'Tap an empty lot and pick from three pitches. Casinos and tenements pay into your daily allowance; co-ops and clinics cost upkeep. Later, each building gets proposals for upgrades.',
+          <text x="206" y="130" text-anchor="middle" class="x-tag up">+ happiness</text>`),
+        body: 'Two empty lots. Each offers three buildings: a casino or tenement makes profit and unhappy lobbyists; a clinic or co-op costs profit and makes them happy; one in the middle. Tap a lot to build.',
         fine: 'Every lot offers an extractive option, a compromise, and a decent one. We put them in that order for a reason.',
       },
       {
-        title: 'Happy town, cheaper lobbyists',
-        art: svg(`
-          <text x="70" y="40" text-anchor="middle" class="x-tag">happy</text>
-          <rect x="20" y="50" width="100" height="12" rx="6" fill="#DDE6E9"/><rect x="20" y="50" width="88" height="12" rx="6" fill="#2E9C72"/>
-          <text x="70" y="100" text-anchor="middle" class="x-big">$750</text><text x="70" y="120" text-anchor="middle" class="x-small">per lobbyist</text>
-          <text x="210" y="40" text-anchor="middle" class="x-tag">miserable</text>
-          <rect x="160" y="50" width="100" height="12" rx="6" fill="#DDE6E9"/><rect x="160" y="50" width="18" height="12" rx="6" fill="#C04A35"/>
-          <text x="210" y="100" text-anchor="middle" class="x-big" fill="#B0412E">$1.3K</text><text x="210" y="120" text-anchor="middle" class="x-small">and they quit</text>`),
-        body: 'Happy residents make the recruiter cheaper. Sick ones quit before Lobbyfest, and quitters don\'t count.',
-        fine: 'Morale is a mindset. Health is a line on a chart.',
-      },
-      {
-        title: 'Meet Preston: more money',
-        art: person('preston', 'Have you considered a casino? Have you considered two casinos?'),
-        body: 'Preston Yield, your Value Extraction Partner. Every idea he brings makes your number go up.',
-        fine: 'He has a deck. He always has a deck.',
-      },
-      {
-        title: 'Meet Dolores: happier lobbyists',
-        art: person('dolores', 'They would like a park. A park-shaped park.'),
-        body: "Dolores Pike, Lobbyist for Lobbyists. Her ideas usually cost you, and usually keep your town alive.",
-        fine: 'She once asked for a ball pit. She will ask again.',
-      },
-      {
-        title: "It's all optional",
-        art: svg(`
-          ${coin(80, 70, 40)}<text x="80" y="82" text-anchor="middle" class="x-big">$</text>
-          <text x="80" y="134" text-anchor="middle" class="x-tag">heads: the game</text>
-          <circle cx="200" cy="70" r="45" class="x-rim"/><circle cx="200" cy="70" r="40" fill="#CDE4EB"/>
-          <path d="M160 82 L240 82 A40 40 0 0 1 160 82 Z" fill="#9BC48F"/>
-          <rect x="186" y="54" width="12" height="28" fill="#9FB6C2"/><rect x="204" y="66" width="18" height="16" fill="#E7C48F"/>
-          <text x="200" y="134" text-anchor="middle" class="x-tag gold">tails: bonus</text>`),
-        body: 'Ignore TrickleTown and the stock game works exactly the same. Once you\'ve built something, though, the residents expect you to show up: unplayed cards cost a little happiness. Drop by when you want a bigger allowance or cheaper lobbyists: tap Speak with your advisors, play the day\'s cards, buy a building or an upgrade. The ▲▼ hints show which way each choice pushes.',
-        fine: 'Unanswered issues expire at midnight. Dolores will mention it. Preston will invoice for it.',
+        title: 'Cards every day',
+        art: `<div class="x-art x-duo">
+          <div class="x-half preston">${window.Coin ? window.Coin.preston(64) : ''}<div class="x-bubble">A casino. Two casinos.</div></div>
+          <div class="x-half dolores">${window.Coin ? window.Coin.dolores(64) : ''}<div class="x-bubble">They would like a park.</div></div>
+        </div>`,
+        body: 'Preston and Dolores bring a few cards a day. Preston\'s side pays; Dolores\'s side makes people happier. Pick one per card. Some choices come back around later; the card will say so.',
+        fine: 'Unplayed cards expire at midnight. Built something? The residents notice when you skip a day.',
         next: 'Visit TrickleTown',
       },
     ];
