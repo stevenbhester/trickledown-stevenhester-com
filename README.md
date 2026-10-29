@@ -171,9 +171,12 @@ says K).
   worse), Rest in peace (all of it). Tiers show on the receipt, in the
   records, on the 24-hour board, and set the share card's emoji and opening
   line.
-- Share my day (bottom of Today) previews a four-line text card: the day's
-  total, each trade cashed out or let ride with its tier emoji and % (🎢 for a
-  ride), today's buys (🎲), and the link. Trading only.
+- Share my day (bottom of Today) previews a short text card: "Trickle Down ·
+  Day N · total", then Sold:, Riding: and Bought: rows (each trade with its
+  tier emoji and %), and the link. Day N counts the account's days. Trading
+  only.
+- A new post on your wall: one quiet toast, a to-do line that opens your
+  wall, and a dot on your avatar until you've read it.
 - The deck: any card you've played opens to the situation, both pitches, and
   the side you took.
 - Link previews: `og.jpg` (1200×630) and the Open Graph / Twitter tags in

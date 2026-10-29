@@ -344,6 +344,7 @@
       renderToday();
       renderTrophyCount();
       updateMenuDot();
+      maybeWallToast(me);
       if (me.fresh_cards && me.fresh_cards.length) setTimeout(() => announceCards(me.fresh_cards), me.allowance ? 5400 : 800);
       if (!state.justBought) maybeAchievement(me.allowance && !REDUCED ? 2600 : 900);
       if (!Explainer.seen('main') && !state.oriented) {
@@ -664,6 +665,7 @@
     const town = me.town;
     // Earned, but the popup was closed (or the tab was): the gift is still waiting.
     for (const key of unclaimedKeys(me)) { const a = achOf(me, key); items.push({ k: 'gift', id: key, text: `🏆 <b>${esc(a.title)}</b>: ${esc(a.from)} sent ${money(a.gift, { whole: true })}. Open it` }); }
+    if (me.wall_unread) items.push({ k: 'wall', text: `💬 ${wallWho(me)} on your wall. Read it` });
     if (ready.length) items.push({ k: 'collect', id: ready[0].id, text: ready.length === 1 ? `Collect <b>${esc(ready[0].symbol)}</b>, ready at ${pct(ready[0].swing_pct, 0)}` : `Collect <b>${ready.length} matured</b> positions` });
     if (buried.length) items.push({ k: 'collect', id: buried[0].id, text: `Bury <b>${esc(buried[0].symbol)}</b>. It's gone.` });
     const cards = pendingIssues();
@@ -820,6 +822,7 @@
         const k = b.dataset.todo;
         if (k === 'collect') openSell(Number(b.dataset.id));
         else if (k === 'gift') openAchievement(b.dataset.id);
+        else if (k === 'wall') { prof.toWall = true; location.hash = '#profile'; }
         else if (k === 'cards') { flip(true); if (Explainer.seen('town')) setTimeout(() => openAdvisors(), REDUCED ? 50 : 700); }
         else if (k === 'invest') { const sch = $('#carve-search'); if (sch) { sch.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'center' }); sch.focus(); } }
         else if (k === 'site') { flip(true); if (Explainer.seen('town')) setTimeout(() => openSite(b.dataset.slot), REDUCED ? 50 : 700); }
@@ -2276,26 +2279,29 @@
   // "+$17K" / "−$3K" for the card: whole thousands once it's big enough.
   const cardMoney = (v) => `${v > 0.004 ? '+' : ''}${money(v, Math.abs(v) >= 10 ? { whole: true } : {})}`;
 
-  // Four lines at most, Wordle-short:
-  //   Trickle Down #12 · +$18K
-  //   📈 NVDA +34% · 👍 TSLA +12% 🎢 · 🤕 DOGE −12%
-  //   🎲 KO $30K · BTC $15K
+  // A few short lines:
+  //   Trickle Down · Day 12 · +$18K
+  //   Sold: 📈 NVDA +34% · 🤕 DOGE −12%
+  //   Riding: 👍 TSLA +12%
+  //   Bought: KO $30K · BTC $15K
   //   https://trickledown.stevenhester.com
-  // Results are what you cashed out or let ride today, best first, each with
-  // its tier's emoji (🚀 🔥 📈 👍 🪙 / 🩹 🤕 🌊 🤡 💀) and 🎢 if it rode on.
-  // The total in dollars sits on the first line. 🎲 is today's buys.
+  // Day N is how many days the account has been going. The total is what you
+  // cashed out or let ride today. Each trade gets its tier's emoji
+  // (🚀 🔥 📈 👍 🪙 / 🩹 🤕 🌊 🤡 💀), best first.
   function shareText(me) {
     const today = me.day.key;
     const closes = (me.history || []).filter((h) => h.closed_day === today && !h.gift && !h.vested && h.invested > 0);
     const buys = (me.positions || []).filter((p) => p.opened_day === today && !(p.ride_count > 0));
     const net = round2(closes.reduce((s, h) => s + h.profit, 0));
-    const lines = [`Trickle Down #${me.day.number}${closes.length ? ` · ${cardMoney(net)}` : ''}`];
-    const more = (list, n) => (list.length > n ? ` +${list.length - n}` : '');
-    if (closes.length) {
-      const sorted = [...closes].sort((x, y) => y.profit - x.profit);
-      lines.push(sorted.slice(0, 4).map((h) => `${TIER_EMOJI[tierOf(h.invested, h.invested + h.profit)]} ${h.symbol} ${pct(h.profit / h.invested, 0)}${h.rode ? ' 🎢' : ''}`).join(' · ') + more(sorted, 4));
-    }
-    if (buys.length) lines.push(`🎲 ${buys.slice(0, 3).map((p) => `${p.symbol} ${money(p.invested, p.invested >= 10 ? { whole: true } : {})}`).join(' · ')}${more(buys, 3)}`);
+    const dayN = me.user.account_day || me.day.number; // older servers: the game's day number
+    const lines = [`Trickle Down · Day ${dayN}${closes.length ? ` · ${cardMoney(net)}` : ''}`];
+    const more = (list, n) => (list.length > n ? ` +${list.length - n} more` : '');
+    const trades = (list, n) => list.slice(0, n).map((h) => `${TIER_EMOJI[tierOf(h.invested, h.invested + h.profit)]} ${h.symbol} ${pct(h.profit / h.invested, 0)}`).join(' · ') + more(list, n);
+    const best = (list) => [...list].sort((x, y) => y.profit - x.profit);
+    const sold = best(closes.filter((h) => !h.rode)), rode = best(closes.filter((h) => h.rode));
+    if (sold.length) lines.push(`Sold: ${trades(sold, 4)}`);
+    if (rode.length) lines.push(`Riding: ${trades(rode, 3)}`);
+    if (buys.length) lines.push(`Bought: ${buys.slice(0, 3).map((p) => `${p.symbol} ${money(p.invested, p.invested >= 10 ? { whole: true } : {})}`).join(' · ')}${more(buys, 3)}`);
     lines.push(SITE_LINK);
     // money() glues "−" to "$" with an invisible word joiner; a chat app
     // doesn't need it, and some show it as a box.
@@ -2313,7 +2319,7 @@
         ${canShare ? '<button type="button" class="btn primary" id="share-go">Share</button>' : ''}
         <button type="button" class="btn ${canShare ? 'quiet' : 'primary'}" id="share-copy">Copy</button>
       </div>
-      <p class="muted small">Top line: today's total from what you cashed out or let ride. Each trade gets an emoji for how it went, 🚀 down to 💀; 🎢 means it rode on. 🎲 is what you bought today.</p>`;
+      <p class="muted small">Day ${esc(String(me.user.account_day || me.day.number))} of your account. The total is today's sells and rides; each trade's emoji says how it went, 🚀 down to 💀.</p>`;
     const go = $('#share-go');
     if (go) go.onclick = async () => { try { await navigator.share({ text }); softClose($('#dlg-share')); } catch (e) { /* cancelled */ } };
     $('#share-copy').onclick = async () => {
@@ -2524,6 +2530,7 @@
       prof.p = p;
       renderProfile(p);
       $('#btn-me').classList.toggle('on', !!p.is_you);
+      if (prof.toWall) { prof.toWall = false; const w = $('#screen-profile .prof-wall'); if (w) setTimeout(() => w.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }), 150); }
       if (p.is_you && state.me) { state.me.wall_unread = 0; updateMenuDot(); }
     } catch (e) {
       el.innerHTML = `${backLink()}<h1>${esc(name)}</h1><p class="lede">${esc(e.message)}</p>`;
@@ -2784,6 +2791,29 @@
     out: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/>',
   };
   const mIcon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${M_ICON[k]}</svg>`;
+
+  // "erin wrote" / "erin and ravi_k wrote" / "erin, ravi_k and 2 others wrote"
+  function wallWho(me) {
+    const from = (me.wall_unread_from || []).map((n) => `<b>${esc(n)}</b>`);
+    const n = me.wall_unread || 0;
+    if (!from.length) return `<b>${n} new post${n === 1 ? '' : 's'}</b>`;
+    const names = from.length === 1 ? from[0] : from.length === 2 ? `${from[0]} and ${from[1]}` : `${from.slice(0, 2).join(', ')} and others`;
+    return `${names} wrote${n > 1 && from.length === 1 ? ` ${n} posts` : ''}`;
+  }
+  // Tell someone about a new wall post once, quietly: a toast that goes away
+  // on its own, plus the dot and the to-do line, which stay until it's read.
+  // Remembered per browser by the newest post's id, so a reload doesn't
+  // repeat it.
+  function maybeWallToast(me) {
+    if (!me.wall_unread || !me.wall_latest) return;
+    let told = null; try { told = localStorage.getItem('trickledown.wall-told'); } catch (e) { /* private mode */ }
+    if (told === String(me.wall_latest)) return;
+    try { localStorage.setItem('trickledown.wall-told', String(me.wall_latest)); } catch (e) { /* private mode */ }
+    const who = (me.wall_unread_from || [])[0];
+    // After the morning's other toasts (money landed, new cards), not over them.
+    const delay = REDUCED ? 600 : me.fresh_cards && me.fresh_cards.length ? 10600 : me.allowance ? 5600 : 2200;
+    setTimeout(() => toast(`💬 ${who ? `${who} wrote` : 'Someone wrote'} on your wall. Tap your avatar, top right, to read it.`, 5000), delay);
+  }
 
   function updateMenuDot() {
     const n = state.me ? state.me.wall_unread || 0 : 0;

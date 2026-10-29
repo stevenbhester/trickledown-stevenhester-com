@@ -230,7 +230,7 @@
   }
 
   const badgesFor = (d) => ({ earned: BADGES.filter((b) => d >= b.at), next: BADGES.find((b) => d < b.at) || null });
-  const publicUser = () => ({ ...user, badges: badgesFor(user.total_donated) });
+  const publicUser = () => ({ ...user, badges: badgesFor(user.total_donated), account_day: 11 });
   // Multiplier ramps from ×1 at purchase to the full multiplier at maturity.
   const multAt = (p, at = Date.now()) => {
     const o = new Date(p.opened_at).getTime(), m = new Date(p.matures_at).getTime();
@@ -279,6 +279,8 @@
         vesting: null,
         achievements: achView(),
         wall_unread: wallSeen ? 0 : (walls.get(user.username) || []).filter((w) => w.author !== user.username).length,
+        wall_unread_from: wallSeen ? [] : [...new Set((walls.get(user.username) || []).filter((w) => w.author !== user.username).map((w) => w.author))].slice(0, 3),
+        wall_latest: wallSeen ? null : ((walls.get(user.username) || []).find((w) => w.author !== user.username) || {}).id || null,
         today_donated: history.filter((h) => h.closed_day === today).reduce((s, h) => s + h.tax, 0),
       };
     }
