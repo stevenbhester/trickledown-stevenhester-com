@@ -108,23 +108,26 @@ says K).
 - One accent colour (water blue), one display face (Big Shoulders Display) for
   the wordmark and money, one text face (Public Sans, the US government's
   typeface, which is the joke).
-- The Today screen is a coin with a milled edge. The front is a ring: open
+- The Today screen is a coin with a milled edge and a two-way switch under
+  it: **Portfolio** (the front) and **TrickleTown** (the back). The switch
+  flips the coin; so does tapping the coin. The front is a ring: open
   positions as wedges labelled with the dollars in them and coloured by how
   they're doing (pale to strong green or rust, dark when busted, a gold edge
-  once matured); uninvested cash as a fan of $10 bills; cash free to spend in
-  the centre. Hover a wedge for the return, the multiplier now, and the time
-  to maturity. Pick a stock, then an amount (dollars or a chip), and a dashed
-  slice shows where the wedge will land. Tap a wedge to collect it (matured)
-  or sell early (selling a ride early also pays the half of the tax it
-  deferred). The back is
-  TrickleTown: the village on the coin, with the payroll (lobbyists by
-  charity), your rank, and the records under it. A taxed cash-out flips the
-  coin; the day's first load tosses it in.
-- TrickleTown (tails) has a construction zone with one lot per plot. Tapping
-  a lot, on the coin or in the list, opens the Site Office: three pitches to
-  build from, then upgrade proposals as cards (pitch vs. objection) that
-  unlock over time or on conditions. The advisors' daily cards live in
-  TrickleTown Hall, the same card modal.
+  once matured); uninvested cash as a fan of bills; cash free to spend in
+  the centre. Under it: a to-do list, the buy box, and the positions, each
+  with a 24-hour bar. Pick a stock, then an amount, and a dashed slice shows
+  where the wedge will land. Tap a wedge to collect it (matured) or sell
+  early. The day's first load tosses the coin in.
+- TrickleTown is four things: the two scores on top (profit, happiness, with
+  the lobbyist price and this quarter's headcount), Town Hall (the day's
+  cards, and a link to the full deck in a sheet), the construction zone (one
+  tile per lot; tapping a lot, on the coin or in the list, opens the Site
+  Office), and Payroll (lobbyists by charity, the Assign button, your rank,
+  the records). Tapping a building or an advisor on the coin opens the same
+  sheets.
+- Two tutorials, short: the employee training (4 slides, from the landing
+  page or the ? button) and the TrickleTown tour (3 slides, the first time
+  the town opens). The How page is a FAQ.
 - Play-money tax hires lobbyists at a dollar a head; they are never shown as
   dollars. Fractional lobbyists are drawn clipped to the fraction, head first.
 - Outcomes get a deadpan tier name (Pocket change, Nice, Heater, Legend, Paper

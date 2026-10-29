@@ -24,6 +24,7 @@
       <span id="day-number">Day 1</span>
       <span id="day-countdown" class="muted"></span>
     </div>
+    <button type="button" class="trophy-btn" id="btn-trophies" aria-label="Achievements" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/><path d="M12 13v4M8 21h8M9 17h6v4H9z"/></svg><b id="trophy-count">0</b></button>
     <button type="button" class="help-btn" id="btn-help" aria-label="How this works">?</button>
   </div>
 </header>
@@ -108,14 +109,22 @@
   </div>
 </dialog>
 
-<!-- Day one: the shares vest -->
-<dialog id="dlg-vest" class="sheet vest" aria-label="Your shares vested">
+<!-- Achievement unlocked: the burst, the note from Mommy & Daddy, the gift -->
+<dialog id="dlg-ach" class="sheet ach" aria-label="Achievement unlocked">
+  <div class="sheet-body">
+    <button type="button" class="close ach-close" data-close aria-label="Close">×</button>
+    <div id="ach-body"></div>
+  </div>
+</dialog>
+
+<!-- The trophy case: every achievement, earned or not -->
+<dialog id="dlg-trophies" class="sheet trophies" aria-label="Achievements">
   <div class="sheet-body">
     <div class="sheet-head">
-      <h2>Your shares vested</h2>
+      <h2>Achievements</h2>
       <button type="button" class="close" data-close aria-label="Close">×</button>
     </div>
-    <div id="vest-body"></div>
+    <div id="trophies-body"></div>
   </div>
 </dialog>
 
@@ -150,6 +159,30 @@
     </div>
     <div class="stat-strip" id="site-stats" aria-live="polite"></div>
     <div id="site-stage" class="adv-stage"></div>
+  </div>
+</dialog>
+
+<!-- Assign lobbyists: this quarter's, between charities; and the default for new ones -->
+<dialog id="dlg-assign" class="sheet" aria-label="Assign lobbyists">
+  <div class="sheet-body">
+    <div class="sheet-head">
+      <h2>Assign lobbyists</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div id="assign-body"></div>
+    <p class="form-error" id="assign-error" hidden></p>
+    <div class="assign-actions"><button type="button" class="btn quiet" data-close>Cancel</button><button type="button" class="btn primary" id="assign-save">Save</button></div>
+  </div>
+</dialog>
+
+<!-- The deck: every card, what unlocks it -->
+<dialog id="dlg-deck" class="sheet" aria-label="The deck">
+  <div class="sheet-body">
+    <div class="sheet-head">
+      <h2>The deck</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div id="deck-body"></div>
   </div>
 </dialog>
 
