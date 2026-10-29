@@ -245,7 +245,7 @@
     const real = (price - p.entry_price) / p.entry_price; const swing = mult * real; const raw = p.invested * (1 + swing);
     return { real_pct: real, swing_pct: Math.max(-1, swing), multiplier_now: Math.round(mult * 100) / 100, value: round2(Math.max(0, raw)), busted: raw <= 0 };
   };
-  const tierFor = (inv, v) => { if (v <= 0) return 'Rest in peace'; const p = (v - inv) / inv; return p < 0 ? 'Paper cut' : p < 0.1 ? 'Pocket change' : p < 0.25 ? 'Respectable' : p < 0.5 ? 'Nice' : p < 1 ? 'Heater' : 'Legend'; };
+  const tierFor = (inv, v) => { if (v <= 0) return 'Rest in peace'; const p = (v - inv) / inv; return p <= -0.5 ? 'Comically disastrous' : p <= -0.25 ? 'Taking on water' : p <= -0.1 ? 'Flesh wound' : p < 0 ? 'Paper cut' : p < 0.1 ? 'Pocket change' : p < 0.25 ? 'Respectable' : p < 0.5 ? 'Nice' : p < 1 ? 'Heater' : 'Legend'; };
   const settle = (inv, v, deferred = 0) => { const profit = round2(v - inv); const own = profit > 0 ? round2(profit * RULES.tax_rate) : 0; const due = round2(Math.min(Math.max(0, deferred), Math.max(0, v - own))); const tax = round2(own + due); return { profit, tax, deferred_tax: due, net: round2(v - tax), tier: tierFor(inv, v) }; };
   const resetsAt = () => { const d = new Date(); d.setHours(24, 0, 0, 0); return d.toISOString(); };
   // Lobbyfest: local midnight at the start of the next quarter.

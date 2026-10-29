@@ -641,7 +641,7 @@
 
     return `${head}${todoStrip()}${carve}${legend}${crowdStrip(me.crowd)}
       <div class="row-actions">
-        <button class="btn quiet small" id="btn-share">Share today</button>
+        <button class="btn quiet small" id="btn-share">Share my day</button>
       </div>`;
   }
 
@@ -2188,28 +2188,105 @@
 
   // --- share --------------------------------------------------------------------------------
 
-  async function share() {
+  // --- share ------------------------------------------------------------------------------------
+  //
+  // The day as a text card for a group chat: one line on how it went, what
+  // you cashed out or let ride (% and $), what you bought today, and the
+  // link. Trading only: no achievements, no gifts. Previewed in a sheet
+  // before it goes anywhere.
+
+  const SITE_LINK = (window.TRICKLE_CONFIG.SITE_URL || location.origin).replace(/\/+$/, '');
+  // Mirrors tierFor in the server's src/game.js.
+  function tierOf(invested, value) {
+    if (value <= 0) return 'Rest in peace';
+    const p = (value - invested) / invested;
+    if (p <= -0.5) return 'Comically disastrous';
+    if (p <= -0.25) return 'Taking on water';
+    if (p <= -0.1) return 'Flesh wound';
+    if (p < 0) return 'Paper cut';
+    if (p < 0.1) return 'Pocket change';
+    if (p < 0.25) return 'Respectable';
+    if (p < 0.5) return 'Nice';
+    if (p < 1) return 'Heater';
+    return 'Legend';
+  }
+  const TIER_EMOJI = {
+    Legend: '🚀', Heater: '🔥', Nice: '📈', Respectable: '📈', 'Pocket change': '🪙',
+    'Paper cut': '🩹', 'Flesh wound': '🤕', 'Taking on water': '🌊', 'Comically disastrous': '🤡', 'Rest in peace': '💀',
+  };
+  const SHARE_LEAD = {
+    Legend: 'Doubled my money. Unbearable now.',
+    Heater: 'On a heater. Please clap.',
+    Nice: 'Nice day. Not to brag. (Bragging.)',
+    Respectable: 'Respectable gains. Quietly smug.',
+    'Pocket change': 'Up a little. A win is a win.',
+    'Paper cut': 'Paper cuts. Walking it off.',
+    'Flesh wound': "A flesh wound. I'm fine.",
+    'Taking on water': 'Taking on water. Bail faster.',
+    'Comically disastrous': 'Comically disastrous. Truly something to see.',
+    'Rest in peace': 'Lost the lot. Rest in peace.',
+  };
+  // "+$17K" / "−$3K" for the card: whole thousands once it's big enough.
+  const cardMoney = (v) => `${v > 0.004 ? '+' : ''}${money(v, Math.abs(v) >= 10 ? { whole: true } : {})}`;
+
+  function shareText(me) {
+    const today = me.day.key;
+    const closes = (me.history || []).filter((h) => h.closed_day === today && !h.gift && !h.vested && h.invested > 0);
+    const buys = (me.positions || []).filter((p) => p.opened_day === today && !(p.ride_count > 0));
+    const lines = [];
+    let net = 0;
+    if (closes.length) {
+      const inv = closes.reduce((s, h) => s + h.invested, 0);
+      net = round2(closes.reduce((s, h) => s + h.profit, 0));
+      const tier = Math.abs(net) < 0.005 ? null : tierOf(inv, inv + net);
+      lines.push(tier ? SHARE_LEAD[tier] : 'Broke exactly even. Riveting stuff.');
+    } else if (buys.length) {
+      lines.push(buys.length === 1 ? `All in on ${buys[0].symbol}. See you in ${me.rules.hold_hours} hours.` : `Bets are in. See you in ${me.rules.hold_hours} hours.`);
+    } else {
+      lines.push((me.positions || []).length ? 'Holding. Patience is a strategy, allegedly.' : 'Sat today out. Thinking about my next move.');
+    }
+    lines.push(`Trickle Down · Day ${me.day.number}${closes.length ? ` · ${cardMoney(net)}` : ''}`);
+    if (closes.length) {
+      const rode = closes.some((h) => h.rode);
+      lines.push('', closes.every((h) => h.rode) ? 'Let it ride' : rode ? 'Cashed out or let ride' : 'Cashed out');
+      for (const h of [...closes].sort((x, y) => y.profit - x.profit).slice(0, 5)) {
+        const p = h.profit / h.invested;
+        const tier = tierOf(h.invested, h.invested + h.profit);
+        lines.push(`${h.rode ? '🎢' : TIER_EMOJI[tier]} ${h.symbol} ${pct(p, 0)} (${cardMoney(h.profit)})${h.rode ? ', riding on' : ''}`);
+      }
+      if (closes.length > 5) lines.push(`…and ${closes.length - 5} more`);
+    }
+    if (buys.length) {
+      const shown = buys.slice(0, 4).map((p) => `${p.symbol} ${money(p.invested, p.invested >= 10 ? { whole: true } : {})}`);
+      lines.push('', "Today's bets", `🎲 ${shown.join(' · ')}${buys.length > 4 ? ` +${buys.length - 4} more` : ''}`);
+    }
+    lines.push('', `Play free: ${SITE_LINK}`);
+    // money() glues "−" to "$" with an invisible word joiner; a chat app
+    // doesn't need it, and some show it as a box.
+    return lines.join('\n').split(String.fromCharCode(0x2060)).join('');
+  }
+
+  function share() {
     const me = state.me;
     if (!me) return;
-    const emoji = (p) => (p.busted ? '💀' : p.swing_pct > 0 ? '📈' : p.swing_pct < 0 ? '📉' : '➖');
-    const open = me.positions.map((p) => `${emoji(p)} ${p.symbol} ${p.busted ? 'RIP' : pct(p.swing_pct, 0)}${p.matured ? ' (ready)' : ''}`);
-    const locked = me.history.filter((h) => h.closed_day === me.day.key)
-      .map((h) => { const hired = h.lobbyists != null ? h.lobbyists : h.tax; return `🔒 ${h.symbol} ${h.tier}${hired > 0 ? ` → ${lobby(hired)} for ${h.charity_name}` : ''}`; });
-    const lines = [
-      `Trickle Down #${me.day.number}`,
-      me.today_donated > 0 ? `🕴️ ${lobby(me.today_donated)} hired today` : '🕴️ No lobbyists hired yet today',
-      ...locked.slice(0, 4),
-      ...open.slice(0, 5),
-      me.user.streak > 1 ? `🔥 ${me.user.streak}-day streak` : null,
-      !me.user.is_guest ? `🤝 Add me: ${me.user.username}` : null,
-      SITE,
-    ].filter(Boolean);
-    const text = lines.join('\n');
-    try {
-      if (navigator.share) await navigator.share({ text });
-      else { await navigator.clipboard.writeText(text); toast('Copied. Go brag.'); }
-    } catch (e) { /* user cancelled */ }
+    const text = shareText(me);
+    const canShare = typeof navigator.share === 'function';
+    $('#share-body').innerHTML = `
+      <div class="share-bubble"><p class="share-text">${esc(text)}</p></div>
+      <div class="share-actions">
+        ${canShare ? '<button type="button" class="btn primary" id="share-go">Share</button>' : ''}
+        <button type="button" class="btn ${canShare ? 'quiet' : 'primary'}" id="share-copy">Copy</button>
+      </div>
+      <p class="muted small">Just your trading: what you cashed out, what you bought, and the link. Your friends get a preview card when they paste it.</p>`;
+    const go = $('#share-go');
+    if (go) go.onclick = async () => { try { await navigator.share({ text }); softClose($('#dlg-share')); } catch (e) { /* cancelled */ } };
+    $('#share-copy').onclick = async () => {
+      try { await navigator.clipboard.writeText(text); toast('Copied. Go brag.'); softClose($('#dlg-share')); }
+      catch (e) { toast("Couldn't copy. Select the text and copy it yourself.", 4000); }
+    };
+    $('#dlg-share').showModal();
   }
+
 
   // --- the lobby --------------------------------------------------------------------------------
 

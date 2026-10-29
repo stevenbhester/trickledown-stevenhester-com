@@ -165,8 +165,20 @@ says K).
   you type (`placeK` in `js/app.js`), not the far edge of the box.
 - Play-money tax hires lobbyists at a dollar a head; they are never shown as
   dollars. Fractional lobbyists are drawn clipped to the fraction, head first.
-- Outcomes get a deadpan tier name (Pocket change, Nice, Heater, Legend, Paper
-  cut, Rest in peace). Tiers show on the receipt, in the records, on the
-  24-hour board, and in the share text.
+- Outcomes get a deadpan tier name, a ladder each way: Pocket change (under
+  +10%), Respectable, Nice, Heater, Legend (doubled or better); Paper cut
+  (under −10%), Flesh wound, Taking on water, Comically disastrous (−50% or
+  worse), Rest in peace (all of it). Tiers show on the receipt, in the
+  records, on the 24-hour board, and set the share card's emoji and opening
+  line.
+- Share my day (bottom of Today) previews a text card for a group chat: a line
+  on how the day went, each position cashed out or let ride with its % and $,
+  today's buys, and the link. Trading only; no achievements or gifts.
+- Link previews: `og.jpg` (1200×630) and the Open Graph / Twitter tags in
+  `index.html` are what Slack, iMessage, Discord and X show when someone
+  pastes the link. Crawlers don't run JavaScript, so the URLs there are
+  absolute and fixed to trickledown.stevenhester.com. If you change the
+  image, bump its `?v=`: Slack and iMessage cache previews by URL.
+  `apple-touch-icon.png` is the home-screen icon.
 - Ranks: Intern, Staffer, Consultant, Lobbyist, Fixer, Kingmaker, Shadow Cabinet.
 - The ad slot in the footer is a labelled placeholder until there's an ad network.
