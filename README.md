@@ -136,6 +136,20 @@ says K).
 - Two tutorials, short: the employee training (4 slides, from the landing
   page or the ? button) and the TrickleTown tour (3 slides, the first time
   the town opens). The How page is a FAQ.
+- Nothing pops out of nowhere. An achievement knocks first: a small card
+  rises from the bottom, no backdrop, and the sheet opens when the player
+  taps it. Sheets marked `soft` (the achievement, the first-hire ceremony)
+  rise in while the backdrop fades up, and ease away on close.
+- Receipts read as arithmetic: every tax amount carries a minus (`−$10K`),
+  in receipts, the ride box, toasts and the hire ceremony; the achievement
+  gift a plus. Negative money anywhere uses a true minus sign (−), joined to
+  the `$` so they never split across lines.
+- The stat strip over Town Hall and the Site Office is labelled "Your stats
+  right now" and styled as a flat readout, not a card, so it can't be read
+  as what the card below costs. After a pick, its small tags show what that
+  pick changed.
+- The buy amount reads as one figure, `$50K`: the `K` follows the digits as
+  you type (`placeK` in `js/app.js`), not the far edge of the box.
 - Play-money tax hires lobbyists at a dollar a head; they are never shown as
   dollars. Fractional lobbyists are drawn clipped to the fraction, head first.
 - Outcomes get a deadpan tier name (Pocket change, Nice, Heater, Legend, Paper
