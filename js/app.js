@@ -171,6 +171,7 @@
 
   function showScreen(name) {
     $$('.screen').forEach((s) => { s.hidden = s.id !== `screen-${name}`; });
+    if (name !== 'profile') $('#btn-me').classList.remove('on');
     state.tab = name;
     window.scrollTo({ top: 0 });
   }
@@ -200,6 +201,7 @@
 
   function setSignedIn(on) {
     $('#btn-menu').hidden = !on;
+    $('#btn-me').hidden = !on;
     $('#btn-help').hidden = on; // signed in, "How to play" lives in the menu
     $('#foot').hidden = !on;
     $('#masthead-day').hidden = !on;
@@ -370,11 +372,16 @@
     if (!state.charities.length) state.charities = (await API.get('/charities')).charities;
   }
 
+  // "New money in 6h 31m"; on a narrow phone, "Refill in 6h 31m" (CSS picks).
+  const countdownHtml = (at) => `<span class="cd-long">New money in</span><span class="cd-short">Refill in</span> ${esc(countdown(at))}`;
+
   function renderMasthead() {
     const { day, user } = state.me;
     $('#day-number').textContent = `Day ${day.number}`;
-    $('#day-countdown').textContent = `New money in ${countdown(day.resets_at)}`;
+    $('#day-countdown').innerHTML = countdownHtml(day.resets_at);
     $('#foot-user').innerHTML = `${user.is_guest ? 'Playing as' : 'Signed in as'} <a href="#profile">${esc(user.username)}</a>`;
+    // Your avatar, top right: one tap to your profile.
+    const av = $('#me-avatar'); av.textContent = initial(user.username); av.style.setProperty('--av', avColor(user.username));
     $('#btn-claim').hidden = !user.is_guest;
   }
 
@@ -642,6 +649,7 @@
     return `${head}${todoStrip()}${carve}${legend}${crowdStrip(me.crowd)}
       <div class="row-actions">
         <button class="btn quiet small" id="btn-share">Share my day</button>
+        <a class="btn quiet small" href="#profile">My profile &amp; trading history</a>
       </div>`;
   }
 
@@ -1145,20 +1153,70 @@
     return `
       <p class="muted small"><b>${deck.length - (counts.locked || 0)} of ${deck.length} unlocked.</b> Every day: one of ${heads.length} headlines everyone gets (you've played ${headsSeen}), plus two or more from what your town has unlocked.</p>
       ${deckComing(deck)}
-      <div class="deck-grid">${sorted.map((d) => `
-        <div class="mini-card ${d.status} ${d.general ? 'general' : ''}">
+      <div class="deck-grid">${sorted.map((d) => {
+        // Anything you've played opens to show the situation and your pick.
+        const open = d.seen || d.status === 'played';
+        const tag = open ? 'button' : 'div';
+        return `
+        <${tag} ${open ? `type="button" data-deck-card="${esc(d.id)}" aria-label="${esc(d.title)}: see what you chose"` : ''} class="mini-card ${d.status} ${d.general ? 'general' : ''} ${open ? 'openable' : ''}">
           <span class="mini-status">${{ today: 'In hand', played: 'Played today', available: 'In the pile', locked: 'Locked' }[d.status]}</span>
           <b>${d.status === 'locked' ? '???' : esc(d.title)}</b>
           ${d.consequence ? '<span class="mini-tag">consequences</span>' : d.followup ? '<span class="mini-tag followup">follow-up</span>' : d.general ? '<span class="mini-tag headline">headline</span>' : ''}
           <span class="mini-needs">${esc(needs(d))}</span>
           ${d.forced && d.status !== 'locked' ? '<span class="mini-tag admin">opened by admin</span>' : ''}
-          ${d.seen && d.status !== 'played' ? '<span class="mini-seen">✓ played before</span>' : ''}
-        </div>`).join('')}</div>`;
+          ${open ? `<span class="mini-seen">${d.choice ? `✓ You sided with ${d.choice.side === 'preston' ? 'Preston' : 'Dolores'}` : '✓ Played before'} ›</span>` : ''}
+        </${tag}>`;
+      }).join('')}</div>`;
   }
+
+  // A card you've played, looked back on: the situation, both pitches, and
+  // which one you took (and when). Card text comes from the rules file the
+  // page already has; the server only says which side you chose.
+  function deckStory(d) {
+    const i = ((window.TownRules && window.TownRules.ISSUES) || []).find((x) => x.id === d.id);
+    if (!i) return `<button type="button" class="linkish deck-back" data-deck-back>← Back to the deck</button><p class="muted">That card isn't in this version of the deck.</p>`;
+    const c = d.choice, when = c ? c.day : d.last;
+    const later = c && window.TownRules.laterOf ? window.TownRules.laterOf(i[c.side]) : null;
+    const pitch = (k) => {
+      const w = WHO[k], p = i[k], mine = !!c && c.side === k;
+      return `<div class="adv-pitch ${k} story-pitch ${mine ? 'chosen' : c ? 'passed' : ''}">
+        <span class="adv-who">${Coin[k](40)}<span><b>${esc(w.name)}</b><small>${esc(w.role)}</small></span>${mine ? '<span class="story-pick">Your pick</span>' : ''}</span>
+        <q>${quoted(p.line)}</q>
+        ${window.TownRules.clues ? clueChips(window.TownRules.clues(p.fx || {})) : ''}
+        <span class="adv-label">${mine ? '✓ ' : ''}${esc(p.label)}</span>
+      </div>`;
+    };
+    return `
+      <button type="button" class="linkish deck-back" data-deck-back>← Back to the deck</button>
+      <div class="adv-card story">
+        <div class="adv-band ${d.general ? 'headline' : 'village'}">${d.general ? 'Headline' : 'From your village'}${when ? ` · played ${esc(dayLabel(when))}` : ''}</div>
+        <h3>${esc(i.title)}</h3>
+        <p>${esc(i.setup)}</p>
+        ${i.ask ? `<p><b>${esc(i.ask)}</b></p>` : ''}
+      </div>
+      <p class="story-verdict">${c ? `You went with <b>${c.side === 'preston' ? 'Preston' : 'Dolores'}</b>: ${esc(i[c.side].label)}.` : `You played this${when ? ` on ${esc(dayLabel(when))}` : ''}, before the deck kept track of which side you took. Here's what each of them offered.`}</p>
+      ${pitch('preston')}${pitch('dolores')}
+      ${later ? `<p class="later later-${later}">${{ good: '✨ That choice could pay off later.', bad: '⚠️ That choice could come back to bite.', mixed: '🔮 Something comes of that choice later.' }[later]}</p>` : ''}
+      <p class="muted small">The arrows show which way each choice pushes. ${d.status === 'played' ? 'You played it today.' : 'It may come around again.'}</p>`;
+  }
+
   function openDeck() {
     const t = state.me && state.me.town; if (!t) return;
-    $('#deck-body').innerHTML = deckMarkup(t.deck);
-    $('#dlg-deck').showModal();
+    const body = $('#deck-body'), dlg = $('#dlg-deck');
+    const list = () => {
+      body.innerHTML = deckMarkup(state.me.town.deck);
+      $$('[data-deck-card]', body).forEach((b) => {
+        b.onclick = () => {
+          const d = state.me.town.deck.find((x) => x.id === b.dataset.deckCard); if (!d) return;
+          const y = dlg.querySelector('.sheet-body').scrollTop;
+          body.innerHTML = deckStory(d);
+          dlg.querySelector('.sheet-body').scrollTop = 0;
+          $('[data-deck-back]', body).onclick = () => { list(); dlg.querySelector('.sheet-body').scrollTop = y; };
+        };
+      });
+    };
+    list();
+    if (!dlg.open) dlg.showModal();
   }
   // One line for the town panel: how many unlocked, what's next.
   function deckLine(deck) {
@@ -2210,57 +2268,35 @@
     if (p < 1) return 'Heater';
     return 'Legend';
   }
+  // One per tier, best to worst, so a glance at a line says how it went.
   const TIER_EMOJI = {
-    Legend: '🚀', Heater: '🔥', Nice: '📈', Respectable: '📈', 'Pocket change': '🪙',
+    Legend: '🚀', Heater: '🔥', Nice: '📈', Respectable: '👍', 'Pocket change': '🪙',
     'Paper cut': '🩹', 'Flesh wound': '🤕', 'Taking on water': '🌊', 'Comically disastrous': '🤡', 'Rest in peace': '💀',
-  };
-  const SHARE_LEAD = {
-    Legend: 'Doubled my money. Unbearable now.',
-    Heater: 'On a heater. Please clap.',
-    Nice: 'Nice day. Not to brag. (Bragging.)',
-    Respectable: 'Respectable gains. Quietly smug.',
-    'Pocket change': 'Up a little. A win is a win.',
-    'Paper cut': 'Paper cuts. Walking it off.',
-    'Flesh wound': "A flesh wound. I'm fine.",
-    'Taking on water': 'Taking on water. Bail faster.',
-    'Comically disastrous': 'Comically disastrous. Truly something to see.',
-    'Rest in peace': 'Lost the lot. Rest in peace.',
   };
   // "+$17K" / "−$3K" for the card: whole thousands once it's big enough.
   const cardMoney = (v) => `${v > 0.004 ? '+' : ''}${money(v, Math.abs(v) >= 10 ? { whole: true } : {})}`;
 
+  // Four lines at most, Wordle-short:
+  //   Trickle Down #12 · +$18K
+  //   📈 NVDA +34% · 👍 TSLA +12% 🎢 · 🤕 DOGE −12%
+  //   🎲 KO $30K · BTC $15K
+  //   https://trickledown.stevenhester.com
+  // Results are what you cashed out or let ride today, best first, each with
+  // its tier's emoji (🚀 🔥 📈 👍 🪙 / 🩹 🤕 🌊 🤡 💀) and 🎢 if it rode on.
+  // The total in dollars sits on the first line. 🎲 is today's buys.
   function shareText(me) {
     const today = me.day.key;
     const closes = (me.history || []).filter((h) => h.closed_day === today && !h.gift && !h.vested && h.invested > 0);
     const buys = (me.positions || []).filter((p) => p.opened_day === today && !(p.ride_count > 0));
-    const lines = [];
-    let net = 0;
+    const net = round2(closes.reduce((s, h) => s + h.profit, 0));
+    const lines = [`Trickle Down #${me.day.number}${closes.length ? ` · ${cardMoney(net)}` : ''}`];
+    const more = (list, n) => (list.length > n ? ` +${list.length - n}` : '');
     if (closes.length) {
-      const inv = closes.reduce((s, h) => s + h.invested, 0);
-      net = round2(closes.reduce((s, h) => s + h.profit, 0));
-      const tier = Math.abs(net) < 0.005 ? null : tierOf(inv, inv + net);
-      lines.push(tier ? SHARE_LEAD[tier] : 'Broke exactly even. Riveting stuff.');
-    } else if (buys.length) {
-      lines.push(buys.length === 1 ? `All in on ${buys[0].symbol}. See you in ${me.rules.hold_hours} hours.` : `Bets are in. See you in ${me.rules.hold_hours} hours.`);
-    } else {
-      lines.push((me.positions || []).length ? 'Holding. Patience is a strategy, allegedly.' : 'Sat today out. Thinking about my next move.');
+      const sorted = [...closes].sort((x, y) => y.profit - x.profit);
+      lines.push(sorted.slice(0, 4).map((h) => `${TIER_EMOJI[tierOf(h.invested, h.invested + h.profit)]} ${h.symbol} ${pct(h.profit / h.invested, 0)}${h.rode ? ' 🎢' : ''}`).join(' · ') + more(sorted, 4));
     }
-    lines.push(`Trickle Down · Day ${me.day.number}${closes.length ? ` · ${cardMoney(net)}` : ''}`);
-    if (closes.length) {
-      const rode = closes.some((h) => h.rode);
-      lines.push('', closes.every((h) => h.rode) ? 'Let it ride' : rode ? 'Cashed out or let ride' : 'Cashed out');
-      for (const h of [...closes].sort((x, y) => y.profit - x.profit).slice(0, 5)) {
-        const p = h.profit / h.invested;
-        const tier = tierOf(h.invested, h.invested + h.profit);
-        lines.push(`${h.rode ? '🎢' : TIER_EMOJI[tier]} ${h.symbol} ${pct(p, 0)} (${cardMoney(h.profit)})${h.rode ? ', riding on' : ''}`);
-      }
-      if (closes.length > 5) lines.push(`…and ${closes.length - 5} more`);
-    }
-    if (buys.length) {
-      const shown = buys.slice(0, 4).map((p) => `${p.symbol} ${money(p.invested, p.invested >= 10 ? { whole: true } : {})}`);
-      lines.push('', "Today's bets", `🎲 ${shown.join(' · ')}${buys.length > 4 ? ` +${buys.length - 4} more` : ''}`);
-    }
-    lines.push('', `Play free: ${SITE_LINK}`);
+    if (buys.length) lines.push(`🎲 ${buys.slice(0, 3).map((p) => `${p.symbol} ${money(p.invested, p.invested >= 10 ? { whole: true } : {})}`).join(' · ')}${more(buys, 3)}`);
+    lines.push(SITE_LINK);
     // money() glues "−" to "$" with an invisible word joiner; a chat app
     // doesn't need it, and some show it as a box.
     return lines.join('\n').split(String.fromCharCode(0x2060)).join('');
@@ -2277,7 +2313,7 @@
         ${canShare ? '<button type="button" class="btn primary" id="share-go">Share</button>' : ''}
         <button type="button" class="btn ${canShare ? 'quiet' : 'primary'}" id="share-copy">Copy</button>
       </div>
-      <p class="muted small">Just your trading: what you cashed out, what you bought, and the link. Your friends get a preview card when they paste it.</p>`;
+      <p class="muted small">Top line: today's total from what you cashed out or let ride. Each trade gets an emoji for how it went, 🚀 down to 💀; 🎢 means it rode on. 🎲 is what you bought today.</p>`;
     const go = $('#share-go');
     if (go) go.onclick = async () => { try { await navigator.share({ text }); softClose($('#dlg-share')); } catch (e) { /* cancelled */ } };
     $('#share-copy').onclick = async () => {
@@ -2487,6 +2523,7 @@
       const { player: p } = await API.get(`/players/${encodeURIComponent(name)}`);
       prof.p = p;
       renderProfile(p);
+      $('#btn-me').classList.toggle('on', !!p.is_you);
       if (p.is_you && state.me) { state.me.wall_unread = 0; updateMenuDot(); }
     } catch (e) {
       el.innerHTML = `${backLink()}<h1>${esc(name)}</h1><p class="lede">${esc(e.message)}</p>`;
@@ -2751,7 +2788,7 @@
   function updateMenuDot() {
     const n = state.me ? state.me.wall_unread || 0 : 0;
     $('#menu-dot').hidden = !n;
-    $('#btn-menu').setAttribute('aria-label', n ? `Menu, ${n} new on your wall` : 'Menu');
+    $('#btn-me').setAttribute('aria-label', n ? `Your profile, ${n} new on your wall` : 'Your profile');
   }
 
   function openMenu() {
@@ -2761,8 +2798,8 @@
     $('#menu-body').innerHTML = `
       <a href="#profile" class="menu-me"${cur('profile')}>
         <span class="avatar" style="--av:${avColor(u.username)}" aria-hidden="true">${esc(initial(u.username))}</span>
-        <span class="menu-me-text"><b>${esc(u.username)}</b><small>${unread ? `${unread} new on your wall` : 'Your profile, trading and wall'}</small></span>
-        ${unread ? `<i class="menu-count">${unread}</i>` : ''}
+        <span class="menu-me-text"><b>Your profile</b><small>${esc(u.username)} · ${unread ? `${unread} new on your wall` : 'trading, town, wall'}</small></span>
+        ${unread ? `<i class="menu-count">${unread}</i>` : '<i class="menu-chev" aria-hidden="true">›</i>'}
       </a>
       <a href="#today"${cur('today')}>${mIcon('today')}<span>Today's game</span></a>
       <a href="#leaders"${cur('leaders')}>${mIcon('leaders')}<span>Leaderboards</span></a>
@@ -2975,10 +3012,10 @@
         <div class="row-actions admin-row">
           <button type="button" class="btn small" id="acct-deal">Deal it today</button>
           <button type="button" class="btn quiet small" id="acct-unlock">Unlock it</button>
-          <button type="button" class="btn quiet small" id="acct-unlock-all">Unlock every card</button>
-          <button type="button" class="btn quiet small" id="acct-deal-all">Deal every unlocked card today</button>
         </div>
         <p class="muted small">Deal puts the card on today's agenda now (the town has to be open). Unlock puts it in the pile for future days.</p>
+        <label class="admin-switch"><input type="checkbox" id="acct-sw-unlock" disabled><span><b>Unlock every card</b><small>Untick to go back to what the town has earned. Cards already played stay open; unplayed ones that lock again leave today's agenda.</small></span></label>
+        <label class="admin-switch"><input type="checkbox" id="acct-sw-deal" disabled><span><b>Deal every unlocked card, every day</b><small>Untick to go back to a normal day's hand. Cards played today stay.</small></span></label>
         <h4 class="admin-h">Start over</h4>
         <p class="muted small">Back to a brand-new account: no positions, lobbyists, town, friends, streak or achievements, $100K at the next load. On your own account this browser also forgets the training and tours, so you get the whole first-day experience again.</p>
         <div class="row-actions"><button type="button" class="btn quiet small danger" id="acct-reset">Reset to brand new</button></div>
@@ -3030,20 +3067,34 @@
       toast(`Unlocked “${cardName()}”${who() ? ` for ${who()}` : ''}. It can be dealt from tomorrow.`);
       reload();
     });
-    const dealAll = $('#acct-deal-all');
-    if (dealAll) dealAll.onclick = () => busy(dealAll, async () => {
-      const r = await API.post('/admin/deal', aim({ all: true }));
-      const n = Array.isArray(r.dealt) ? r.dealt.length : 1;
-      toast(`Dealt ${n} card${n === 1 ? '' : 's'}${who() ? ` to ${who()}` : ''}. They're on today's agenda.`);
-      reload({ town: !who() });
-    });
-    const all = $('#acct-unlock-all');
-    if (all) all.onclick = () => busy(all, async () => {
-      if (all.dataset.armed !== '1') { all.dataset.armed = '1'; all.textContent = 'Tap again to open the whole deck'; return; }
-      await API.post('/admin/unlock', aim({ all: true }));
-      toast(`Every card is unlocked${who() ? ` for ${who()}` : ''}.`);
-      reload();
-    });
+    // The two switches: read for whoever the panel is aimed at, flip on change.
+    const swUnlock = $('#acct-sw-unlock'), swDeal = $('#acct-sw-deal');
+    const readSwitches = async () => {
+      if (!swUnlock) return;
+      swUnlock.disabled = swDeal.disabled = true;
+      try {
+        const r = await API.get(`/admin/switches${who() ? `?username=${encodeURIComponent(who())}` : ''}`);
+        swUnlock.checked = !!r.unlock_all; swDeal.checked = !!r.deal_all;
+        swUnlock.disabled = swDeal.disabled = false;
+      } catch (e) { err(e.message); }
+    };
+    const flip = (box, key, on, off) => {
+      box.onchange = async () => {
+        const want = box.checked;
+        swUnlock.disabled = swDeal.disabled = true;
+        try {
+          await API.post('/admin/switches', aim({ [key]: want }));
+          toast(`${want ? on : off}${who() ? ` (${who()})` : ''}.`, 4200);
+          reload({ town: !who() });
+        } catch (e) { box.checked = !want; err(e.message); swUnlock.disabled = swDeal.disabled = false; }
+      };
+    };
+    if (swUnlock) {
+      flip(swUnlock, 'unlock_all', 'Every card is unlocked', 'Back to the cards this town has earned. Anything already played stays open');
+      flip(swDeal, 'deal_all', 'Every unlocked card is dealt, today and every day', "Back to a normal day's hand. Cards played today stay");
+      const whoBox = $('#acct-admin-who'); if (whoBox) whoBox.addEventListener('change', readSwitches);
+      readSwitches();
+    }
     const reset = $('#acct-reset');
     if (reset) reset.onclick = () => busy(reset, async () => {
       if (reset.dataset.armed !== '1') { reset.dataset.armed = '1'; reset.textContent = who() ? `Tap again to wipe ${who()} back to brand new` : 'Tap again to wipe everything and start over'; return; }
@@ -3169,7 +3220,7 @@
     const carving = () => state.carve > 0 || state.selected || ['carve-usd', 'carve-search'].includes(document.activeElement && document.activeElement.id);
     setInterval(() => {
       if (!state.me) return;
-      $('#day-countdown').textContent = `New money in ${countdown(state.me.day.resets_at)}`;
+      $('#day-countdown').innerHTML = countdownHtml(state.me.day.resets_at);
       tickTimes();
       if (new Date(state.me.day.resets_at) <= Date.now() && state.tab === 'today' && !carving()) loadMe();
     }, 30_000);

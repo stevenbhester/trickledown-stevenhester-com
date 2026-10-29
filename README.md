@@ -171,9 +171,11 @@ says K).
   worse), Rest in peace (all of it). Tiers show on the receipt, in the
   records, on the 24-hour board, and set the share card's emoji and opening
   line.
-- Share my day (bottom of Today) previews a text card for a group chat: a line
-  on how the day went, each position cashed out or let ride with its % and $,
-  today's buys, and the link. Trading only; no achievements or gifts.
+- Share my day (bottom of Today) previews a four-line text card: the day's
+  total, each trade cashed out or let ride with its tier emoji and % (🎢 for a
+  ride), today's buys (🎲), and the link. Trading only.
+- The deck: any card you've played opens to the situation, both pitches, and
+  the side you took.
 - Link previews: `og.jpg` (1200×630) and the Open Graph / Twitter tags in
   `index.html` are what Slack, iMessage, Discord and X show when someone
   pastes the link. Crawlers don't run JavaScript, so the URLs there are

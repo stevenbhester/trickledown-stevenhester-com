@@ -283,6 +283,7 @@
       };
     }
     if (path === '/achievements') return achView();
+    if (path === '/admin/switches') { TownRules.migrate(town); return { username: user.username, unlock_all: !!town.admin_all_open, deal_all: !!town.admin_deal_all }; }
     if (path === '/friends') {
       const list = [...friends].map(findPlayer).filter(Boolean).map(friendRow).sort((a, b) => b.quarter_donated - a.quarter_donated || a.username.localeCompare(b.username));
       return { friends: list, added_you: 2, max: 50, your_username: user.username, is_guest: user.is_guest };
@@ -379,6 +380,14 @@
       Object.assign(town, TownRules.fresh());
       TownRules.tick(town, townCtx());
       return { ok: true, self: true };
+    }
+    if (path === '/admin/switches') {
+      const want = {};
+      if (typeof body.unlock_all === 'boolean') want.unlockAll = body.unlock_all;
+      if (typeof body.deal_all === 'boolean') want.dealAll = body.deal_all;
+      if (TownRules.isUnlocked(user.total_donated)) TownRules.ensureIssues(town, townCtx());
+      const r = TownRules.adminSwitch(town, townCtx(), want);
+      return { ok: true, ...r, user: publicUser(), town: townView() };
     }
     if (path === '/admin/unlock') {
       const r = TownRules.adminUnlock(town, body.all === true ? '*' : [].concat(body.issue_id || []));
