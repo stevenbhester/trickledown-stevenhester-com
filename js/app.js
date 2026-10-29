@@ -64,13 +64,15 @@
   const fmt1 = (v) => { const r = Math.round(v * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
   const moneyParts = (n, opts = {}) => {
     if (n === null || n === undefined || Number.isNaN(n)) return null;
-    const a = Math.abs(n), sign = n < 0 ? '-' : '';
+    const a = Math.abs(n), sign = n < 0 ? '−\u2060' : ''; // the word joiner keeps "−" and "$" on one line
     if (a === 0) return { sign, num: '0', unit: '' };
     if (a >= 1000) return { sign, num: fmt1(a / 1000), unit: 'M' };
     if (a < 0.1 && !opts.whole) return { sign, num: String(Math.round(a * 1000)), unit: '' };
     return { sign, num: opts.whole ? String(Math.round(a)) : fmt1(a), unit: 'K' };
   };
   const money = (n, opts = {}) => { const m = moneyParts(n, opts); return m ? `${m.sign}$${m.num}${m.unit}` : '—'; };
+  // A deduction on a receipt (tax): always shown with its minus sign.
+  const minus = (n, opts = {}) => money(-Math.abs(n), opts);
   const moneySplit = (n) => { const m = moneyParts(n) || { sign: '', num: '0', unit: '' }; return `${m.sign}<small>$</small>${esc(m.num)}${m.unit ? `<small>${m.unit}</small>` : ''}`; };
   const pct = (p, digits = 1) => {
     if (p === null || p === undefined || Number.isNaN(p)) return '—';
@@ -193,6 +195,7 @@
     $('#foot').hidden = !on;
     $('#masthead-day').hidden = !on;
     $('#btn-trophies').hidden = !on;
+    if (!on) hidePeek(true);
     scenery(on ? 'game' : 'landing');
   }
 
@@ -604,7 +607,7 @@
           <ul class="asset-list" id="asset-list" role="listbox" hidden></ul>
         </div>
         <div class="amount-zone" id="amount-zone" hidden>
-          <div class="amount-row"><span class="amount-prefix">$</span><input id="carve-usd" type="number" min="0.01" max="${user.cash}" step="0.01" inputmode="decimal" placeholder="0.0" aria-label="Amount in thousands of dollars"><span class="amount-suffix">K</span></div>
+          <div class="amount-row"><span class="amount-prefix">$</span><input id="carve-usd" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Amount in thousands of dollars"><span class="amount-suffix" id="carve-k" aria-hidden="true">K</span></div>
           <div class="chips" id="carve-chips">
             <button type="button" data-pct="10">10%</button>
             <button type="button" data-pct="25">25%</button>
@@ -686,7 +689,7 @@
       action = `<button class="btn small primary" data-sell="${p.id}">Collect</button> <button class="btn small" data-ride="${p.id}">Ride</button>`;
     } else {
       value = `${money(p.invested)} → <b>${money(p.value)}</b> <span class="yours ${dir(p.swing_pct)}">${pct(p.swing_pct, 0)}</span>`;
-      move = `${riding}Real move ${pct(p.real_pct, Math.abs(p.real_pct) < 0.01 ? 2 : 1)}, at ${mult(p.multiplier_now)} now. <span class="time">${mult(p.multiplier)} in <span data-left="${esc(p.matures_at)}">${left(p.matures_at)}</span>.</span>${p.deferred_tax > 0 ? ` <span class="muted">Early sale owes ${money(p.deferred_tax)} ride tax.</span>` : ''}`;
+      move = `${riding}Real move ${pct(p.real_pct, Math.abs(p.real_pct) < 0.01 ? 2 : 1)}, at ${mult(p.multiplier_now)} now. <span class="time">${mult(p.multiplier)} in <span data-left="${esc(p.matures_at)}">${left(p.matures_at)}</span>.</span>${p.deferred_tax > 0 ? ` <span class="muted">Selling early owes ride tax: ${minus(p.deferred_tax)}.</span>` : ''}`;
       action = `<button class="btn small" data-sell="${p.id}">Sell early</button>`;
     }
     return `
@@ -814,11 +817,19 @@
       const d = round2(Math.max(0, Math.min(cash, Number(dollars) || 0)));
       state.carve = d;
       if (!fromInput) usd.value = d > 0 ? d : '';
+      placeK();
       $$('#carve-chips button').forEach((b) => b.classList.toggle('on', d > 0 && Math.round(d / cash * 100) === Number(b.dataset.pct)));
       paintCoin();
       updateBuyButton();
     };
-    usd.addEventListener('input', () => setCarve(usd.value, true));
+    // Digits and one decimal point; the K follows the number as it's typed.
+    usd.addEventListener('input', () => {
+      const clean = usd.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+      if (clean !== usd.value) usd.value = clean;
+      setCarve(usd.value, true);
+    });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeK);
+    placeK();
     $$('#carve-chips button').forEach((b) => {
       b.onclick = () => { setCarve(Number(b.dataset.pct) === 100 ? cash : cash * Number(b.dataset.pct) / 100); usd.focus(); };
     });
@@ -925,6 +936,7 @@
       showPicked(); paintCoin(); updateBuyButton();
       search.value = ''; search.focus();
     };
+    placeK();
     if (!(state.carve > 0)) { const usd = $('#carve-usd'); if (usd) setTimeout(() => usd.focus(), 30); }
   }
 
@@ -945,6 +957,23 @@
     if (!(amt > 0)) { btn.disabled = true; btn.textContent = `How much ${state.selected.symbol}?`; return; }
     btn.disabled = false;
     btn.textContent = `Buy ${money(amt)} of ${state.selected.symbol}`;
+  }
+
+  // Sit the "K" right after the typed amount ("$50K", not "$50 ……… K"), so
+  // it reads as fifty thousand. Measured with the input's own font.
+  function placeK() {
+    const inp = $('#carve-usd'), k = $('#carve-k');
+    if (!inp || !k || !inp.clientWidth) return; // hidden until something is picked
+    const cs = getComputedStyle(inp);
+    const c = placeK.c || (placeK.c = document.createElement('canvas').getContext('2d'));
+    c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    // The "$" sits at 12px; start the digits just past it, whatever the font.
+    const pad = Math.round(12 + c.measureText('$').width + 2);
+    if (inp.style.paddingLeft !== `${pad}px`) inp.style.paddingLeft = `${pad}px`;
+    const text = inp.value || inp.placeholder;
+    const x = pad + parseFloat(cs.borderLeftWidth) + c.measureText(text).width + 1;
+    k.style.left = `${Math.min(x, inp.clientWidth - 16)}px`;
+    k.classList.toggle('empty', !inp.value);
   }
 
   async function submitBuy() {
@@ -1009,8 +1038,12 @@
     };
     const bar = (v) => `<span class="ss-bar"><i style="--w:${Math.max(0, Math.min(100, v))}%"></i></span>`;
     const m = (v) => money(v);
+    const moved = !!prev && ['cash', 'income', 'happiness', 'hire'].some((k) => Math.abs(s[k] - prev[k]) >= 0.005);
+    // Labelled as the player's own numbers, so nobody reads them as what the
+    // card below costs or pays.
     el.innerHTML = `
-      <div class="ss"><span>Cash</span><b>${money(s.cash)}</b>${delta('cash', m)}</div>
+      <div class="ss-cap"><span class="ss-cap-ico" aria-hidden="true">${T_ICON.vitals}</span><b>Your stats right now</b>${moved ? '<span class="ss-cap-note">tags show what that pick changed</span>' : ''}</div>
+      <div class="ss"><span>Cash on hand</span><b>${money(s.cash)}</b>${delta('cash', m)}</div>
       <div class="ss"><span>Profit</span><b class="${s.income < 0 ? 'down' : ''}">${s.income >= 0 ? '+' : '−'}${money(Math.abs(s.income), { whole: true })}<small>/day</small></b>${delta('income', m)}</div>
       <div class="ss"><span>Happiness</span><b>${s.happiness}</b>${bar(s.happiness)}${delta('happiness', String)}</div>
       <div class="ss ss-price" title="Lobbyist price: the tax it takes to hire one lobbyist. Happier towns pay less."><span>Lobbyist price</span><b>${money(s.hire)}</b>${delta('hire', m, false)}</div>`;
@@ -1734,22 +1767,22 @@
         <li><span>You put in${mat ? '' : `, ${ago(p.opened_at)}`}</span><b>${money(p.invested)}</b></li>
         <li><span>${esc(p.name)} moved ${pct(p.real_pct)}, at ${mult(p.multiplier_now)}${mat ? '' : ` (${mult(p.multiplier)} in ${left(p.matures_at)})`}</span><b class="${dir(p.swing_pct)}">${pct(p.swing_pct, 0)}</b></li>
         <li><span>${mat ? 'Worth at maturity' : 'Worth right now'}</span><b>${money(p.value)}</b></li>
-        ${win ? `<li><span>Tax, ${rate}% of the ${money(s.profit)} profit${deferred > 0 ? '' : `. Hires ${esc(lobby(hired))}`}</span><b>${money(ownTax)}</b></li>` : ''}
+        ${win ? `<li><span>Tax, ${rate}% of the ${money(s.profit)} profit${deferred > 0 ? '' : `. Hires ${esc(lobby(hired))}`}</span><b>${minus(ownTax)}</b></li>` : ''}
         ${!win && s.profit < 0 ? `<li><span>Loss. Not taxed.</span><b class="down">${money(s.profit)}</b></li>` : ''}
-        ${deferred > 0 ? `<li><span>Deferred ride tax, due on an early sale. ${win ? 'Together they hire' : 'Hires'} ${esc(lobby(hired))}</span><b>${money(deferred)}</b></li>` : ''}
+        ${deferred > 0 ? `<li><span>Deferred ride tax, due on an early sale. ${win ? 'Together they hire' : 'Hires'} ${esc(lobby(hired))}</span><b>${minus(deferred)}</b></li>` : ''}
         <li class="total"><span>Back onto the coin</span><b>${money(s.net)}</b></li>
       </ul>
       ${taxed ? `<div class="hire-row">
-        <div class="hire-side"><span class="muted">${money(s.tax)} of tax</span>${billsRow(s.tax, { max: 12 })}</div>
+        <div class="hire-side"><span class="muted">Tax ${minus(s.tax)}</span>${billsRow(s.tax, { max: 12 })}</div>
         <span class="hire-arrow" aria-hidden="true">→</span>
         <div class="hire-side"><span class="muted">${esc(lobby(hired))} at ${money(rateNow)} each</span>${lobbyists(hired, { max: 12 })}</div>
       </div>` : ''}
       ${taxed || (!mat && !bust) ? assignBox({ hired, selectId: 'sell-charity', conditional: !taxed }) : ''}
-      ${!mat && !bust ? `<p class="muted small">Or wait: in ${left(p.matures_at)} it matures at ${mult(p.multiplier)}${deferred > 0 ? ` and the ${money(deferred)} of deferred ride tax is forgiven` : ''}. The sale happens at the market price when you tap.</p>` : ''}
+      ${!mat && !bust ? `<p class="muted small">Or wait: in ${left(p.matures_at)} it matures at ${mult(p.multiplier)}${deferred > 0 ? ` and the deferred ride tax (${minus(deferred)}) is forgiven` : ''}. The sale happens at the market price when you tap.</p>` : ''}
       ${mat && !bust ? `<div class="ride-box">
         <b>Or let it ride.</b>
         <span>${win
-          ? `Pay half the tax now (${rideRate}%: ${money(rideTax)} hires ${esc(lobby(rideHired))}) and put ${money(p.value - rideTax)} back on ${esc(p.name)} for another ${state.me.rules.hold_hours} hours at ${mult(rm.floor)}→${mult(rm.ceiling)}. The other ${money(rideTax)} is due if you sell the ride early, forgiven if it matures.`
+          ? `Pay half the tax now (${rideRate}%, ${minus(rideTax)}, hires ${esc(lobby(rideHired))}) and put ${money(p.value - rideTax)} back on ${esc(p.name)} for another ${state.me.rules.hold_hours} hours at ${mult(rm.floor)}→${mult(rm.ceiling)}. The other half (${minus(rideTax)}) is due if you sell the ride early, forgiven if it matures.`
           : `Put the whole ${money(p.value)} back on ${esc(p.name)} for another ${state.me.rules.hold_hours} hours at ${mult(rm.floor)}→${mult(rm.ceiling)}. No profit, so no tax.`}${rm.capped ? ' That is the ceiling.' : ''} It can still go to zero, faster.</span>
         <button type="button" class="btn small" id="sell-ride">${win ? `Ride with ${money(p.value - rideTax)}` : 'Let it ride'}</button>
       </div>` : ''}
@@ -1773,7 +1806,7 @@
       const ro = r.rolled;
       const hours = state.me.rules.hold_hours;
       const msg = ro.tax > 0
-        ? `Riding at ${mult(ro.mult_floor)}→${mult(ro.multiplier)}. ${Math.round(ro.rate * 1000) / 10}% tax on the ${money(ro.profit)} profit hired ${lobby(ro.lobbyists)}${ro.charity ? ` for ${ro.charity.name}` : ''}; ${money(ro.net)} rides on ${p.name} at ${price(r.quote.price)} for another ${hours} hours. ${money(ro.deferred)} deferred.`
+        ? `Riding at ${mult(ro.mult_floor)}→${mult(ro.multiplier)}. Tax ${minus(ro.tax)} (${Math.round(ro.rate * 1000) / 10}% of the ${money(ro.profit)} profit) hired ${lobby(ro.lobbyists)}${ro.charity ? ` for ${ro.charity.name}` : ''}; ${money(ro.net)} rides on ${p.name} at ${price(r.quote.price)} for another ${hours} hours. The other ${minus(ro.deferred)} is deferred.`
         : `Riding at ${mult(ro.mult_floor)}→${mult(ro.multiplier)}. ${money(ro.value)} back on ${p.name} at ${price(r.quote.price)} for another ${hours} hours. No profit, so nobody got hired.`;
       toast(msg, 5000);
       await loadMe();
@@ -1806,7 +1839,7 @@
           // coin" before the tour, so nobody mistakes the tour for orientation.
           openHireCeremony(rc, hiredNow, how);
         } else {
-          toast(`${rc.tier}. ${how}: ${money(rc.tax)} of tax hired ${lobby(hiredNow)} for ${rc.charity.name}. They're moving into TrickleTown.`, 4200);
+          toast(`${rc.tier}. ${how}: tax ${minus(rc.tax)} hired ${lobby(hiredNow)} for ${rc.charity.name}. They're moving into TrickleTown.`, 4200);
           // Watch them arrive, then stay: the switch under the coin goes back.
           flip(true);
           await hireAnimation(hiredNow);
@@ -1875,15 +1908,56 @@
     btn.setAttribute('aria-label', `Achievements: ${a.earned} of ${a.total}${a.unclaimed.length ? `, ${a.unclaimed.length} gift waiting` : ''}`);
   }
 
-  // Pop the first unclaimed achievement, once per page load per achievement,
-  // when nothing else is on screen. If it's closed, the to-do strip and the
-  // trophy button keep it.
+  // Announce the first unclaimed achievement, once per page load per
+  // achievement, when nothing else is on screen. Gently: a small card rises
+  // from the bottom with no backdrop, and the player opens it when ready. If
+  // they wave it off, the to-do strip and the trophy button keep it.
   function maybeAchievement(delay = 0) {
     setTimeout(() => {
       const key = unclaimedKeys(state.me).find((k) => !state.achShown.has(k));
       if (!key || $('dialog[open]') || Explainer.isOpen() || state.tab === 'welcome') return;
-      openAchievement(key);
+      peekAchievement(key);
     }, delay);
+  }
+
+  function peekAchievement(key) {
+    const a = achOf(state.me, key);
+    if (!a || !a.earned_at || a.claimed_at) return;
+    state.achShown.add(key);
+    hidePeek(true);
+    const el = document.createElement('div');
+    el.className = 'ach-peek';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `${TROPHY('ach-peek-trophy')}
+      <div class="ach-peek-text"><span>Achievement unlocked</span><b>${esc(a.title)}</b><small>${esc(a.from)} sent a little something.</small></div>
+      <button type="button" class="btn small ach-peek-open">Open</button>
+      <button type="button" class="ach-peek-x" aria-label="Later">×</button>`;
+    el.querySelector('.ach-peek-open').onclick = () => openAchievement(key);
+    el.querySelector('.ach-peek-x').onclick = () => hidePeek();
+    document.body.appendChild(el);
+    const root = document.documentElement;
+    root.style.setProperty('--peek-h', `${el.offsetHeight}px`);
+    root.classList.add('has-peek');
+    // Two frames so the starting position paints before it rises.
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+  }
+
+  function hidePeek(now = false) {
+    const el = $('.ach-peek');
+    document.documentElement.classList.remove('has-peek');
+    if (!el) return;
+    if (now || REDUCED) { el.remove(); return; }
+    el.classList.remove('in');
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 360);
+  }
+
+  // A sheet that eases away instead of vanishing (pairs with .sheet.soft).
+  function softClose(dlg) {
+    if (!dlg || !dlg.open) return Promise.resolve();
+    if (REDUCED) { dlg.close(); return Promise.resolve(); }
+    dlg.classList.add('closing');
+    return new Promise((res) => setTimeout(() => { dlg.classList.remove('closing'); dlg.close(); res(); }, 240));
   }
 
   // After something that might have earned one without reloading /me (a
@@ -1902,6 +1976,7 @@
 
   async function openAchievement(key) {
     const a = achOf(state.me, key);
+    hidePeek();
     if (!a || !a.earned_at || a.claimed_at || $('#dlg-ach').open) return;
     state.achShown.add(key);
     try { await ensureCharities(); } catch (e) { /* the picker comes up empty; the server picks */ }
@@ -1924,8 +1999,8 @@
         <span class="ach-sign">— ${esc(a.from)}</span>
       </div>
       <ul class="receipt ach-receipt">
-        <li><span>The gift. A bonus, pure profit.</span><b class="up">${money(a.gift)}</b></li>
-        <li><span>Tax, ${Math.round(rate * 100)}%, like any win. Hires ${esc(lobby(hired))}</span><b>${money(tax)}</b></li>
+        <li><span>The gift. A bonus, pure profit.</span><b class="up">+${money(a.gift)}</b></li>
+        <li><span>Tax, ${Math.round(rate * 100)}%, like any win. Hires ${esc(lobby(hired))}</span><b>${minus(tax)}</b></li>
         <li class="total"><span>Onto your coin as bills</span><b>${money(net)}</b></li>
       </ul>
       ${assignBox({ hired, selectId: 'ach-charity' })}
@@ -1945,15 +2020,19 @@
       const charity_id = sel && sel.value ? Number(sel.value) : undefined;
       // An older server only knows the day-one gift, as "/vest".
       const r = state.me.achievements.legacy ? await API.post('/vest', { charity_id }) : await API.post('/achievements/claim', { key, charity_id });
-      $('#dlg-ach').close();
+      // Refresh behind the sheet, then move on without flashing the page.
       await loadMe();
       const rc = r.receipt;
       if (rc && !rc.gift) { const a = achOf(state.me, key) || {}; Object.assign(rc, { gift: true, vested: false, name: a.title, tier: 'Gift', achievement: { key, title: a.title, from: a.from } }); }
       const hiredNow = rc.lobbyists || 0;
       const t = state.me.town;
-      if (hiredNow > 0 && t && t.unlocked && !Explainer.seen('town')) openHireCeremony(rc, hiredNow, 'Gift');
-      else {
-        toast(`${money(rc.net)} onto the coin.${hiredNow > 0 && rc.charity ? ` ${money(rc.tax)} of tax hired ${lobby(hiredNow)} for ${rc.charity.name}.` : ''}`, 4200);
+      if (hiredNow > 0 && t && t.unlocked && !Explainer.seen('town')) {
+        // Straight from one sheet to the next: the backdrop stays put.
+        $('#dlg-ach').close();
+        openHireCeremony(rc, hiredNow, 'Gift', { swap: true });
+      } else {
+        await softClose($('#dlg-ach'));
+        toast(`${money(rc.net)} onto the coin.${hiredNow > 0 && rc.charity ? ` Tax ${minus(rc.tax)} hired ${lobby(hiredNow)} for ${rc.charity.name}.` : ''}`, 4200);
         maybeAchievement(REDUCED ? 300 : 1400); // another one waiting?
       }
     } catch (e) {
@@ -1990,13 +2069,14 @@
   // The first lobbyist: the tax walks across the desk and comes out a person,
   // the player reads what just happened, and chooses to flip the coin. The
   // TrickleTown tour opens after the flip, not before.
-  function openHireCeremony(rc, hiredNow, how) {
+  function openHireCeremony(rc, hiredNow, how, { swap = false } = {}) {
     const count = Math.min(10, Math.max(1, Math.ceil(hiredNow - 1e-9)));
     const dlg = $('#dlg-hire');
+    dlg.classList.toggle('swap', swap);
     $('#hire-title').textContent = hiredNow >= 2 ? 'Your first lobbyists' : 'Your first lobbyist';
     $('#hire-body').innerHTML = `
       <div class="receipt-tier win">${esc(rc.tier)}.</div>
-      <p>${rc.gift ? `${esc(rc.achievement ? rc.achievement.from : 'Daddy')}'s gift for <b>${esc(rc.name)}</b>: ${money(rc.profit)} of pure profit` : rc.vested ? `Your Trickle Down Holdings shares sold for ${money(rc.profit)} of pure profit` : `${how} ${esc(rc.symbol)}: ${money(rc.profit)} of profit`}, ${money(rc.tax)} of it taxed. Not to the government. To your recruiter.</p>
+      <p>${rc.gift ? `${esc(rc.achievement ? rc.achievement.from : 'Daddy')}'s gift for <b>${esc(rc.name)}</b>: ${money(rc.profit)} of pure profit` : rc.vested ? `Your Trickle Down Holdings shares sold for ${money(rc.profit)} of pure profit` : `${how} ${esc(rc.symbol)}: ${money(rc.profit)} of profit`}, tax ${minus(rc.tax)}. Not to the government. To your recruiter.</p>
       <div class="hire-scene" aria-hidden="true">
         <div class="hire-from">${billsRow(Math.max(1, rc.tax), { max: count })}</div>
         <div class="hire-desk"><b>RECRUITER</b><span>${money(rc.hire_cost || 1)} a head</span></div>
@@ -2008,8 +2088,8 @@
     dlg.showModal();
     const targets = $$('#hire-body .hire-to .lobbyist');
     targets.forEach((t) => t.classList.add('arriving'));
-    setTimeout(() => deskAnimation(targets), REDUCED ? 0 : 350);
-    $('#hire-later').onclick = () => { dlg.close(); renderUnder(); };
+    setTimeout(() => deskAnimation(targets), REDUCED ? 0 : 650); // after the sheet settles: the flight is measured from it
+    $('#hire-later').onclick = () => { softClose(dlg).then(renderUnder); };
     $('#hire-flip').onclick = async () => {
       dlg.close();
       state.ceremony = true; // the flip must not start the tour; we do, after the bills land
@@ -2698,12 +2778,12 @@
   // --- wiring ----------------------------------------------------------------------------------------
 
   function wire() {
-    $$('[data-close]').forEach((b) => { b.onclick = () => b.closest('dialog').close(); });
+    $$('[data-close]').forEach((b) => { b.onclick = () => { const d = b.closest('dialog'); if (d.classList.contains('soft')) softClose(d); else d.close(); }; });
     $('#assign-save').onclick = saveAssign;
     $('#btn-trophies').onclick = openTrophies;
     for (const id of ['#dlg-site', '#dlg-advisors', '#dlg-hire', '#dlg-sell', '#dlg-assign']) { const d = $(id); if (d) d.addEventListener('close', () => maybeAchievement(500)); }
     $('#dlg-advisors').addEventListener('close', () => { adv.result = null; });
-    $$('dialog.sheet').forEach((d) => { d.addEventListener('click', (e) => { if (e.target === d) d.close(); }); });
+    $$('dialog.sheet').forEach((d) => { d.addEventListener('click', (e) => { if (e.target === d) { if (d.classList.contains('soft')) softClose(d); else d.close(); } }); });
     $('#form-sell').addEventListener('submit', submitSell);
     $('#form-auth').addEventListener('submit', submitAuth);
     $('#auth-switch').onclick = () => openAuth(state.authMode === 'login' ? 'register' : 'login');
