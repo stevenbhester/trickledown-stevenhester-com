@@ -344,15 +344,18 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
 .picked .linkish { grid-area: change; font-size: 14px; }
 .amount-zone { margin-bottom: 10px; animation: fade 220ms ease-out; }
 .amount-row { position: relative; margin-bottom: 8px; }
+/* "$50K" reads as one amount: $ and K in the number's own size and colour,
+   and the K follows the digits (placeK in app.js) instead of the far edge. */
 .amount-suffix {
-  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
-  font-family: var(--display); font-weight: 700; font-size: 22px; color: var(--mud); pointer-events: none;
+  position: absolute; left: 60px; top: 50%; transform: translateY(-50%);
+  font-family: var(--display); font-weight: 700; font-size: 26px; color: var(--ink); pointer-events: none;
 }
+.amount-suffix.empty { color: #9AAAB2; }
 .amount-prefix {
   position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-  font-family: var(--display); font-weight: 700; font-size: 22px; color: var(--mud); pointer-events: none;
+  font-family: var(--display); font-weight: 700; font-size: 26px; color: var(--ink); pointer-events: none;
 }
-.amount-row input[type="number"] { font-family: var(--display); font-weight: 700; font-size: 26px; padding-left: 32px; padding-right: 40px; }
+.amount-row input[type="text"] { font-family: var(--display); font-weight: 700; font-size: 26px; padding-left: 30px; padding-right: 40px; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
 .chips button {
   padding: 6px 12px; border: 1.5px solid var(--line); background: #fff; border-radius: 999px; cursor: pointer; font-size: 14px;
@@ -1162,10 +1165,21 @@ body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foo
 .stat-strip {
   position: sticky; top: 0; z-index: 3;
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 0 0 16px; padding: 8px 4px;
-  background: #fff; border: 1.5px solid var(--ink); border-radius: 10px;
-  box-shadow: 0 6px 12px -8px rgba(15, 36, 48, .45);
+  margin: 0 0 18px; padding: 0 4px 10px;
+  /* A readout, not a card: flat, tinted, no outline, so it can't be read as
+     part of the card below it. */
+  background: var(--porcelain); border: 0; border-radius: 10px;
+  box-shadow: 0 8px 12px -10px rgba(15, 36, 48, .35);
 }
+.ss-cap {
+  grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin: 0 -4px 8px; padding: 6px 12px; border-bottom: 1px solid var(--line);
+  border-radius: 10px 10px 0 0; background: rgba(255, 255, 255, .55);
+}
+.ss-cap b { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--ink); }
+.ss-cap-ico { align-self: center; display: inline-flex; width: 14px; height: 14px; color: var(--water); }
+.ss-cap-ico svg { width: 14px; height: 14px; }
+.ss-cap-note { font-size: 11px; color: var(--mud); }
 .stat-strip:empty { display: none; }
 .ss { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; padding: 0 2px; }
 .ss + .ss { border-left: 1px solid var(--line); }
@@ -1349,17 +1363,19 @@ body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foo
   position: relative; overflow: hidden; margin: 0 calc(-1 * var(--gutter)) 16px; padding: 26px 16px 20px; text-align: center;
   background: radial-gradient(120% 90% at 50% 0%, #20384A, #0F2430 70%); color: #fff; border-radius: 10px 10px 0 0;
 }
-.ach-rays { position: absolute; left: 50%; top: 64px; width: 560px; height: 560px; margin: -280px 0 0 -280px; opacity: .22;
-  background: repeating-conic-gradient(from 0deg, #F6D365 0 7deg, transparent 7deg 20deg); border-radius: 50%; animation: ach-spin 24s linear infinite; }
+.ach-rays { position: absolute; left: 50%; top: 64px; width: 560px; height: 560px; margin: -280px 0 0 -280px; opacity: .18;
+  background: repeating-conic-gradient(from 0deg, #F6D365 0 7deg, transparent 7deg 20deg); border-radius: 50%;
+  animation: ach-spin 48s linear infinite, ach-fade 1.6s .4s ease-out both; }
+@keyframes ach-fade { from { opacity: 0; } }
 @keyframes ach-spin { to { transform: rotate(360deg); } }
 .ach-confetti i { position: absolute; top: -12px; left: var(--x); width: 8px; height: 14px; border-radius: 2px; background: #3F7D55; transform: rotate(var(--r));
-  animation: ach-fall 2.6s ease-in var(--d) 2 both; opacity: .9; }
+  animation: ach-fall 3.4s ease-in calc(var(--d) + .7s) 1 both; opacity: .8; }
 .ach-confetti i:nth-child(3n) { background: #F6D365; } .ach-confetti i:nth-child(4n) { background: #9ED3E4; }
 @keyframes ach-fall { from { transform: translateY(0) rotate(var(--r)); } to { transform: translateY(260px) rotate(calc(var(--r) + 220deg)); opacity: 0; } }
-.ach-trophy { position: relative; width: 74px; height: 74px; animation: ach-pop .7s cubic-bezier(.2, 1.6, .4, 1) both; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35)); }
-@keyframes ach-pop { 0% { transform: scale(.2) rotate(-20deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.ach-trophy { position: relative; width: 74px; height: 74px; animation: ach-rise .8s .2s cubic-bezier(.2, .8, .2, 1) both; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35)); }
+@keyframes ach-rise { from { transform: translateY(8px) scale(.9); opacity: 0; } }
 .ach-eyebrow { position: relative; margin-top: 8px; font-size: 11px; font-weight: 800; letter-spacing: .24em; text-transform: uppercase; color: #F6D365; }
-.ach-title { position: relative; margin: 4px 0 2px; font-family: var(--display); font-weight: 900; font-size: 40px; line-height: 1; letter-spacing: .01em; animation: ach-pop .6s .15s cubic-bezier(.2, 1.4, .4, 1) both; }
+.ach-title { position: relative; margin: 4px 0 2px; font-family: var(--display); font-weight: 900; font-size: 40px; line-height: 1; letter-spacing: .01em; animation: ach-rise .8s .35s cubic-bezier(.2, .8, .2, 1) both; }
 .ach-how { position: relative; font-size: 14px; color: #CFE0E8; }
 .ach-count { position: relative; display: inline-block; margin-top: 10px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #0F2430; background: #F6D365; border-radius: 10px; padding: 2px 9px; }
 .ach-note {
@@ -1502,3 +1518,52 @@ tr.fold { display: none; }
 }
 .stale-server b { display: block; margin-bottom: 2px; }
 .stale-server .linkish { margin-left: 6px; color: inherit; font-weight: 600; }
+
+/* Gentle popups --------------------------------------------------------------
+   .sheet.soft rises in while its backdrop fades up, and eases away on close
+   (softClose in app.js). .swap: arriving straight from another sheet, so the
+   backdrop is already there and doesn't fade again. */
+.sheet.soft[open] { animation: sheet-rise .5s cubic-bezier(.2, .8, .2, 1) both; }
+.sheet.soft[open]::backdrop { animation: backdrop-in .6s ease-out both; }
+.sheet.soft.swap[open]::backdrop { animation: none; }
+.sheet.soft.closing { animation: sheet-sink .24s ease-in both; }
+.sheet.soft.closing::backdrop { animation: backdrop-out .24s ease-in both; }
+@keyframes sheet-rise { from { opacity: 0; transform: translateY(36px); } }
+@keyframes sheet-sink { to { opacity: 0; transform: translateY(24px); } }
+@keyframes backdrop-in { from { background-color: rgba(8, 20, 28, 0); -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); } }
+@keyframes backdrop-out { to { background-color: rgba(8, 20, 28, 0); -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); } }
+
+/* The achievement knocks before it comes in: a small card rises from the
+   bottom, no backdrop, the page still usable. "Open" brings up the sheet. */
+.ach-peek {
+  position: fixed; z-index: 55; left: 12px; right: 12px; bottom: 14px; max-width: 460px; margin: 0 auto;
+  display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px;
+  padding: 12px 8px 12px 14px; border-radius: 12px;
+  background: radial-gradient(140% 120% at 0% 0%, #20384A, #0F2430 70%); color: #fff;
+  box-shadow: 0 10px 30px rgba(8, 20, 28, .28), inset 0 0 0 1px rgba(246, 211, 101, .35);
+  opacity: 0; transform: translateY(calc(100% + 24px));
+  transition: transform .7s cubic-bezier(.2, .8, .2, 1), opacity .5s ease-out;
+}
+.ach-peek.in { opacity: 1; transform: none; }
+.ach-peek.out { opacity: 0; transform: translateY(18px); transition-duration: .32s, .28s; transition-timing-function: ease-in; }
+.ach-peek-trophy { width: 40px; height: 40px; filter: drop-shadow(0 2px 6px rgba(246, 211, 101, .35)); }
+.ach-peek.in .ach-peek-trophy { animation: peek-glow 3.2s 1s ease-in-out infinite; }
+@keyframes peek-glow { 50% { filter: drop-shadow(0 0 10px rgba(246, 211, 101, .75)); } }
+.ach-peek-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.ach-peek-text span { font-size: 10px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; color: #F6D365; }
+.ach-peek-text b { font-family: var(--display); font-weight: 900; font-size: 20px; letter-spacing: .01em; }
+.ach-peek-text small { font-size: 13px; color: #CFE0E8; }
+.ach-peek-open { background: #F6D365; color: #0F2430; border-color: #F6D365; font-weight: 700; }
+.ach-peek-open:hover { background: #FFE08A; }
+.ach-peek-x { background: none; border: 0; color: #9FB6C2; font-size: 24px; line-height: 1; padding: 4px 6px; cursor: pointer; }
+.ach-peek-x:hover { color: #fff; }
+.ach-peek button:focus-visible { outline: 2px solid #F6D365; outline-offset: 2px; }
+/* Toasts step up over the card instead of covering it. */
+html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
+@media (max-width: 380px) { .ach-peek-text small { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet.soft[open], .sheet.soft[open]::backdrop, .sheet.soft.closing, .sheet.soft.closing::backdrop { animation: none; }
+  .ach-peek { transition: none; }
+  .ach-peek.in .ach-peek-trophy { animation: none; }
+}
