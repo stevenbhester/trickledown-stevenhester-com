@@ -107,6 +107,16 @@ a description plus the page they were on (they can untick it). Both land on
 open position, every player with their numbers, and the requests and reports.
 The server checks admin on every call; the page just asks.
 
+☰ → Mission &amp; promises (`#promises`, also readable signed out, and linked
+from the landing page, Lobbyfest and the FAQ) is the one page with no jokes:
+the mission, a short version, and the full promises, which are the actual
+commitment. Its numbers ($100 minimum, $5 per charity) match the backend's
+`LOBBYFEST` rules; change them together. Last-updated date: `PROMISES_UPDATED`
+in `js/app.js`.
+
+TrickleTown → Assign lobbyists: type an amount (decimals fine) or step with
+− / + by 0.1, 1, 5 or 10; a bar shows the split as it changes; Reset undoes.
+
 Cleaning up (all from the admin page, each with a confirmation sheet that
 shows exactly what will change, from a server dry run):
 - Transactions → Delete: undoes that transaction (a position with its ride

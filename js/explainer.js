@@ -85,7 +85,7 @@ window.Explainer = (function () {
           ${arrow(196, 216, 70)}
           ${suit(224, 52, 'pop p1')}${suit(246, 52, 'pop p2')}`),
         body: `Only your gains are taxed, at ${pct}%. Put in $50K, collect $60K: the gain is $10K, so $${fmtK(10 * pct / 100)}K is tax. Losses aren't taxed. The tax hires lobbyists for your charity. Every quarter at Lobbyfest, the charity with the most lobbyists gets the biggest share of the real money.`,
-        fine: r.demo ? 'The charities are real. In this demo, the money is not.' : 'Real charities, four stars on Charity Navigator. Receipts go on the Lobbyfest page.',
+        fine: r.demo ? 'The charities are real. In this demo, the money is not.' : 'Real charities, four stars on Charity Navigator. Receipts posted here within 60 days of each Lobbyfest.',
         next: 'Got it',
       },
       {

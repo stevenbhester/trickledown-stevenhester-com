@@ -360,8 +360,13 @@
     if (path === '/trickle') {
       const totals = CHARITIES.map((c) => { const ds = donations.filter((d) => d.charity_id === c.id); const q = ds.reduce((s, d) => s + d.amount, 0); return { ...c, quarter_total: q, all_time: q + q * 1.8, quarter_donors: new Set(ds.map((d) => d.user)).size }; });
       const qt = totals.reduce((s, c) => s + c.quarter_total, 0); const pool = 140;
-      return { quarter: '2026-Q4', quarter_ends_at: quarterEndsAt(), demo: true, pool_usd: pool, quarter_total: round2(qt), all_time: round2(totals.reduce((s, c) => s + c.all_time, 0)), quarter_donors: 5,
-        charities: totals.map((c) => ({ ...c, share: qt ? c.quarter_total / qt : 0, est_usd: qt ? round2(pool * c.quarter_total / qt) : 0 })).sort((a, b) => b.quarter_total - a.quarter_total) };
+      // The same rules as the real split (src/game.js lobbyfestSplit): $100 minimum, under $5 left out and rerun.
+      const pot = Math.max(pool, 100);
+      let inn = totals.filter((c) => c.quarter_total > 0);
+      for (;;) { const t = inn.reduce((s, c) => s + c.quarter_total, 0); const under = inn.filter((c) => t && pot * c.quarter_total / t < 5); if (!under.length || under.length === inn.length) break; inn = inn.filter((c) => !under.includes(c)); }
+      const it = inn.reduce((s, c) => s + c.quarter_total, 0);
+      return { quarter: '2026-Q4', quarter_ends_at: quarterEndsAt(), demo: true, pool_usd: pool, payout_usd: pot, min_usd: 100, charity_min_usd: 5, quarter_total: round2(qt), all_time: round2(totals.reduce((s, c) => s + c.all_time, 0)), quarter_donors: 5,
+        charities: totals.map((c) => ({ ...c, share: qt ? c.quarter_total / qt : 0, est_usd: inn.includes(c) && it ? round2(pot * c.quarter_total / it) : 0, left_out: c.quarter_total > 0 && !inn.includes(c) })).sort((a, b) => b.quarter_total - a.quarter_total) };
     }
     if (path === '/leaderboard') {
       const friendsOnly = params.get('friends') === '1';

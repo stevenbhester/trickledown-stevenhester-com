@@ -1395,6 +1395,21 @@ body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foo
 .al-n { min-width: 34px; text-align: center; font-family: var(--display); font-weight: 900; font-size: 20px; }
 .al-all { font-size: 12px; margin-left: 2px; }
 .al-all:disabled { visibility: hidden; }
+/* The payroll as one bar, repainted as lobbyists move; the hatched end is
+   whoever's still waiting for a charity. */
+/* One line, always the same height, so nothing below shifts as it changes. */
+.assign-pool { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.assign-bar { display: flex; gap: 1px; height: 14px; margin: 0 0 10px; border-radius: 7px; overflow: hidden; background: var(--line); }
+.assign-bar i { display: block; min-width: 3px; transition: flex-grow .25s ease; }
+.assign-bar i.pool { background: repeating-linear-gradient(45deg, var(--gold) 0 4px, transparent 4px 8px); }
+.assign-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; font-size: 13px; color: var(--mud); }
+.assign-steps { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.assign-steps .chip { padding: 3px 10px; font-size: 13px; min-height: 0; }
+.al-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; background: var(--sw); visibility: hidden; }
+.has .al-sw { visibility: visible; }
+.al-step .al-in { width: 64px; min-width: 0; padding: 4px 6px; text-align: center; font-family: var(--display); font-weight: 900; font-size: 18px; border: 1.5px solid var(--edge); border-radius: 6px; background: var(--card); color: var(--ink); }
+.al-step .al-in:focus { outline: none; border-color: var(--water); }
+@media (prefers-reduced-motion: reduce) { .assign-bar i { transition: none; } }
 .assign-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
 @media (max-width: 380px) { .al-all { display: none; } }
 
@@ -1981,6 +1996,22 @@ html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
 .adm-detail { color: var(--mud); min-width: 220px; }
 .adm-who small { display: block; font-size: 11px; color: var(--mud); white-space: nowrap; }
 .adm-table td.adm-who { max-width: 150px; overflow-wrap: anywhere; }
+/* Mission & promises: plain and readable; the one page with no jokes */
+#screen-promises { max-width: 62ch; }
+.promise-nojoke { margin: 4px 0 10px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--mud); }
+.promise-mission { font-size: 18px; line-height: 1.45; }
+.promise-h { font-family: var(--display); font-weight: 900; font-size: 24px; margin: 26px 0 10px; }
+.promise-short { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.promise-short li { padding: 10px 12px 10px 14px; border-left: 3px solid var(--rise); background: var(--card); border-radius: 0 6px 6px 0; line-height: 1.45; }
+.promises { margin: 0; padding: 0; list-style: none; counter-reset: promise; }
+.promises li { counter-increment: promise; position: relative; padding: 14px 0 6px 42px; border-top: 1px solid var(--line); }
+.promises li::before { content: counter(promise); position: absolute; left: 0; top: 13px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-family: var(--display); font-weight: 900; font-size: 15px; background: var(--inverse); color: var(--on-inverse); }
+.promises h3 { font-family: var(--display); font-weight: 700; font-size: 19px; margin: 3px 0 6px; }
+.promises p { margin: 0 0 8px; line-height: 1.55; }
+.promise-foot { margin-top: 18px; }
+#screen-promises .muted a, #screen-trickle .lede a { color: var(--water-deep); }
+.pitch-promise { margin: -4px 0 14px; font-size: 14px; }
+
 /* Admin clean-up */
 .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .adm-table td.adm-act { width: 1%; white-space: nowrap; text-align: right; }

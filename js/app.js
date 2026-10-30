@@ -72,6 +72,8 @@
     return { sign, num: opts.whole ? String(Math.round(a)) : fmt1(a), unit: 'K' };
   };
   const money = (n, opts = {}) => { const m = moneyParts(n, opts); return m ? `${m.sign}$${m.num}${m.unit}` : '—'; };
+  // Real dollars: the charity money on Lobbyfest and the promises. Never play money.
+  const usd = (n) => (n == null || Number.isNaN(Number(n)) ? '—' : `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: Number(n) % 1 ? 2 : 0, maximumFractionDigits: 2 })}`);
   // A deduction on a receipt (tax): always shown with its minus sign.
   const minus = (n, opts = {}) => money(-Math.abs(n), opts);
   const moneySplit = (n) => { const m = moneyParts(n) || { sign: '', num: '0', unit: '' }; return `${m.sign}<small>$</small>${esc(m.num)}${m.unit ? `<small>${m.unit}</small>` : ''}`; };
@@ -180,13 +182,17 @@
   async function route() {
     const hash = (location.hash || '#today').slice(1);
     if (UNCONFIGURED) { showScreen('welcome'); renderUnconfigured(); return; }
-    if (!API.token()) { showScreen('welcome'); renderWelcome(); return; }
+    if (!API.token()) {
+      // The promises are public: anyone can read them before signing up.
+      if (hash === 'promises') { setSignedIn(false); showScreen('promises'); renderPromises(); return; }
+      showScreen('welcome'); renderWelcome(); return;
+    }
     // #u/<name> is someone's profile; #profile is yours. #trickle is the old
     // name for the Lobbyfest page, kept so old links land somewhere.
     let name = hash, who = null;
     if (hash.startsWith('u/')) { name = 'profile'; try { who = decodeURIComponent(hash.slice(2)); } catch (e) { who = null; } }
     if (hash === 'lobby') name = 'trickle';
-    if (!['today', 'trickle', 'leaders', 'friends', 'profile', 'how', 'admin'].includes(name)) name = 'today';
+    if (!['today', 'trickle', 'leaders', 'friends', 'profile', 'how', 'admin', 'promises'].includes(name)) name = 'today';
     const firstLoad = !state.me;
     if (firstLoad) { await loadMe(); if (!API.token()) return; }
     showScreen(name);
@@ -197,6 +203,7 @@
     if (name === 'profile') loadProfile(who || (state.me && state.me.user.username));
     if (name === 'how') renderHow();
     if (name === 'admin') loadAdmin();
+    if (name === 'promises') renderPromises();
   }
 
   function setSignedIn(on) {
@@ -296,8 +303,9 @@
         <ul class="pitch">
           <li><b>$100K a day</b> of fake money. Put it on real stocks, hold 24 hours, and the move is multiplied ×10.</li>
           <li><b>Your gains are taxed</b>, never what you put in. The tax hires lobbyists for the charity you pick.</li>
-          <li><b>Every quarter</b> this site's real ad money goes to the charities with the most lobbyists.</li>
+          <li><b>Every quarter</b> this site's real ad money goes to charity (at least $100, every time), split by how many lobbyists each charity has.</li>
         </ul>
+        <p class="pitch-promise"><a href="#promises">Our mission &amp; promises</a>: where the money goes, in writing.</p>
         <button class="training" id="btn-orient" type="button">
           <span class="training-tag">Step one</span>
           <span class="training-title">Take the employee training</span>
@@ -1851,39 +1859,101 @@
     $('#dlg-assign').showModal();
   }
 
+  // Built once per opening; every change after that repaints in place
+  // (paintAssign), so the list never jumps back to the top. Amounts can be
+  // typed (decimals too) or stepped by the "Move by" size.
+  const ASSIGN_STEPS = [0.1, 1, 5, 10];
+  const assignTotal = () => round2([...assign.start.values()].reduce((x, n) => x + n, 0));
+  const assignReal = (id) => state.charities.some((c) => c.id === id);
+  const assignName = (id) => (state.charities.find((c) => c.id === id) || (state.me.donations_by_charity || []).find((c) => c.id === id) || { name: 'A retired charity' }).name;
+  // A retired charity can lose lobbyists but not gain them.
+  const assignCap = (id) => { const cap = round2((assign.alloc.get(id) || 0) + assign.pool); return assignReal(id) ? cap : Math.min(cap, assign.start.get(id) || 0); };
+
   function renderAssign() {
-    const total = round2([...assign.start.values()].reduce((x, n) => x + n, 0));
-    const name = (id) => (state.charities.find((c) => c.id === id) || (state.me.donations_by_charity || []).find((c) => c.id === id) || { name: 'A retired charity' }).name;
-    const changed = assign.def !== assign.startDef || assign.order.some((id) => round2(assign.alloc.get(id) || 0) !== round2(assign.start.get(id) || 0));
+    const total = assignTotal();
+    if (!ASSIGN_STEPS.includes(assign.step)) assign.step = 1;
     $('#assign-body').innerHTML = `
       <p class="assign-lede">${total > 0 ? `This quarter you have <b>${esc(lobby(total))}</b>. Move them wherever you like until Lobbyfest on ${esc(festDate(state.me.day.quarter_ends_at))}; after that they march, and the payroll starts fresh.` : `No lobbyists on the payroll this quarter yet. You can still pick where new ones go.`}</p>
-      ${total > 0 ? `<div class="assign-pool ${assign.pool > 0.004 ? 'open' : ''}" aria-live="polite">${assign.pool > 0.004 ? `<b>${esc(lobby(assign.pool))}</b> waiting for a charity. Tap + to place them.` : 'Every lobbyist has a charity.'}</div>` : ''}
-      <ul class="assign-list">${assign.order.map((id) => {
-        const n = round2(assign.alloc.get(id) || 0);
-        const real = state.charities.some((c) => c.id === id);
-        return `<li class="${n > 0 ? 'has' : ''} ${assign.def === id ? 'is-default' : ''}">
+      ${total > 0 ? `
+      <div class="assign-bar" aria-hidden="true"></div>
+      <div class="assign-pool" aria-live="polite"></div>
+      <div class="assign-tools">
+        <span class="assign-steps" role="radiogroup" aria-label="Move by">Move by ${ASSIGN_STEPS.map((n) => `<button type="button" class="chip" role="radio" data-step="${n}">${n}</button>`).join('')}</span>
+        <button type="button" class="linkish" id="assign-reset">Reset</button>
+      </div>` : ''}
+      <ul class="assign-list">${assign.order.map((id, i) => `
+        <li data-al="${id}" style="--sw: var(--ch${i % 6})">
           <div class="al-name">
-            <b>${esc(name(id))}</b>
-            ${real ? `<label class="al-default"><input type="radio" name="al-default" value="${id}" ${assign.def === id ? 'checked' : ''}> ${assign.def === id ? 'New hires go here' : 'Make default'}</label>`
-              : '<span class="al-default muted">Retired: move these to a real charity</span>'}
+            <b><i class="al-sw" aria-hidden="true"></i>${esc(assignName(id))}</b>
+            ${assignReal(id) ? `<label class="al-default"><input type="radio" name="al-default" value="${id}"> <span></span></label>` : '<span class="al-default muted">Retired: move these to a real charity</span>'}
           </div>
           ${total > 0 ? `<div class="al-step">
-            <button type="button" class="al-btn" data-dec="${id}" ${n <= 0 ? 'disabled' : ''} aria-label="One fewer for ${esc(name(id))}">−</button>
-            <b class="al-n">${esc(lobbyN(n))}</b>
-            <button type="button" class="al-btn" data-inc="${id}" ${assign.pool <= 0.004 ? 'disabled' : ''} aria-label="One more for ${esc(name(id))}">+</button>
-            <button type="button" class="linkish al-all" data-all="${id}" ${n >= total - 0.004 ? 'disabled' : ''}>All here</button>
+            <button type="button" class="al-btn" data-dec="${id}" aria-label="Fewer for ${esc(assignName(id))}">−</button>
+            <input class="al-in" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-in="${id}" aria-label="Lobbyists for ${esc(assignName(id))}">
+            <button type="button" class="al-btn" data-inc="${id}" aria-label="More for ${esc(assignName(id))}">+</button>
+            <button type="button" class="linkish al-all" data-all="${id}">All here</button>
           </div>` : ''}
-        </li>`;
-      }).join('')}</ul>
+        </li>`).join('')}</ul>
       <p class="muted small assign-request"><button type="button" class="linkish" data-request-charity>Don't see your charity? Request one.</button></p>`;
-    const save = $('#assign-save');
-    save.disabled = !changed || assign.pool > 0.004;
-    save.textContent = assign.pool > 0.004 ? `Place ${lobby(assign.pool)} first` : changed ? 'Save' : 'No changes';
     const body = $('#assign-body');
-    $$('[data-dec]', body).forEach((b) => { b.onclick = () => { const id = Number(b.dataset.dec), n = assign.alloc.get(id) || 0, d = Math.min(1, n); assign.alloc.set(id, round2(n - d)); assign.pool = round2(assign.pool + d); renderAssign(); }; });
-    $$('[data-inc]', body).forEach((b) => { b.onclick = () => { const id = Number(b.dataset.inc), d = Math.min(1, assign.pool); assign.alloc.set(id, round2((assign.alloc.get(id) || 0) + d)); assign.pool = round2(assign.pool - d); renderAssign(); }; });
-    $$('[data-all]', body).forEach((b) => { b.onclick = () => { const id = Number(b.dataset.all); for (const k of assign.order) assign.alloc.set(k, 0); assign.alloc.set(id, total); assign.pool = 0; renderAssign(); }; });
-    $$('input[name="al-default"]', body).forEach((r) => { r.onchange = () => { assign.def = Number(r.value); renderAssign(); }; });
+    const move = (id, d) => { if (!d) return; assign.alloc.set(id, round2((assign.alloc.get(id) || 0) + d)); assign.pool = round2(assign.pool - d); paintAssign(); };
+    $$('[data-dec]', body).forEach((b) => { b.onclick = () => { const id = Number(b.dataset.dec); move(id, -round2(Math.min(assign.step, assign.alloc.get(id) || 0))); }; });
+    $$('[data-inc]', body).forEach((b) => { b.onclick = () => { const id = Number(b.dataset.inc); move(id, round2(Math.min(assign.step, assignCap(id) - (assign.alloc.get(id) || 0)))); }; });
+    $$('[data-all]', body).forEach((b) => {
+      b.onclick = () => { const id = Number(b.dataset.all); for (const k of assign.order) assign.alloc.set(k, 0); assign.alloc.set(id, total); assign.pool = 0; paintAssign(); };
+    });
+    $$('[data-in]', body).forEach((inp) => {
+      const id = Number(inp.dataset.in);
+      inp.onfocus = () => inp.select();
+      inp.oninput = () => {
+        const raw = inp.value.trim().replace(',', '.');
+        let v = raw === '' || raw === '.' ? 0 : Number(raw);
+        if (!Number.isFinite(v) || v < 0) return;           // junk: ignore until it's a number (tidied on blur)
+        const cur = assign.alloc.get(id) || 0, cap = assignCap(id);
+        if (v > cap + 0.004) { v = cap; inp.value = lobbyN(cap); } // can't place more than are waiting
+        v = round2(v);
+        assign.alloc.set(id, v); assign.pool = round2(assign.pool + cur - v);
+        paintAssign(id);
+      };
+      inp.onblur = () => paintAssign();
+      inp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } };
+    });
+    $$('input[name="al-default"]', body).forEach((r) => { r.onchange = () => { assign.def = Number(r.value); paintAssign(); }; });
+    $$('[data-step]', body).forEach((b) => { b.onclick = () => { assign.step = Number(b.dataset.step); paintAssign(); }; });
+    const reset = $('#assign-reset', body);
+    if (reset) reset.onclick = () => { assign.alloc = new Map(assign.start); assign.pool = 0; assign.def = assign.startDef; paintAssign(); };
+    paintAssign();
+  }
+
+  // Everything that changes as lobbyists move, updated where it stands. `typing`
+  // is the input being typed in: its text is left alone until it loses focus.
+  function paintAssign(typing = null) {
+    const body = $('#assign-body'); if (!body) return;
+    const total = assignTotal(), pool = assign.pool, open = pool > 0.004;
+    const color = new Map(assign.order.map((id, i) => [id, `var(--ch${i % 6})`]));
+    for (const li of $$('[data-al]', body)) {
+      const id = Number(li.dataset.al), n = round2(assign.alloc.get(id) || 0), real = assignReal(id);
+      li.classList.toggle('has', n > 0); li.classList.toggle('is-default', assign.def === id);
+      const inp = $('[data-in]', li); if (inp && id !== typing) inp.value = lobbyN(n);
+      const dec = $('[data-dec]', li); if (dec) dec.disabled = n <= 0;
+      const inc = $('[data-inc]', li); if (inc) inc.disabled = !open || !real;
+      const all = $('[data-all]', li); if (all) all.disabled = !real || n >= total - 0.004;
+      const r = $('input[name="al-default"]', li);
+      if (r) { r.checked = assign.def === id; r.nextElementSibling.textContent = assign.def === id ? 'New hires go here' : 'Make default'; }
+    }
+    const bar = $('.assign-bar', body);
+    if (bar) {
+      bar.innerHTML = assign.order.filter((id) => (assign.alloc.get(id) || 0) > 0)
+        .map((id) => `<i style="flex-grow:${assign.alloc.get(id)};background:${color.get(id)}" title="${esc(assignName(id))}: ${esc(lobbyN(assign.alloc.get(id)))}"></i>`).join('')
+        + (open ? `<i class="pool" style="flex-grow:${pool}" title="Waiting: ${esc(lobbyN(pool))}"></i>` : '');
+    }
+    const pl = $('.assign-pool', body);
+    if (pl) { pl.classList.toggle('open', open); pl.innerHTML = open ? `<b>${esc(lobby(pool))}</b> waiting for a charity` : 'Every lobbyist has a charity'; }
+    $$('[data-step]', body).forEach((b) => { const on = Number(b.dataset.step) === assign.step; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+    const changed = assign.def !== assign.startDef || assign.order.some((id) => round2(assign.alloc.get(id) || 0) !== round2(assign.start.get(id) || 0));
+    const save = $('#assign-save');
+    save.disabled = !changed || open;
+    save.textContent = open ? `Place ${lobby(pool)} first` : changed ? 'Save' : 'No changes';
   }
 
   async function saveAssign() {
@@ -2504,12 +2574,12 @@
       el.innerHTML = `
         ${backLink()}
         <h1>Lobbyfest</h1>
-        <p class="lede">Where the real money goes. At Lobbyfest, ${t.demo ? 'the' : "this site's"} ad money is split between these charities by how many lobbyists each has.</p>
-        ${t.demo ? `<div class="note warn">Demo: the money here is pretend. The charities are the real list, each rated four stars by Charity Navigator.</div>` : t.pool_usd > 0 ? '' : `<div class="note">Real charities, each rated four stars by Charity Navigator. No ads are running yet, so the pool is $0 for now; the lobbyist counts are live, and they decide the split once there's money to split.</div>`}
+        <p class="lede">Where the real money goes. At Lobbyfest (January 1, April 1, July 1, October 1), ${t.demo ? 'the' : "this site's"} ad money is split between these charities by how many lobbyists each has, and at least ${usd(t.min_usd || 100)} goes out every time. <a href="#promises">Our promises</a> spell out exactly how.</p>
+        ${t.demo ? `<div class="note warn">Demo: the money here is pretend. The charities are the real list, each rated four stars by Charity Navigator.</div>` : t.pool_usd > 0 ? '' : `<div class="note">Real charities, each rated four stars by Charity Navigator. No ads are running yet, so the ads have earned $0 so far. At least ${usd(t.min_usd || 100)} goes out at Lobbyfest anyway: if the ads earn less, the owners make up the difference. The lobbyist counts are live, and they decide the split.</div>`}
         <div class="lobby-stats">
           <div><b>${esc(lobbyN(t.quarter_total))}</b><span>lobbyists this quarter, from ${t.quarter_donors} player${t.quarter_donors === 1 ? '' : 's'}</span></div>
           <div><b data-fest="${esc(t.quarter_ends_at)}">${esc(untilLong(t.quarter_ends_at))}</b><span>until Lobbyfest, ${esc(festDate(t.quarter_ends_at))}</span></div>
-          <div><b>${money(t.pool_usd, { whole: true })}</b><span>${t.demo ? 'pretend' : 'real'} ad money in the pool</span></div>
+          <div><b>${usd(t.payout_usd != null ? t.payout_usd : Math.max(t.pool_usd, 100))}</b><span>${t.demo ? 'pretend money' : 'real money'} going out at Lobbyfest${t.pool_usd < (t.min_usd || 100) ? ` (ads ${usd(t.pool_usd)}, the rest from us)` : ''}</span></div>
         </div>
         <ul class="charities">
           ${t.charities.map((c) => `
@@ -2521,12 +2591,12 @@
               <div class="charity-bar"><i style="--w:${(c.share / max * 100).toFixed(1)}%"></i></div>
               <div class="charity-sub">
                 <span>${esc(lobby(c.quarter_total))} from ${c.quarter_donors} player${c.quarter_donors === 1 ? '' : 's'}</span>
-                <span>${t.pool_usd > 0 ? `would get ${money(c.est_usd)}` : ''}</span>
+                <span>${c.left_out ? `under ${usd(t.charity_min_usd || 5)} for now: rolls over` : c.est_usd > 0 ? `would get ${usd(c.est_usd)}` : ''}</span>
               </div>
               <p class="blurb">${esc(c.blurb)}${c.rating ? ` <span class="ch-rating"><span aria-hidden="true">★★★★</span> ${esc(c.rating)}</span>` : ''}</p>
             </li>`).join('')}
         </ul>
-        <p class="muted small">Every quarter starts at zero. Career totals and ranks carry over. <button type="button" class="linkish" data-request-charity>Don't see your charity? Request one.</button></p>`;
+        <p class="muted small">"Would get" is if Lobbyfest were today. A charity whose share would be under ${usd(t.charity_min_usd || 5)} gets nothing this time, its lobbyists roll over to the next Lobbyfest, and the rest is split again. Every quarter starts at zero; career totals and ranks carry over. <button type="button" class="linkish" data-request-charity>Don't see your charity? Request one.</button></p>`;
     } catch (e) {
       el.innerHTML = `${backLink()}<h1>Lobbyfest</h1><p class="lede">${esc(e.message)}</p>`;
     }
@@ -2963,6 +3033,7 @@
     lobby: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
     trophies: '<path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/><path d="M12 13v4M8 21h8"/>',
     how: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6V14M12 17.2v.1"/>',
+    promise: '<circle cx="12" cy="9.5" r="6"/><path d="M9.4 9.6l1.8 1.8 3.4-3.6M8.6 14.6 7.2 21l4.8-2.4 4.8 2.4-1.4-6.4"/>',
     account: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
     out: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/>',
     theme: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
@@ -3081,6 +3152,7 @@
       <a href="#trickle"${cur('trickle')}>${mIcon('lobby')}<span>Lobbyfest &amp; charities</span></a>
       <button type="button" data-menu-act="trophies">${mIcon('trophies')}<span>Trophies</span>${a ? `<small>${a.earned}/${a.total}</small>` : ''}</button>
       <a href="#how"${cur('how')}>${mIcon('how')}<span>How to play</span></a>
+      <a href="#promises"${cur('promises')}>${mIcon('promise')}<span>Mission &amp; promises</span></a>
       <button type="button" data-menu-act="bug">${mIcon('bug')}<span>Report a bug</span></button>
       ${u.is_admin ? `<a href="#admin"${cur('admin')}>${mIcon('admin')}<span>Admin</span></a>` : ''}
       <hr>
@@ -3535,6 +3607,62 @@
 
   // --- how -----------------------------------------------------------------------------------------
 
+  // --- mission & promises ----------------------------------------------------------------------
+  // The one page with no satire. The full promises are the commitment, worded
+  // to keep the owners' exact terms; the short version is a summary that
+  // defers to them. Change the numbers here only with src/game.js LOBBYFEST.
+  const PROMISES_UPDATED = 'October 29, 2026';
+  function renderPromises() {
+    const demo = !!(state.me && state.me.rules && state.me.rules.demo) || API.demo;
+    const back = API.token() ? backLink() : '<a href="#" class="back-link">← Back</a>';
+    const promise = (title, ...paras) => `<li><h3>${title}</h3>${paras.map((x) => `<p>${x}</p>`).join('')}</li>`;
+    $('#screen-promises').innerHTML = `
+      ${back}
+      <h1>Mission &amp; promises</h1>
+      <p class="promise-nojoke">The one page on this site with no jokes.</p>
+      <p class="lede promise-mission"><b>Our mission</b> is to take the fun of day trading, dial it up, and put it to a good cause. Gamifying charity, to benefit us all.</p>
+      ${demo ? '<div class="note warn">You\'re in the demo, where the money is pretend. These are the promises for the real game.</div>' : ''}
+
+      <h2 class="promise-h">The short version</h2>
+      <ul class="promise-short">
+        <li><b>Ads pay charities.</b> Every quarter, this site's ad money goes to charity, split by how many lobbyists each charity has.</li>
+        <li><b>At least $100, every time.</b> If the ads earn less than $100 by Lobbyfest, we make up the difference.</li>
+        <li><b>Receipts within 60 days.</b> Proof of the donations is posted here.</li>
+        <li><b>Nothing for running the site</b> while it earns $200 a quarter or less. Processing fees, and anything else that has to come out, are posted with the receipts.</li>
+        <li><b>Everyone starts fresh.</b> Lobbyists reset every quarter, buildings stay, and a wealth tax brings every fortune down to $500K or less.</li>
+        <li><b>Good charities only.</b> Well rated and ethical. We can remove any that aren't, and we'll say so publicly if we do.</li>
+      </ul>
+      <p class="muted small">That's the gist. The promises below are the actual commitment: if the short version ever seems to say something different, the full promises are what count.</p>
+
+      <h2 class="promise-h">Our promises</h2>
+      <ol class="promises">
+        ${promise('Every quarter, the ad money goes to charity',
+          'All ad revenue goes to charity every three months, at the beginning of each calendar quarter: January 1, April 1, July 1 and October 1. That moment is Lobbyfest.')}
+        ${promise('Receipts within 60 days',
+          'Proof of donations is posted on this site within 60 days of each Lobbyfest.')}
+        ${promise('At least $100, every Lobbyfest',
+          'If the total ad revenue to distribute at a Lobbyfest is less than $100, the owners will contribute cash to make sure at least $100 is distributed in total.')}
+        ${promise('How the money is split',
+          "Ad revenue is divided in proportion to each charity's share of all lobbyists, as long as that charity's share would be at least $5.",
+          'If a charity would receive less than $5, it does not receive a donation, and the calculation is run again without its lobbyists. This repeats until every charity receiving a donation gets at least $5.')}
+        ${promise('Left-out charities roll over',
+          'If a charity is left out because its lobbyists would not bring its share to $5, the lobbyists it had at Lobbyfest are added to its total at the next Lobbyfest. This keeps rolling over until it receives a payment.')}
+        ${promise('Lobbyists reset; buildings stay',
+          "All players' lobbyists are fully reset after each Lobbyfest. Buildings remain.")}
+        ${promise('A wealth tax',
+          "Player wealth is also soft-reset after each Lobbyfest. A wealth tax is taken at that time, bringing everyone down to no more than $500K of game money, and the tax increases the more wealth a player has. The exact calculation is at the site owners' discretion.")}
+        ${promise('Donations, maybe someday',
+          'We may also allow donations in the future, possibly in exchange for cosmetic or vanity items in the game. Donations would be treated as ad revenue for the purposes of this distribution.')}
+        ${promise('What comes out of the ad money',
+          'We will take no money out of the total ad revenue, except what is required for third-party processing or other needs as judged required. Any fees, or any other redirection of ad money, will be posted openly when the receipts are shared, no more than 60 days after Lobbyfest.',
+          'This policy of taking no administrative costs from ad revenue stays in effect unless and until earned revenue exceeds $200 per quarter. At that point the owners may decide to begin deducting the true administrative costs of running Trickle Down, including hosting, API usage, backend server and plugin costs, and the like. Any money used this way will be shared openly at that point.')}
+        ${promise('Which charities',
+          'Money goes to well-rated, ethical charities. If at any point a charity receiving lobbyists supports certain ideological stances, or is of demonstrably suspect status, we reserve the right to remove it from the site. Disqualifying ideological stances include anti-abortion efforts, purely political activities, anti-LGBT actions, anti-trans actions, and other deplorable stances.',
+          'If we remove a charity for any of these reasons, we will post it publicly.')}
+      </ol>
+      <p class="muted small promise-foot">Last updated ${PROMISES_UPDATED}. ${API.token() ? 'See the standings on <a href="#trickle">Lobbyfest &amp; charities</a>.' : ''}</p>`;
+  }
+
   function renderHow() {
     const me = state.me;
     const rules = me ? me.rules : { daily_base: 100, streak_bonus: 10, daily_cap: 200, tax_rate: 0.25, hold_hours: 24, mult_floor: 1, demo: true, vest_amount: 40 };
@@ -3552,9 +3680,10 @@
       [`What's the ×10?`, `Every buy rides the real market for ${h} hours, and the move is multiplied. It starts at ${mult(rules.mult_floor)} the moment you buy and climbs to ×10 at the ${h}-hour mark (×5 for crypto). The multiplier works on the move, not the money: the stock goes up 1% over the day, you're up 10%; down 1%, down 10%. At ${h} hours it matures and the value freezes. A position can fall to $0; it can't go below.`],
       ['Collect, sell early, or ride?', `<b>Collect</b> a matured position and the money comes back to the coin. <b>Sell early</b> any time at the current, smaller multiplier. <b>Ride</b> a matured winner instead: the profit so far is taxed at half rate (${pct / 2}%), and what's left goes back on the same stock for another ${h} hours with the multiplier climbing higher (×10 to ×20, then ×30). The other half of the tax is due if you sell the ride early, forgiven if you let it mature.`],
       ['What happens when I win?', `Only the gain is taxed, at ${pct}%, never what you put in. Put in $50K, collect $60K: the gain is $10K, so ${money(10 * pct / 100)} is tax and ${money(60 - 10 * pct / 100)} comes back to you. The tax hires <b>lobbyists</b> (about $1K a head; the exact price is set by your town's happiness) for your <b>charity</b>, which you choose when you hire your first lobbyist. Losses aren't taxed.`],
+      ['Where does the money go, exactly?', `To the charities, every quarter, with receipts posted here within 60 days. The exact rules, including what (if anything) can come out first, are on <a href="#promises">Mission &amp; promises</a>. It's the one page on the site with no jokes.`],
       ['Which charities?', `Real ones: well-known charities across hunger, health, kids, disaster relief, poverty, water, the environment, animals, housing, education, justice, veterans and mental health, each rated four stars (out of four) by Charity Navigator when we added it. The more lobbyists a charity has at Lobbyfest, the bigger its share of this site's ad money. Don't see yours? <button type="button" class="linkish" data-request-charity>Request a charity</button>; a person checks every request.`],
       ['Found a bug?', `☰ → <b>Report a bug</b>. Say what happened; the page you were on comes along with it, so it's easier to find.`],
-      ['What is Lobbyfest?', `Every quarter, on the last day at midnight Central, every lobbyist in the game marches off to Lobbyfest. The ad money this site earned is split between the charities by headcount: the charity with the most lobbyists gets the biggest share. Then every village empties and the next quarter starts at zero. ☰ → Lobbyfest &amp; charities shows the standings.`],
+      ['What is Lobbyfest?', `Every quarter, at midnight Central as the new quarter begins (January 1, April 1, July 1, October 1), every lobbyist in the game marches off to Lobbyfest. The ad money this site earned goes to the charities, split by headcount: the more lobbyists a charity has, the bigger its share. At least $100 goes out every time; if the ads earned less, we make up the difference. Then everyone's lobbyists reset to zero for the next quarter, and buildings stay. ☰ → Lobbyfest &amp; charities shows the standings; ☰ → <a href="#promises">Mission &amp; promises</a> has the exact rules, including the $5 minimum per charity and the receipts.`],
       ['What is TrickleTown?', `The other side of your coin, where your lobbyists live. It has two scores. <b>Profit</b>: what the town adds to (or takes from) your daily money. <b>Happiness</b>: what each new lobbyist costs you, from $1.4K in a miserable town to $500 in a happy one. Two lots to build on: extractive buildings (a casino, tenements) make profit and unhappiness; decent ones (a clinic, a co-op) cost profit and make people happy. Buildings get upgrade proposals as the town grows. The Company Store takes 20% off anything a card costs.`],
       ['What are the cards?', `Each day Preston (wants profit) and Dolores (wants happiness) bring a few decisions to Town Hall: a headline everyone gets, plus cards your own town has unlocked. Pick a side on each. The arrows show which way a choice pushes; a tag says if it comes back around later. Unplayed cards expire at midnight, and once you've built something, skipping them costs a little happiness. The deck shows every card and what unlocks it.`],
       ['Can I move my lobbyists?', `Yes. TrickleTown → Assign lobbyists moves this quarter's lobbyists between charities and changes where new ones go. Past quarters already marched.`],
