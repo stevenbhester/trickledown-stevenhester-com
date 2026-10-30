@@ -12,6 +12,7 @@ css/style.css     the whole look; design tokens at the top
 js/theme.js       light / dark / auto, decided in <head> before anything paints
 js/coin.js        draws the coin (SVG): wedges, bills, the village, the advocates
 js/town.js        TrickleTown rules + the card deck (byte-identical to the backend's src/town.js)
+js/market.js      US stock market hours + NYSE holidays (for the quiet-market notice on Buy)
 js/explainer.js   the two tutorials
 js/app.js         screens, carving, collect/sell/ride, the flip, TrickleTown Hall, the Site Office, the menu, leaderboards, friends, profiles and walls
 js/api.js         fetch wrapper with the auth token

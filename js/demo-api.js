@@ -385,6 +385,19 @@
     if (path === '/auth/options') return { google: false, google_client_id: null, password_min: 8 };
     if (path === '/assets') return { assets: ASSETS };
     if (path === '/charities') return { charities: CHARITIES };
+    // Your ledger, from the demo's positions plus today's allowance and a card.
+    if (path === '/ledger') {
+      const rows = [];
+      for (const p of positions) {
+        const opened = p.opened_at || new Date(new Date(p.closed_at).getTime() - 24 * 3600e3).toISOString();
+        if (p.status !== 'gift' && p.status !== 'vested') rows.push({ ref: `p${p.id}`, at: opened, kind: 'buy', what: p.symbol, cash: -p.invested, amount: p.invested, note: `×${p.multiplier}` });
+        if (p.closed_at) rows.push({ ref: `c${p.id}`, at: p.closed_at, kind: p.status === 'rolled' ? 'rolled' : !(p.proceeds > 0) ? 'bust' : p.collected ? 'collect' : 'sell', what: p.symbol, cash: p.status === 'rolled' ? null : round2((p.proceeds || 0) - (p.tax || 0)), amount: p.proceeds, profit: p.profit, tax: p.tax, lobbyists: p.lobbyists || null, charity: p.charity_id ? (CHARITIES.find((c) => c.id === p.charity_id) || {}).name : null, note: p.tier || '' });
+      }
+      rows.push({ ref: 'l1', at: ago(0.2), kind: 'allowance', cash: 120 + TownRules.income(town), streak: 3, base: 120, town: TownRules.income(town) });
+      rows.push({ ref: 'l2', at: ago(23), kind: 'card', cash: -8, title: 'The company holiday', side: 'Dolores' });
+      rows.sort((a, b) => new Date(b.at) - new Date(a.at));
+      return { cash: user.cash, rows, more: false, cursor: null };
+    }
     // Past Lobbyfests: none yet (the first is January 1, 2027).
     if (path === '/lobbyfests') return { lobbyfests: [] };
     // The weekly beat: your own charity is featured this week, ×1.25.
@@ -628,6 +641,12 @@
       user.cash = round2(user.cash + r.cash);
       const dealt = TownRules.dealNewUnlocks(town, townCtx());
       return { ok: true, user: publicUser(), town: townView(), fresh_cards: dealt.map((id) => (TownRules.ISSUES.find((i) => i.id === id) || {}).title) };
+    }
+    if (path === '/town/upgrade/pass') {
+      if (!TownRules.isUnlocked(user.total_donated)) fail('TrickleTown opens when you hire your first full lobbyist.');
+      const r = TownRules.passUpgrade(town, String(body.slot || ''), String(body.key || ''), townCtx());
+      if (r.error) fail(r.error);
+      return { ok: true, who: r.who, user: publicUser(), town: townView() };
     }
     if (path === '/town/build') {
       if (!TownRules.isUnlocked(user.total_donated)) fail('TrickleTown opens when you hire your first full lobbyist.');
