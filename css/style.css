@@ -1780,3 +1780,63 @@ html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
 .admin-switch input { margin-top: 3px; width: 18px; height: 18px; flex: none; accent-color: var(--water); }
 .admin-switch span { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .admin-switch small { color: var(--mud); font-size: 12px; line-height: 1.35; }
+
+/* ---------------------------------------------------------------------------
+   The cat: village tap target, town panel row, the sheet, the profile.
+   --------------------------------------------------------------------------- */
+.coin-hit.cat { left: 44.5%; top: 52%; width: 12%; height: 16%; border-radius: 50%; }
+.v-cat { pointer-events: none; }
+.t-pet {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 14px; padding: 8px 12px 8px 8px;
+  border: 1.5px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; font: inherit;
+}
+.t-pet:hover { border-color: var(--water); }
+.t-pet.unnamed { border-color: #C9A227; background: #FFF9E8; }
+.t-pet span { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.t-pet b { font-family: var(--display); font-weight: 800; font-size: 19px; }
+.t-pet small { font-size: 12px; color: var(--mud); }
+.t-pet i { font-style: normal; font-size: 22px; color: var(--mud); }
+.cat-portrait { display: block; flex: none; border-radius: 50%; }
+.cat-preview { display: grid; place-items: center; margin: 4px 0 12px; }
+.cat-preview .cat-portrait { box-shadow: 0 0 0 4px #fff, 0 0 0 5.5px var(--line); }
+.cat-form .field input { font-family: var(--display); font-weight: 800; font-size: 22px; }
+.cat-opts { display: flex; gap: 8px; margin: 2px 0 12px; }
+.cat-coats { display: flex; gap: 10px; margin: 0 0 14px; }
+.cat-coat { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; }
+.cat-coat.on { box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--water); border-color: transparent; }
+.cat-coat.coat-tabby { background: repeating-linear-gradient(45deg, #E39A4B 0 5px, #B8692A 5px 8px); }
+.cat-coat.coat-black { background: #2A2A30; }
+.cat-coat.coat-gray { background: #8C969C; }
+.cat-coat.coat-calico { background: conic-gradient(#F4EFE8 0 50%, #E39A4B 50% 75%, #2A2A30 75%); }
+.cat-coat.coat-white { background: #F4F1EC; }
+.linkish.center, p.center { display: block; text-align: center; margin: 10px auto 0; }
+.cat-head { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.cat-head .cat-portrait { box-shadow: 0 0 0 3px #fff, 0 0 0 4.5px var(--line); }
+.cat-head p { margin: 0 0 4px; }
+.cat-sub { font-size: 13px; color: var(--mud); }
+.cat-worth { font-size: 15px; }
+.cat-worth b { font-family: var(--display); font-size: 22px; }
+.cat-fine { margin: 0 0 8px; }
+.cat-shop { list-style: none; margin: 0; padding: 0; }
+.cat-shop li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.cat-shop li.on { background: linear-gradient(90deg, rgba(30, 122, 91, .07), transparent); }
+.cat-item { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+.cat-item b { font-size: 15px; }
+.cat-item small { flex-basis: 100%; font-size: 12px; color: var(--mud); }
+.cat-slot { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--water); }
+.cat-shop li.on .cat-slot::after { content: " · worn"; color: var(--rise); }
+.cat-act { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
+.cat-act .need { font-size: 11px; color: var(--sink); white-space: nowrap; }
+.adv-cat { display: flex; align-items: center; gap: 12px; margin: 10px 0 4px; padding: 10px; border-radius: 12px; background: #FFF9E8; border: 1px solid #E8D59A; }
+.adv-cat > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.adv-cat span { font-size: 13px; color: var(--mud); }
+.prof-pet { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 10px; border-radius: 12px; background: var(--porcelain); }
+.prof-pet > div { display: flex; flex-direction: column; }
+.prof-pet b { font-family: var(--display); font-weight: 800; font-size: 20px; display: inline; }
+.prof-pet small { font-size: 12px; color: var(--mud); }
+
+/* "erin added you": the same small card as an achievement, with an avatar. */
+.friend-peek .avatar { width: 40px; height: 40px; font-size: 19px; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .35), 0 0 0 2px rgba(246, 211, 101, .5); }
+.friend-waiting { margin: 0 0 18px; padding: 12px 14px 4px; border-radius: 12px; background: #FFF9E8; border: 1px solid #E8D59A; }
+.friend-waiting h2 { font-family: var(--display); font-weight: 800; font-size: 20px; margin: 0 0 4px; }
+.friend-waiting .friend:first-child { border-top: 0; }

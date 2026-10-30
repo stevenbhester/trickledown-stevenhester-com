@@ -76,8 +76,11 @@ worst trades, what they're holding, their town (scores, buildings and
 upgrades, how often they side with Preston or Dolores), lobbyists by
 charity, trophies, and a wall.
 
-Friends (☰ → Friends): add anyone by username. It's one-way and silent;
-they see you only if they add you back. You get a friends-only board, a
+Friends (☰ → Friends): add anyone by username. They're told ("erin added
+you as a friend", a small card with an Add back button, once per browser),
+and you stay in an "Added you" list on their Friends page until they add you
+back or not. It's one-way until then: they see you only if they add you back.
+Removing someone is silent. You get a friends-only board, a
 "erin bought NVDA" line under the crowd strip on Today, and adding someone
 lets them read and write on your wall. Nobody else can. You can delete
 anything on your wall; they can delete their own posts. A red dot on ☰ means
@@ -179,6 +182,10 @@ says K).
   wall, and a dot on your avatar until you've read it.
 - The deck: any card you've played opens to the situation, both pitches, and
   the side you took.
+- The cat (day two): you name it and pick she/he and a coat. It lives in the
+  village (tap it), has a row on the town panel, shows on your profile, and
+  has a wardrobe from a $15K bow tie to a $1M crown. Portrait and village
+  sprite are `Coin.catPortrait` and `Coin.catSprite` in `js/coin.js`.
 - Link previews: `og.jpg` (1200×630) and the Open Graph / Twitter tags in
   `index.html` are what Slack, iMessage, Discord and X show when someone
   pastes the link. Crawlers don't run JavaScript, so the URLs there are

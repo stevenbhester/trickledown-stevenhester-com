@@ -345,6 +345,7 @@
       renderTrophyCount();
       updateMenuDot();
       maybeWallToast(me);
+      maybeFollowerPeek(me);
       if (me.fresh_cards && me.fresh_cards.length) setTimeout(() => announceCards(me.fresh_cards), me.allowance ? 5400 : 800);
       if (!state.justBought) maybeAchievement(me.allowance && !REDUCED ? 2600 : 900);
       if (!Explainer.seen('main') && !state.oriented) {
@@ -436,7 +437,8 @@
     return `${svg}<button class="coin-tap village-tap" type="button" aria-label="Flip the coin back"></button>
       <button type="button" class="coin-hit site-housing" data-coin-site="housing" aria-label="${esc(label('housing'))}"></button>
       <button type="button" class="coin-hit site-square" data-coin-site="square" aria-label="${esc(label('square'))}"></button>
-      ${pendingIssues() ? '<button type="button" class="coin-hit adv-a1" data-coin-adv aria-label="Speak with your advisors"></button><button type="button" class="coin-hit adv-a2" data-coin-adv aria-label="Speak with your advisors"></button>' : ''}`;
+      ${pendingIssues() ? '<button type="button" class="coin-hit adv-a1" data-coin-adv aria-label="Speak with your advisors"></button><button type="button" class="coin-hit adv-a2" data-coin-adv aria-label="Speak with your advisors"></button>' : ''}
+      ${me.town.cat ? `<button type="button" class="coin-hit cat" data-coin-cat aria-label="${esc(me.town.cat.name ? `${me.town.cat.name}, the cat: open the wardrobe` : 'The cat: give her a name')}"></button>` : ''}`;
   }
 
   // Redraw only the coin faces. Keeps the carve panel (and its focus) intact.
@@ -477,6 +479,7 @@
     $$('.coin-tap').forEach((b) => { b.onclick = () => flip(); });
     $$('[data-coin-site]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); openSite(b.dataset.coinSite); }; });
     $$('[data-coin-adv]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); openAdvisors(); }; });
+    $$('[data-coin-cat]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); openCat(); }; });
     $$('.wedge[data-id]').forEach((w) => {
       const p = () => state.me.positions.find((x) => x.id === Number(w.dataset.id));
       w.onclick = () => { hideTip(); openSell(Number(w.dataset.id)); };
@@ -666,6 +669,9 @@
     // Earned, but the popup was closed (or the tab was): the gift is still waiting.
     for (const key of unclaimedKeys(me)) { const a = achOf(me, key); items.push({ k: 'gift', id: key, text: `🏆 <b>${esc(a.title)}</b>: ${esc(a.from)} sent ${money(a.gift, { whole: true })}. Open it` }); }
     if (me.wall_unread) items.push({ k: 'wall', text: `💬 ${wallWho(me)} on your wall. Read it` });
+    if (me.town && me.town.cat && !me.town.cat.name) items.push({ k: 'cat', text: '🐈 The cat is waiting for a <b>name</b>' });
+    const nf = me.new_followers || [];
+    if (nf.length) items.push({ k: 'friend', text: `👋 <b>${esc(nf[0].username)}</b>${nf.length > 1 ? ` and ${nf.length - 1} other${nf.length > 2 ? 's' : ''}` : ''} added you. Add back?` });
     if (ready.length) items.push({ k: 'collect', id: ready[0].id, text: ready.length === 1 ? `Collect <b>${esc(ready[0].symbol)}</b>, ready at ${pct(ready[0].swing_pct, 0)}` : `Collect <b>${ready.length} matured</b> positions` });
     if (buried.length) items.push({ k: 'collect', id: buried[0].id, text: `Bury <b>${esc(buried[0].symbol)}</b>. It's gone.` });
     const cards = pendingIssues();
@@ -823,6 +829,8 @@
         if (k === 'collect') openSell(Number(b.dataset.id));
         else if (k === 'gift') openAchievement(b.dataset.id);
         else if (k === 'wall') { prof.toWall = true; location.hash = '#profile'; }
+        else if (k === 'cat') openCat('name');
+        else if (k === 'friend') location.hash = '#friends';
         else if (k === 'cards') { flip(true); if (Explainer.seen('town')) setTimeout(() => openAdvisors(), REDUCED ? 50 : 700); }
         else if (k === 'invest') { const sch = $('#carve-search'); if (sch) { sch.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'center' }); sch.focus(); } }
         else if (k === 'site') { flip(true); if (Explainer.seen('town')) setTimeout(() => openSite(b.dataset.slot), REDUCED ? 50 : 700); }
@@ -1180,24 +1188,25 @@
     if (!i) return `<button type="button" class="linkish deck-back" data-deck-back>← Back to the deck</button><p class="muted">That card isn't in this version of the deck.</p>`;
     const c = d.choice, when = c ? c.day : d.last;
     const later = c && window.TownRules.laterOf ? window.TownRules.laterOf(i[c.side]) : null;
+    const say = (x) => (window.TownRules.catWords ? window.TownRules.catWords(state.me.town.cat, x) : x);
     const pitch = (k) => {
       const w = WHO[k], p = i[k], mine = !!c && c.side === k;
       return `<div class="adv-pitch ${k} story-pitch ${mine ? 'chosen' : c ? 'passed' : ''}">
         <span class="adv-who">${Coin[k](40)}<span><b>${esc(w.name)}</b><small>${esc(w.role)}</small></span>${mine ? '<span class="story-pick">Your pick</span>' : ''}</span>
-        <q>${quoted(p.line)}</q>
+        <q>${quoted(say(p.line))}</q>
         ${window.TownRules.clues ? clueChips(window.TownRules.clues(p.fx || {})) : ''}
-        <span class="adv-label">${mine ? '✓ ' : ''}${esc(p.label)}</span>
+        <span class="adv-label">${mine ? '✓ ' : ''}${esc(say(p.label))}</span>
       </div>`;
     };
     return `
       <button type="button" class="linkish deck-back" data-deck-back>← Back to the deck</button>
       <div class="adv-card story">
         <div class="adv-band ${d.general ? 'headline' : 'village'}">${d.general ? 'Headline' : 'From your village'}${when ? ` · played ${esc(dayLabel(when))}` : ''}</div>
-        <h3>${esc(i.title)}</h3>
-        <p>${esc(i.setup)}</p>
-        ${i.ask ? `<p><b>${esc(i.ask)}</b></p>` : ''}
+        <h3>${esc(say(i.title))}</h3>
+        <p>${esc(say(i.setup))}</p>
+        ${i.ask ? `<p><b>${esc(say(i.ask))}</b></p>` : ''}
       </div>
-      <p class="story-verdict">${c ? `You went with <b>${c.side === 'preston' ? 'Preston' : 'Dolores'}</b>: ${esc(i[c.side].label)}.` : `You played this${when ? ` on ${esc(dayLabel(when))}` : ''}, before the deck kept track of which side you took. Here's what each of them offered.`}</p>
+      <p class="story-verdict">${c ? `You went with <b>${c.side === 'preston' ? 'Preston' : 'Dolores'}</b>: ${esc(say(i[c.side].label))}.` : `You played this${when ? ` on ${esc(dayLabel(when))}` : ''}, before the deck kept track of which side you took. Here's what each of them offered.`}</p>
       ${pitch('preston')}${pitch('dolores')}
       ${later ? `<p class="later later-${later}">${{ good: '✨ That choice could pay off later.', bad: '⚠️ That choice could come back to bite.', mixed: '🔮 Something comes of that choice later.' }[later]}</p>` : ''}
       <p class="muted small">The arrows show which way each choice pushes. ${d.status === 'played' ? 'You played it today.' : 'It may come around again.'}</p>`;
@@ -1260,6 +1269,12 @@
         <div class="ss"><span>Lobbyists</span><b>${esc(lobbyN(q))}</b><em class="ss-note">this quarter</em></div>
       </div>
       ${r && !r.first_day && (r.income || r.happy_delta || r.ignored) ? `<p class="t-overnight">Overnight: ${[r.income ? `profit ${r.income > 0 ? '+' : '−'}${money(Math.abs(r.income), { whole: true })}` : '', r.happy_delta ? `happiness ${r.happy_delta > 0 ? '▲' : '▼'}${Math.abs(r.happy_delta)}` : '', r.ignored ? `${r.ignored} card${r.ignored === 1 ? '' : 's'} left unplayed` : ''].filter(Boolean).join(' · ')}.</p>` : ''}
+
+      ${town.cat ? `<button type="button" class="t-pet ${town.cat.name ? '' : 'unnamed'}" data-cat-open>
+        ${Coin.catPortrait(town.cat, 46)}
+        <span><b>${town.cat.name ? esc(town.cat.name) : 'A cat'}</b><small>${town.cat.name ? `Wardrobe worth ${money(town.cat.spent || 0, { whole: true })}. Tap to dress ${catP(town.cat).him}.` : `Waiting for a name. Tap to name ${catP(town.cat).him}.`}</small></span>
+        <i aria-hidden="true">›</i>
+      </button>` : ''}
 
       <section class="t-section t-panel t-hall ${pending ? 'waiting' : ''}">
         ${tHead('hall', 'Town Hall')}
@@ -1626,6 +1641,7 @@
           ${Object.keys(r.fx).length === 0 ? '<p class="muted small">Nothing measurable happened. That is its own kind of outcome.</p>' : ''}
           ${r.noted ? '<p class="adv-noted">Noted. This will come back around.</p>' : ''}
           ${crowdLine(r.crowd, r.side)}
+          ${c.id === 'cat' ? catAdoptedMarkup() : ''}
           <div class="adv-actions"><button type="button" class="btn primary" data-adv="next">${adv.i + 1 < n ? 'Next card' : 'Done'}</button></div>
         </div>`;
       wireAdvisors(); return;
@@ -1694,6 +1710,122 @@
     const pctMine = Math.round(mine / total * 100);
     const who = side === 'preston' ? 'Preston' : 'Dolores';
     return `<p class="muted small adv-crowd">${pctMine}% of the ${total} landlords who've answered this today went with ${who}${pctMine >= 50 ? '. Company.' : '. You and the brave few.'}</p>`;
+  }
+
+  // --- The cat ----------------------------------------------------------------------------------
+  //
+  // Arrives on day two. You name her (or him) and pick a coat; she lives in
+  // TrickleTown (tap her there, or the row on the town panel), shows on your
+  // profile, and has a wardrobe of absurdly priced outfits that do nothing.
+
+  const catP = (cat) => (cat && cat.pronoun === 'he' ? { he: 'he', He: 'He', him: 'him', his: 'his' } : { he: 'she', He: 'She', him: 'her', his: 'her' });
+  const CAT_COAT_NAMES = { tabby: 'Orange tabby', black: 'Black', gray: 'Gray', calico: 'Calico', white: 'White' };
+  const CAT_SLOT_NAMES = { head: 'Head', eyes: 'Eyes', neck: 'Neck', body: 'Body' };
+  const catItems = () => (window.TownRules && window.TownRules.CAT_ITEMS) || [];
+  const catWearingText = (cat) => {
+    const names = Object.values((cat && cat.wearing) || {}).map((id) => (catItems().find((x) => x.id === id) || {}).name).filter(Boolean);
+    return names.length ? `Wearing ${names.join(', ').toLowerCase()}` : 'Wearing nothing. Unbothered.';
+  };
+  const catState = { mode: 'closet', draft: null };
+
+  function openCat(mode) {
+    const cat = state.me && state.me.town && state.me.town.cat;
+    if (!cat) return;
+    catState.mode = mode || (cat.name ? 'closet' : 'name');
+    catState.draft = { name: cat.name || '', pronoun: cat.pronoun || 'she', coat: cat.coat || 'tabby' };
+    renderCat();
+    const d = $('#dlg-cat');
+    if (!d.open) d.showModal();
+  }
+
+  function renderCat() {
+    const cat = state.me.town.cat; if (!cat) return;
+    const body = $('#cat-body');
+    if (catState.mode === 'name') {
+      const dr = catState.draft, pr = catP(dr);
+      $('#cat-title').textContent = cat.name ? `Rename ${cat.name}` : 'Name the cat';
+      body.innerHTML = `
+        <div class="cat-preview">${Coin.catPortrait({ ...cat, ...dr }, 128)}</div>
+        <form id="cat-name-form" class="cat-form" autocomplete="off">
+          <label class="field"><span>Name</span><input id="cat-name" type="text" maxlength="20" value="${esc(dr.name)}" placeholder="Comptroller" spellcheck="false"></label>
+          <div class="cat-opts" role="radiogroup" aria-label="He or she">
+            <button type="button" class="chip ${dr.pronoun === 'she' ? 'on' : ''}" data-pron="she" role="radio" aria-checked="${dr.pronoun === 'she'}">She</button>
+            <button type="button" class="chip ${dr.pronoun === 'he' ? 'on' : ''}" data-pron="he" role="radio" aria-checked="${dr.pronoun === 'he'}">He</button>
+          </div>
+          <div class="cat-coats" role="radiogroup" aria-label="Coat">${Object.keys(CAT_COAT_NAMES).map((k) => `<button type="button" class="cat-coat coat-${k} ${dr.coat === k ? 'on' : ''}" data-coat="${k}" role="radio" aria-checked="${dr.coat === k}" title="${CAT_COAT_NAMES[k]}" aria-label="${CAT_COAT_NAMES[k]}"></button>`).join('')}</div>
+          <p class="form-error" id="cat-error" hidden></p>
+          <button type="submit" class="btn primary wide" id="cat-save">That's ${pr.his} name</button>
+          ${cat.name ? '<button type="button" class="linkish center" data-cat-mode="closet">Never mind</button>' : `<p class="muted small center">${pr.He}'ll show up in TrickleTown and on your profile.</p>`}
+        </form>`;
+      const keep = () => { catState.draft.name = $('#cat-name').value; };
+      $$('[data-pron]', body).forEach((b) => { b.onclick = () => { keep(); catState.draft.pronoun = b.dataset.pron; renderCat(); }; });
+      $$('[data-coat]', body).forEach((b) => { b.onclick = () => { keep(); catState.draft.coat = b.dataset.coat; renderCat(); }; });
+      const back = $('[data-cat-mode]', body); if (back) back.onclick = () => { catState.mode = 'closet'; renderCat(); };
+      $('#cat-name-form').onsubmit = async (e) => {
+        e.preventDefault(); keep();
+        const err = $('#cat-error'); err.hidden = true;
+        const r = await townPost('/town/cat/name', { name: catState.draft.name, pronoun: catState.draft.pronoun, coat: catState.draft.coat }, $('#cat-save'));
+        if (!r) return;
+        const first = !cat.name;
+        refreshVillage(r.town, r.user);
+        catState.mode = 'closet'; renderCat();
+        toast(first ? `Meet ${r.town.cat.name}. ${catP(r.town.cat).He} has taken the good chair, permanently.` : `${r.town.cat.name} it is.`, 4200);
+        if ($('#dlg-advisors').open) renderAdvisors();
+      };
+      const input = $('#cat-name'); if (!cat.name) setTimeout(() => input.focus(), 60);
+      return;
+    }
+    const pr = catP(cat), cash = state.me.user.cash;
+    const items = catItems();
+    $('#cat-title').textContent = cat.name;
+    body.innerHTML = `
+      <div class="cat-head">
+        ${Coin.catPortrait(cat, 120)}
+        <div>
+          <p class="cat-sub">${esc(CAT_COAT_NAMES[cat.coat] || 'Cat')} · ${pr.He === 'She' ? 'she/her' : 'he/him'}${cat.since ? ` · since ${esc(dayLabel(cat.since))}` : ''}</p>
+          <p class="cat-worth">Wardrobe worth <b>${money(cat.spent || 0, { whole: true })}</b></p>
+          <p class="muted small">${esc(catWearingText(cat))}</p>
+          <button type="button" class="linkish" data-cat-mode="name">Rename</button>
+        </div>
+      </div>
+      <p class="muted small cat-fine">Outfits do nothing at all. That is what makes them expensive. You have <b>${money(cash)}</b> on the coin.</p>
+      <ul class="cat-shop">${items.map((it) => {
+        const owned = cat.owned.includes(it.id), on = cat.wearing[it.slot] === it.id;
+        const short = !owned && !affords(cash, it.cost);
+        const act = on ? `<button type="button" class="btn quiet small" data-cat-wear="${it.id}" data-on="0">Take off</button>`
+          : owned ? `<button type="button" class="btn small" data-cat-wear="${it.id}" data-on="1">Wear</button>`
+            : `<button type="button" class="btn primary small" data-cat-buy="${it.id}" ${short ? 'disabled' : ''}>${money(it.cost, { whole: true })}</button>${short ? `<small class="need">Need ${money(it.cost - cash)} more</small>` : ''}`;
+        return `<li class="${owned ? 'owned' : ''} ${on ? 'on' : ''}">
+          <div class="cat-item"><b>${esc(it.name)}</b> <span class="cat-slot">${CAT_SLOT_NAMES[it.slot]}</span><small>${esc(it.blurb)}</small></div>
+          <div class="cat-act">${act}</div>
+        </li>`;
+      }).join('')}</ul>`;
+    $('[data-cat-mode]', body).onclick = () => { catState.mode = 'name'; catState.draft = { name: cat.name, pronoun: cat.pronoun, coat: cat.coat }; renderCat(); };
+    $$('[data-cat-buy]', body).forEach((b) => {
+      b.onclick = async () => {
+        const it = items.find((x) => x.id === b.dataset.catBuy);
+        const r = await townPost('/town/cat/buy', { item: it.id }, b);
+        if (!r) return;
+        refreshVillage(r.town, r.user); renderCat();
+        toast(`${cat.name} is wearing the ${it.name.toLowerCase()}. It cost ${money(it.cost, { whole: true })}. The lobbyists noticed.`, 4200);
+      };
+    });
+    $$('[data-cat-wear]', body).forEach((b) => {
+      b.onclick = async () => {
+        const r = await townPost('/town/cat/wear', { item: b.dataset.catWear, on: b.dataset.on === '1' }, b);
+        if (!r) return;
+        refreshVillage(r.town, r.user); renderCat();
+      };
+    });
+  }
+
+  // What the result screen says after the cat card.
+  function catAdoptedMarkup() {
+    const cat = state.me.town && state.me.town.cat; if (!cat) return '';
+    const pr = catP(cat);
+    return `<div class="adv-cat">${Coin.catPortrait(cat, 64)}<div>${cat.name
+      ? `<b>Meet ${esc(cat.name)}.</b><span>Tap ${pr.him} in TrickleTown any time. ${pr.He} has expensive taste.</span>`
+      : `<b>The cat is staying.</b><span>${pr.He} needs a name.</span><button type="button" class="btn primary small" data-cat-open>Name the cat</button>`}</div></div>`;
   }
 
   // --- Assign lobbyists: move this quarter's between charities, set the default ---------------
@@ -2449,9 +2581,10 @@
 
   // --- friends ----------------------------------------------------------------------------------
 
-  // Adding a friend is one-way: you see them on your board, they don't see
-  // you until they add you back. Adding someone also lets them write on
-  // your wall.
+  // Adding a friend is one-way: you see them on your board, and they get a
+  // note ("you added them") with an Add back button. Adding someone also lets
+  // them write on your wall. People who added you and are waiting on an
+  // add-back are listed first.
   async function loadFriends() {
     const el = $('#screen-friends');
     el.innerHTML = `${backLink()}<h1>Friends</h1><p class="lede">Loading…</p>`;
@@ -2466,7 +2599,13 @@
           <input id="friend-name" type="text" placeholder="Add by username" maxlength="20" spellcheck="false" aria-label="Username to add">
           <button class="btn small primary" type="submit">Add</button>
         </form>
-        <p class="muted friend-hint">${f.is_guest ? "You're a guest, so nobody can add <i>you</i> back. Keep your account to get a username worth sharing." : `Your username is <b>${esc(f.your_username)}</b>. ${f.added_you ? `${f.added_you} player${f.added_you === 1 ? ' has' : 's have'} added you.` : 'Share it and get added.'} It's one-way: they see you only if they add you back.`}</p>
+        ${(f.waiting || []).length ? `<section class="friend-waiting"><h2>Added you</h2><ul class="friend-list">${f.waiting.map((w) => `
+          <li class="friend" data-player="${esc(w.username)}">
+            <span class="avatar" style="--av:${avColor(w.username)}" aria-hidden="true">${esc(initial(w.username))}</span>
+            <div class="friend-main"><b>${esc(w.username)}</b><span class="muted">added you ${esc(ago(w.at))}</span></div>
+            <button class="btn primary small" data-addback="${esc(w.username)}">Add back</button>
+          </li>`).join('')}</ul></section>` : ''}
+        <p class="muted friend-hint">${f.is_guest ? `You're playing as <b>${esc(f.your_username)}</b>. People can add you by that, but keep your account and you can pick a name worth sharing.` : `Your username is <b>${esc(f.your_username)}</b>. ${f.added_you ? `${f.added_you} player${f.added_you === 1 ? ' has' : 's have'} added you.` : 'Share it and get added.'} They'll get a note with an Add back button.`}</p>
         ${friends.length ? `<ul class="friend-list">${friends.map((u) => `
           <li class="friend" data-player="${esc(u.username)}">
             <span class="avatar" style="--av:${avColor(u.username)}" aria-hidden="true">${esc(initial(u.username))}</span>
@@ -2477,7 +2616,10 @@
             <span class="muted friend-seen">${esc(u.last_seen || '')}</span>
             <button class="btn quiet small" data-unfriend="${esc(u.username)}" aria-label="Remove ${esc(u.username)}" title="Remove">×</button>
           </li>`).join('')}</ul>` : `<p class="muted">No friends yet. Ask someone for their username${API.demo ? ' (in the demo, try <b>ravi_k</b> or <b>bagholder_ben</b>)' : ''}, or find people on the <a href="#leaders">leaderboards</a>.</p>`}`;
-      $$('#screen-friends .friend').forEach((li) => { li.onclick = (ev) => { if (ev.target.closest('[data-unfriend]')) return; openPlayer(li.dataset.player); }; });
+      $$('#screen-friends .friend').forEach((li) => { li.onclick = (ev) => { if (ev.target.closest('[data-unfriend], [data-addback]')) return; openPlayer(li.dataset.player); }; });
+      $$('#screen-friends [data-addback]').forEach((btn) => {
+        btn.onclick = async (ev) => { ev.stopPropagation(); btn.disabled = true; if (await addFriend(btn.dataset.addback, { back: true })) loadFriends(); else btn.disabled = false; };
+      });
       $$('#screen-friends [data-unfriend]').forEach((btn) => {
         btn.onclick = async (ev) => {
           ev.stopPropagation();
@@ -2490,12 +2632,13 @@
     }
   }
 
-  async function addFriend(name) {
+  async function addFriend(name, { back = false } = {}) {
     if (!name || state.busy) return;
     state.busy = true;
     try {
       const r = await API.post('/friends/add', { username: name });
-      toast(`${r.username} added. They're on your board now, and they can write on your wall.`, 4500);
+      toast(back ? `You and ${r.username} are friends now. Each of you can write on the other's wall.` : `${r.username} added. They're on your board now, and they can write on your wall.`, 4500);
+      if (state.me && state.me.new_followers) state.me.new_followers = state.me.new_followers.filter((f) => f.username.toLowerCase() !== r.username.toLowerCase());
       if (state.me) state.me.friend_count = r.friend_count;
       if (state.tab === 'friends') await loadFriends();
       refreshAchievements(1200);
@@ -2660,6 +2803,7 @@
         <li><span>Happiness</span><b>${Math.round(t.happiness)}</b><i class="ss-bar"><i style="--w:${Math.max(0, Math.min(100, t.happiness))}%"></i></i></li>
         <li><span>Lobbyist price</span><b>${money(t.hire_cost)}</b></li>
       </ul>
+      ${t.pet ? `<div class="prof-pet">${Coin.catPortrait(t.pet, 64)}<div><span><b>${esc(t.pet.name)}</b> <span class="muted">the cat</span></span><small>${esc(catWearingText(t.pet))}</small><small>Wardrobe worth ${money(t.pet.spent || 0, { whole: true })}</small></div></div>` : ''}
       <div class="prof-lots">${(t.buildings || []).map((b) => (b.key
         ? `<div class="prof-lot tier-${esc(b.tier || '')}"><span class="muted">${esc(b.label || b.slot)}</span><b>${esc(b.name)}</b>${b.upgrades && b.upgrades.length ? `<small>+ ${b.upgrades.map((u) => esc(u.name)).join(', ')}</small>` : ''}${b.days ? `<small class="muted">${b.days} day${b.days === 1 ? '' : 's'} standing</small>` : ''}</div>`
         : `<div class="prof-lot empty"><span class="muted">${esc(b.label || b.slot)}</span><b>Empty lot</b></div>`)).join('')}</div>
@@ -2730,6 +2874,7 @@
           <p class="prof-meta">
             <span class="prof-rank">${esc(rank)}</span>
             <span>🔥 ${p.streak}-day streak</span>
+            ${p.town && p.town.pet ? `<span>🐈 ${esc(p.town.pet.name)}</span>` : ''}
             ${since ? `<span>Playing since ${esc(since)}</span>` : ''}
             ${!p.is_you ? `<span>Played ${esc(p.last_seen || 'recently')}</span>` : ''}
             ${p.added_you && !p.is_you ? '<span class="prof-chip">Added you</span>' : ''}
@@ -2815,6 +2960,54 @@
     setTimeout(() => toast(`💬 ${who ? `${who} wrote` : 'Someone wrote'} on your wall. Tap your avatar, top right, to read it.`, 5000), delay);
   }
 
+  // "erin added you": a small card at the bottom, once per new follower per
+  // browser, with Add back right on it. "×" waves off everyone waiting; the
+  // to-do line and the Friends page keep them until then.
+  function maybeFollowerPeek(me, delay) {
+    const nf = me.new_followers || [];
+    if (!nf.length) return;
+    const key = `${nf[0].username}@${nf[0].at}`;
+    let told = null; try { told = localStorage.getItem('trickledown.follow-told'); } catch (e) { /* private mode */ }
+    if (delay == null && told === key) return;
+    setTimeout(() => {
+      const list = (state.me && state.me.new_followers) || [];
+      if (!list.length || $('.ach-peek') || $('dialog[open]') || Explainer.isOpen() || state.tab !== 'today') return;
+      try { localStorage.setItem('trickledown.follow-told', key); } catch (e) { /* private mode */ }
+      showFollowerPeek(list);
+    }, delay != null ? delay : (REDUCED ? 800 : me.allowance ? 7000 : 3200));
+  }
+  function showFollowerPeek(list) {
+    hidePeek(true);
+    const f = list[0], more = list.length - 1;
+    const el = document.createElement('div');
+    el.className = 'ach-peek friend-peek';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<span class="avatar" style="--av:${avColor(f.username)}" aria-hidden="true">${esc(initial(f.username))}</span>
+      <div class="ach-peek-text"><span>Added you</span><b>${esc(f.username)}</b><small>${more ? `and ${more} other${more > 1 ? 's' : ''} added you as a friend.` : 'added you as a friend.'}</small></div>
+      <button type="button" class="btn small ach-peek-open" data-addback>Add back</button>
+      <button type="button" class="ach-peek-x" aria-label="Not now">×</button>`;
+    el.querySelector('[data-addback]').onclick = async (e) => {
+      e.currentTarget.disabled = true;
+      if (!(await addFriend(f.username, { back: true }))) { e.currentTarget.disabled = false; return; }
+      const rest = (state.me.new_followers || []);
+      const li = $('[data-todo="friend"]');
+      if (li && !rest.length) li.closest('li').remove();
+      else if (li) li.innerHTML = `👋 <b>${esc(rest[0].username)}</b>${rest.length > 1 ? ` and ${rest.length - 1} other${rest.length > 2 ? 's' : ''}` : ''} added you. Add back?`;
+      if (rest.length) showFollowerPeek(rest); else hidePeek();
+    };
+    el.querySelector('.ach-peek-x').onclick = async () => {
+      hidePeek();
+      try { await API.post('/friends/seen', {}); } catch (err) { /* it'll ask again next time */ }
+      if (state.me) state.me.new_followers = [];
+      const li = $('[data-todo="friend"]'); if (li) li.closest('li').remove();
+    };
+    document.body.appendChild(el);
+    const root = document.documentElement;
+    root.style.setProperty('--peek-h', `${el.offsetHeight}px`);
+    root.classList.add('has-peek');
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+  }
+
   function updateMenuDot() {
     const n = state.me ? state.me.wall_unread || 0 : 0;
     $('#menu-dot').hidden = !n;
@@ -2877,7 +3070,7 @@
       ['What are the cards?', `Each day Preston (wants profit) and Dolores (wants happiness) bring a few decisions to Town Hall: a headline everyone gets, plus cards your own town has unlocked. Pick a side on each. The arrows show which way a choice pushes; a tag says if it comes back around later. Unplayed cards expire at midnight, and once you've built something, skipping them costs a little happiness. The deck shows every card and what unlocks it.`],
       ['Can I move my lobbyists?', `Yes. TrickleTown → Assign lobbyists moves this quarter's lobbyists between charities and changes where new ones go. Past quarters already marched.`],
       ['What are achievements?', `Rare milestones (your first buy, your first win, a week-long streak, building out the town, a million on the coin). Each comes with a one-time gift from Mommy &amp; Daddy. A gift is all gain, so it's taxed like one and hires lobbyists. After the first week's milestones, a gift is a share of the money you have in play, so it still matters when you're rich. The 🏆 at the top shows how close you are.`],
-      ['Profiles, friends and leaderboards?', `Everything besides today's game is in the ☰ menu. Your <b>profile</b> charts how your trading has gone (positions only: gifts and town spending don't count), plus what you're holding, your town, your lobbyists and your trophies. Tap any name on the <b>leaderboards</b> to see theirs. Add <b>friends</b> by username for a board of just them. It's one-way, and it's also who can write on your <b>wall</b>: only people you've added.`],
+      ['Profiles, friends and leaderboards?', `Everything besides today's game is in the ☰ menu. Your <b>profile</b> charts how your trading has gone (positions only: gifts and town spending don't count), plus what you're holding, your town, your lobbyists and your trophies. Tap any name on the <b>leaderboards</b> to see theirs. Add <b>friends</b> by username for a board of just them; they get a note with an Add back button. It's one-way until they do, and it's also who can write on your <b>wall</b>: only people you've added.`],
       ['Ranks?', `Ranks count every lobbyist you ever hire, across every Lobbyfest. <span class="badges-inline">${badgeList.map((b) => `<span class="${earned.includes(b.name) ? 'earned' : ''}"><b>${esc(b.name)}</b> ${b.at}</span>`).join('')}</span>`],
       ['Fine print', `<span class="muted">Trickle Down Holdings is a fictional company and a wholly owned subsidiary of Trickle Down Holdings. Prices come from Finnhub and CoinGecko and can be a minute or so behind. Stocks only move while the market is open; crypto never stops. A guest account lives in one browser until you keep it with a password, Google, or a device code.</span>`],
     ];
@@ -3241,6 +3434,7 @@
     $('#btn-account').onclick = openAccount;
     $('#btn-help').onclick = () => Explainer.open({ deck: 'main', rules: state.me ? state.me.rules : undefined, finale: !API.token(), onFinale: welcomeFinale });
     $('#btn-menu').onclick = openMenu;
+    document.addEventListener('click', (e) => { if (e.target.closest('[data-cat-open]')) openCat(); });
     $('#dlg-menu').addEventListener('click', (e) => { if (e.target === e.currentTarget) softClose(e.currentTarget); });
     $('#btn-signout').onclick = signOut;
     window.addEventListener('hashchange', route);

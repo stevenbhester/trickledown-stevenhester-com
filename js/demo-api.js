@@ -84,6 +84,9 @@
   town.plots.housing = 'pinnacle';
   town.built.housing = new Date(Date.now() - 3 * 86400e3).toISOString().slice(0, 10);
   town.happiness = 48;
+  // The demo cat, a few days in and already in a bow tie.
+  town.played.push('cat'); town.flags.push('cat_mascot');
+  town.cat = { name: 'Comptroller', pronoun: 'she', coat: 'tabby', owned: ['bow_tie'], wearing: { neck: 'bow_tie' }, spent: 15, since: new Date(Date.now() - 2 * 86400e3).toISOString().slice(0, 10) };
   // Friends are one-directional: the names you've added. Seeded with two so the
   // Friends board has something on it; add ravi_k or bagholder_ben to try it.
   const friends = new Set(['erin', 'moonshot_mia']);
@@ -189,12 +192,19 @@
     ['erin', [{ id: 1, author: 'ravi_k', body: 'Co-op tour Saturday? Bring the good snacks.', at: ago(30) }]],
     ['ravi_k', []],
   ]);
-  let wallNext = 10, wallSeen = false;
+  let wallNext = 10, wallSeen = false, followSeen = false;
+  // Who added you and is waiting on an add-back (ravi_k, in the demo).
+  const waiting = () => [...addedYouSet].filter((n) => !friends.has(n)).map((n, i) => ({ username: n, at: ago(3 + i * 20) }));
   const addedYouSet = new Set(['erin', 'ravi_k']);
   const wallOpenTo = (owner) => owner.toLowerCase() === user.username.toLowerCase() || addedYouSet.has(owner);
   const wallFor = (owner) => (walls.get(owner) || []).map((w) => ({ ...w, mine: w.author === user.username, can_delete: w.author === user.username || owner === user.username }));
   const ownerName = (name) => (name.toLowerCase() === user.username.toLowerCase() ? user.username : (findPlayer(name) || {}).username);
   const SEED_SIDES = { ravi_k: { preston: 4, dolores: 15 }, erin: { preston: 9, dolores: 8 }, moonshot_mia: { preston: 13, dolores: 2 } };
+  const SEED_PETS = {
+    ravi_k: { name: 'Mr. Biscuits', pronoun: 'he', coat: 'black', wearing: { head: 'top_hat', eyes: 'monocle', neck: 'bow_tie' }, owned: 3, spent: 240 },
+    erin: { name: 'Duchess', pronoun: 'she', coat: 'calico', wearing: { head: 'tiara', neck: 'pearls' }, owned: 2, spent: 590 },
+    moonshot_mia: { name: 'Margin Call', pronoun: 'she', coat: 'gray', wearing: { head: 'crown', body: 'cape', eyes: 'sunglasses' }, owned: 5, spent: 2025 },
+  };
   const SEED_EARNED = { ravi_k: ['first_buy', 'first_win', 'networking', 'streak_7', 'landlord'], erin: ['first_buy', 'first_win', 'streak_7'], bagholder_ben: ['first_buy', 'first_bust'], moonshot_mia: ['first_buy', 'first_win', 'let_it_ride'] };
 
   function profileOf(name) {
@@ -212,12 +222,13 @@
         top_charity: 'Puddle Preservation League', last_seen: 'today',
         achievements: { earned: achView().list.filter((a) => a.earned_at).map((a) => ({ key: a.key, title: a.title, how: a.how, at: a.earned_at })), total: ACH.length },
         town: tv ? { happiness: tv.happiness, income: tv.income, hire_cost: tv.hire_cost, motto: tv.motto, sides: { ...(town.sides || { preston: 0, dolores: 0 }) },
+          pet: town.cat && town.cat.name ? { name: town.cat.name, pronoun: town.cat.pronoun, coat: town.cat.coat, wearing: { ...town.cat.wearing }, owned: town.cat.owned.length, spent: town.cat.spent } : null,
           buildings: tv.plots.map((pl) => (pl.building ? { slot: pl.slot, label: pl.label, key: pl.key, name: pl.building.name, tier: pl.building.tier, days: pl.days, upgrades: pl.building.upgrades.filter((x) => x.owned).map((x) => ({ name: x.name, tier: x.tier })) } : { slot: pl.slot, label: pl.label, key: null })) } : null,
         is_friend: false, added_you: false, is_you: true, wall: { open: true, max: 280, posts: wallFor(user.username) } };
     }
     const p = findPlayer(name); if (!p) fail('No player by that name.', 404);
     const open = p.positions().map(shape);
-    const town2 = p.town ? { ...p.town, hire_cost: round2(Math.max(0.5, 1.4 - 0.9 * Math.pow(p.town.happiness / 100, 1.5))), sides: SEED_SIDES[p.username] || { preston: 3, dolores: 3 },
+    const town2 = p.town ? { ...p.town, hire_cost: round2(Math.max(0.5, 1.4 - 0.9 * Math.pow(p.town.happiness / 100, 1.5))), sides: SEED_SIDES[p.username] || { preston: 3, dolores: 3 }, pet: SEED_PETS[p.username] || null,
       buildings: p.town.buildings.map((b) => ({ ...b, label: b.slot === 'housing' ? 'Housing' : 'Town square', days: b.key ? 6 : 0, upgrades: [] })) } : null;
     const share = [0.55, 0.3, 0.15];
     return { ...friendRow(p), is_guest: false, joined: addDay(today, -40) + 'T15:00:00Z', in_play: round2(p.cash + open.reduce((s2, x) => s2 + x.value, 0)), positions: open,
@@ -278,6 +289,7 @@
         friend_count: friends.size,
         vesting: null,
         achievements: achView(),
+        new_followers: followSeen ? [] : waiting(),
         wall_unread: wallSeen ? 0 : (walls.get(user.username) || []).filter((w) => w.author !== user.username).length,
         wall_unread_from: wallSeen ? [] : [...new Set((walls.get(user.username) || []).filter((w) => w.author !== user.username).map((w) => w.author))].slice(0, 3),
         wall_latest: wallSeen ? null : ((walls.get(user.username) || []).find((w) => w.author !== user.username) || {}).id || null,
@@ -288,7 +300,7 @@
     if (path === '/admin/switches') { TownRules.migrate(town); return { username: user.username, unlock_all: !!town.admin_all_open, deal_all: !!town.admin_deal_all }; }
     if (path === '/friends') {
       const list = [...friends].map(findPlayer).filter(Boolean).map(friendRow).sort((a, b) => b.quarter_donated - a.quarter_donated || a.username.localeCompare(b.username));
-      return { friends: list, added_you: 2, max: 50, your_username: user.username, is_guest: user.is_guest };
+      return { friends: list, added_you: 2, waiting: waiting(), max: 50, your_username: user.username, is_guest: user.is_guest };
     }
     if (/^\/players\/[^/]+\/wall$/.test(path)) {
       const owner = ownerName(decodeURIComponent(path.split('/')[2])); if (!owner) fail('No player by that name.', 404);
@@ -383,6 +395,14 @@
       TownRules.tick(town, townCtx());
       return { ok: true, self: true };
     }
+    if (path === '/town/cat/name' || path === '/town/cat/buy' || path === '/town/cat/wear') {
+      const r = path.endsWith('/name') ? TownRules.nameCat(town, body)
+        : path.endsWith('/buy') ? TownRules.buyCatItem(town, String(body.item || ''), user.cash)
+          : TownRules.wearCatItem(town, String(body.item || ''), body.on !== false);
+      if (r.error) fail(r.error);
+      if (r.cash) user.cash = round2(user.cash + r.cash);
+      return { ok: true, user: publicUser(), town: townView() };
+    }
     if (path === '/admin/switches') {
       const want = {};
       if (typeof body.unlock_all === 'boolean') want.unlockAll = body.unlock_all;
@@ -473,6 +493,7 @@
       }
       fail('No such post.', 404);
     }
+    if (path === '/friends/seen') { followSeen = true; return { ok: true }; }
     if (path === '/friends/add') {
       const t = findPlayer(body.username);
       if (String(body.username || '').toLowerCase() === user.username.toLowerCase()) fail("That's you. You're already on your own side.");

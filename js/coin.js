@@ -273,6 +273,7 @@ window.Coin = (function () {
         ${locked ? '' : `<text x="160" y="62" text-anchor="middle" class="v-pop">pop. ${esc(pop % 1 ? pop.toFixed(2).replace(/0$/, '') : pop)}</text>`}
         <g class="v-site" data-site="housing">${BUILDINGS[plots.housing || 'empty'](104, 200)}</g>
         <g class="v-site" data-site="square">${BUILDINGS[plots.square || 'empty'](220, 200)}</g>
+        ${locked || !town.cat ? '' : catSprite(town.cat, 160, 216, 1.35)}
         ${locked ? '' : people}
         ${locked ? '' : advocates}
         ${locked ? `
@@ -290,6 +291,95 @@ window.Coin = (function () {
     </svg>`;
   }
 
+  // --- The cat ---------------------------------------------------------------
+  // cat: { name, pronoun, coat, wearing: { head, eyes, neck, body } }
+  const COATS = {
+    tabby: { base: '#E39A4B', dark: '#B8692A', light: '#F6D2A4', ear: '#F2A7B0', eye: '#8DBA3A', whisker: '#FFF4E6' },
+    black: { base: '#2A2A30', dark: '#1C1C21', light: '#3E3E47', ear: '#7A5260', eye: '#E7C547', whisker: '#D8D8DE' },
+    gray: { base: '#8C969C', dark: '#6C757A', light: '#C9D0D3', ear: '#E6A3AE', eye: '#5FB0C8', whisker: '#F2F4F5' },
+    calico: { base: '#F4EFE8', dark: '#2A2A30', light: '#FFFFFF', ear: '#F2A7B0', eye: '#8DBA3A', whisker: '#9A8E84', patch: '#E39A4B' },
+    white: { base: '#F4F1EC', dark: '#D9D2C7', light: '#FFFFFF', ear: '#F2A7B0', eye: '#6BA6E0', whisker: '#A79B90' },
+  };
+  const coatOf = (cat) => COATS[(cat && cat.coat) || 'tabby'] || COATS.tabby;
+  const GOLD = '#E2B32C', GOLD_D = '#A27E13';
+
+  // A head-and-shoulders portrait, outfit and all. size: rendered px.
+  function catPortrait(cat, size = 96) {
+    const c = coatOf(cat), w = (cat && cat.wearing) || {};
+    const id = `cp${Math.random().toString(36).slice(2, 8)}`;
+    const body = {
+      blazer: `<path d="M16 122 C16 95 33 86 50 85 L60 105 L70 85 C87 86 104 95 104 122 Z" fill="#1B2F4A"/><path d="M50 85 L60 105 L70 85 L66 85 L60 97 L54 85 Z" fill="#fff"/><circle cx="83" cy="104" r="3.4" fill="${GOLD}"/>`,
+      cape: `<path d="M12 122 C14 92 34 83 60 83 C86 83 106 92 108 122 Z" fill="#8E1F2D"/><path d="M33 90 C44 81 76 81 87 90 C78 97 42 97 33 90 Z" fill="#FAF7F0"/>${[38, 47, 56, 65, 74, 83].map((x, i) => `<rect x="${x}" y="${88 + (i % 2) * 2}" width="2" height="3" fill="#1B1B1B"/>`).join('')}`,
+    }[w.body] || '';
+    const neck = {
+      bow_tie: `<path d="M60 88 L47 81 L47 95 Z M60 88 L73 81 L73 95 Z" fill="#C0392B"/><circle cx="60" cy="88" r="3.2" fill="#992D22"/>`,
+      pearls: Array.from({ length: 11 }, (_, i) => { const a = Math.PI * (0.15 + 0.7 * i / 10); return `<circle cx="${(60 - 24 * Math.cos(a)).toFixed(1)}" cy="${(80 + 10 * Math.sin(a)).toFixed(1)}" r="2.7" fill="#FBF8F0" stroke="#CFC6B4" stroke-width=".6"/>`; }).join(''),
+      gold_chain: `<path d="M38 82 Q60 100 82 82" fill="none" stroke="${GOLD}" stroke-width="3.5" stroke-dasharray="4 1.5"/><circle cx="60" cy="96" r="6" fill="${GOLD}" stroke="${GOLD_D}"/><text x="60" y="99" text-anchor="middle" font-size="8" font-weight="900" fill="${GOLD_D}" font-family="Arial">$</text>`,
+    }[w.neck] || '';
+    const eyes = {
+      monocle: `<circle cx="72" cy="56" r="8.5" fill="rgba(255,255,255,.22)" stroke="${GOLD}" stroke-width="2.2"/><path d="M79 61 Q86 72 84 86" fill="none" stroke="${GOLD}" stroke-width="1"/>`,
+      sunglasses: `<rect x="38" y="49" width="19" height="13" rx="5" fill="#141414"/><rect x="63" y="49" width="19" height="13" rx="5" fill="#141414"/><path d="M57 54 L63 54" stroke="${GOLD}" stroke-width="2"/><text x="47.5" y="58.5" text-anchor="middle" font-size="6" font-weight="900" fill="${GOLD}" font-family="Arial">TD</text><text x="72.5" y="58.5" text-anchor="middle" font-size="6" font-weight="900" fill="${GOLD}" font-family="Arial">TD</text>`,
+    }[w.eyes] || '';
+    const head = {
+      beret: `<g transform="rotate(-12 54 33)"><ellipse cx="54" cy="33" rx="27" ry="9" fill="#B03A48"/><circle cx="54" cy="23.5" r="2.4" fill="#B03A48"/></g>`,
+      top_hat: `<rect x="43" y="2" width="34" height="31" rx="2" fill="#1B1B1B"/><rect x="43" y="24" width="34" height="5" fill="#B03A48"/><ellipse cx="60" cy="34" rx="29" ry="5" fill="#1B1B1B"/>`,
+      tiara: `<path d="M38 37 L45 26 L52 34 L60 19 L68 34 L75 26 L82 37 Z" fill="#E4E8EE" stroke="#AEB6BF" stroke-width="1"/><circle cx="60" cy="25" r="2.6" fill="#8FD3F4"/><circle cx="45" cy="29" r="1.8" fill="#8FD3F4"/><circle cx="75" cy="29" r="1.8" fill="#8FD3F4"/>`,
+      crown: `<path d="M37 35 L39 11 L50 24 L60 5 L70 24 L81 11 L83 35 Z" fill="${GOLD}" stroke="${GOLD_D}" stroke-width="1.2"/><rect x="37" y="29" width="46" height="7" fill="${GOLD}" stroke="${GOLD_D}" stroke-width="1"/><circle cx="48" cy="32.5" r="2.2" fill="#C0392B"/><circle cx="60" cy="32.5" r="2.4" fill="#2E86C1"/><circle cx="72" cy="32.5" r="2.2" fill="#27AE60"/>`,
+    }[w.head] || '';
+    const stripes = cat && cat.coat === 'tabby' ? `<path d="M60 34 v8 M53 36 l2 7 M67 36 l-2 7" stroke="${c.dark}" stroke-width="2.4" stroke-linecap="round"/><path d="M31 60 l7 1 M30 66 l7 -1 M89 60 l-7 1 M90 66 l-7 -1" stroke="${c.dark}" stroke-width="2" stroke-linecap="round"/>` : '';
+    const patches = cat && cat.coat === 'calico' ? `<path d="M31 52 C32 38 44 32 54 35 C50 44 43 52 31 58 Z" fill="${c.patch}"/><path d="M68 33 C78 30 89 37 89 49 C80 46 73 41 68 33 Z" fill="${c.dark}"/>` : '';
+    return `<svg class="cat-portrait" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true">
+      <defs><clipPath id="${id}"><circle cx="60" cy="60" r="60"/></clipPath></defs>
+      <g clip-path="url(#${id})">
+        <rect width="120" height="120" fill="#E7EEF1"/>
+        <path d="M18 122 C18 93 36 83 60 83 C84 83 102 93 102 122 Z" fill="${c.base}"/>
+        <path d="M45 122 C47 99 52 91 60 91 C68 91 73 99 75 122 Z" fill="${c.light}"/>
+        ${body}
+        <path d="M33 46 L37 17 L55 35 Z" fill="${c.base}"/><path d="M37 41 L39.5 24 L49.5 35 Z" fill="${c.ear}"/>
+        <path d="M87 46 L83 17 L65 35 Z" fill="${c.base}"/><path d="M83 41 L80.5 24 L70.5 35 Z" fill="${c.ear}"/>
+        <ellipse cx="60" cy="58" rx="30" ry="26" fill="${c.base}"/>
+        ${patches}${stripes}
+        <ellipse cx="60" cy="69" rx="13.5" ry="9" fill="${c.light}"/>
+        <ellipse cx="48" cy="56" rx="6.2" ry="5" fill="${c.eye}"/><ellipse cx="48" cy="56" rx="1.7" ry="4.3" fill="#151515"/><circle cx="49.6" cy="54.2" r="1.1" fill="#fff"/>
+        <ellipse cx="72" cy="56" rx="6.2" ry="5" fill="${c.eye}"/><ellipse cx="72" cy="56" rx="1.7" ry="4.3" fill="#151515"/><circle cx="73.6" cy="54.2" r="1.1" fill="#fff"/>
+        <path d="M56.5 64 L63.5 64 L60 68 Z" fill="#E58C9A"/>
+        <path d="M60 68 Q57 72 54 70.5 M60 68 Q63 72 66 70.5" stroke="#5A3A30" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+        <path d="M49 68 L29 64 M49 70.5 L29 72 M71 68 L91 64 M71 70.5 L91 72" stroke="${c.whisker}" stroke-width="1" stroke-linecap="round"/>
+        ${neck}${eyes}${head}
+      </g>
+    </svg>`;
+  }
+
+  // The cat in the village: a small sitting figure, base at (x, y), with the
+  // outfit hinted. A "?" until it has a name.
+  function catSprite(cat, x, y, k = 1) {
+    const c = coatOf(cat), w = (cat && cat.wearing) || {};
+    const headTop = {
+      crown: `<path d="M-5 -26 L-4.5 -31 L-2 -28 L0 -32 L2 -28 L4.5 -31 L5 -26 Z" fill="${GOLD}" stroke="${GOLD_D}" stroke-width=".4"/>`,
+      tiara: `<path d="M-4.5 -25.5 L-3 -28.5 L-1 -26.5 L0 -30 L1 -26.5 L3 -28.5 L4.5 -25.5 Z" fill="#E4E8EE" stroke="#AEB6BF" stroke-width=".4"/>`,
+      top_hat: `<rect x="-3.6" y="-33" width="7.2" height="7" fill="#1B1B1B"/><rect x="-6" y="-26.5" width="12" height="1.6" rx=".8" fill="#1B1B1B"/>`,
+      beret: `<ellipse cx="-1" cy="-26.5" rx="6" ry="2.2" fill="#B03A48" transform="rotate(-12 -1 -26.5)"/>`,
+    }[w.head] || '';
+    const neck = { bow_tie: `<path d="M0 -13 L-3 -14.8 L-3 -11.2 Z M0 -13 L3 -14.8 L3 -11.2 Z" fill="#C0392B"/>`, pearls: `<path d="M-4 -14 Q0 -11 4 -14" fill="none" stroke="#FBF8F0" stroke-width="1.6" stroke-dasharray="1 .6"/>`, gold_chain: `<path d="M-4 -14 Q0 -10.5 4 -14" fill="none" stroke="${GOLD}" stroke-width="1.4"/>` }[w.neck] || '';
+    const eyes = { sunglasses: `<rect x="-4.5" y="-21.5" width="3.6" height="2.4" rx="1" fill="#141414"/><rect x=".9" y="-21.5" width="3.6" height="2.4" rx="1" fill="#141414"/>`, monocle: `<circle cx="2.7" cy="-20.3" r="1.9" fill="none" stroke="${GOLD}" stroke-width=".6"/>` }[w.eyes] || '';
+    const cape = w.body === 'cape' ? `<path d="M-7.5 -12 Q-11 -3 -9 0 L9 0 Q11 -3 7.5 -12 Z" fill="#8E1F2D"/>` : '';
+    const blazer = w.body === 'blazer' ? `<path d="M-6.5 -11 Q-8.5 -4 -7.5 0 L7.5 0 Q8.5 -4 6.5 -11 Z" fill="#1B2F4A"/><path d="M-1.5 -11 L0 -6 L1.5 -11 Z" fill="#fff"/>` : '';
+    const ask = cat && !cat.name ? `<g transform="translate(9 -36)"><rect width="13" height="12" rx="3" class="v-bubble"/><text x="6.5" y="9.5" text-anchor="middle" class="v-bubble-text">?</text></g>` : '';
+    return `<g class="v-cat" transform="translate(${x} ${y}) scale(${k})">
+      <path d="M6 -3 Q15 -4 13 -13 Q12 -17 9 -15" fill="none" stroke="${c.base}" stroke-width="2.6" stroke-linecap="round"/>
+      ${cape}
+      <ellipse cx="0" cy="-6.5" rx="7.5" ry="7" fill="${c.base}"/>
+      <ellipse cx="0" cy="-5" rx="3.6" ry="4.6" fill="${c.light}"/>
+      ${blazer}
+      <path d="M-5.6 -22.5 L-4.6 -28.5 L-1.5 -24.5 Z M5.6 -22.5 L4.6 -28.5 L1.5 -24.5 Z" fill="${c.base}"/>
+      <circle cx="0" cy="-19.5" r="6" fill="${c.base}"/>
+      ${cat && cat.coat === 'calico' ? `<path d="M-6 -21 Q-5 -26 -1 -25 Q-2 -20 -6 -18 Z" fill="${c.patch}"/>` : ''}
+      <circle cx="-2.3" cy="-20.3" r=".95" fill="#151515"/><circle cx="2.3" cy="-20.3" r=".95" fill="#151515"/>
+      <path d="M-.9 -17.6 L.9 -17.6 L0 -16.6 Z" fill="#E58C9A"/>
+      ${neck}${eyes}${headTop}${ask}
+    </g>`;
+  }
+
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
   // One building on a little patch of ground, for tiles. key: a building key or null.
@@ -302,5 +392,5 @@ window.Coin = (function () {
     </svg>`;
   }
 
-  return { front, village, buildingIcon, preston, dolores };
+  return { front, village, buildingIcon, preston, dolores, catPortrait, catSprite };
 })();
