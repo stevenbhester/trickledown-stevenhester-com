@@ -6,7 +6,6 @@
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
   const SITE = (window.TRICKLE_CONFIG.SITE_URL || location.origin).replace(/^https?:\/\//, '');
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const CHARITY_COLORS = ['#1879A0', '#2C9BC4', '#0F5873', '#63B6D3', '#1B6E8C', '#9ED3E4'];
   // This page's build: the ?v= that index.html loaded app.js with.
   const BUILD = (() => { try { return new URL(document.currentScript.src).searchParams.get('v') || ''; } catch (e) { return ''; } })();
 
@@ -187,7 +186,7 @@
     let name = hash, who = null;
     if (hash.startsWith('u/')) { name = 'profile'; try { who = decodeURIComponent(hash.slice(2)); } catch (e) { who = null; } }
     if (hash === 'lobby') name = 'trickle';
-    if (!['today', 'trickle', 'leaders', 'friends', 'profile', 'how'].includes(name)) name = 'today';
+    if (!['today', 'trickle', 'leaders', 'friends', 'profile', 'how', 'admin'].includes(name)) name = 'today';
     const firstLoad = !state.me;
     if (firstLoad) { await loadMe(); if (!API.token()) return; }
     showScreen(name);
@@ -197,6 +196,7 @@
     if (name === 'friends') loadFriends();
     if (name === 'profile') loadProfile(who || (state.me && state.me.user.username));
     if (name === 'how') renderHow();
+    if (name === 'admin') loadAdmin();
   }
 
   function setSignedIn(on) {
@@ -218,7 +218,7 @@
       <div class="welcome">
         <h1 class="hero">Not connected yet.</h1>
         <p>This copy of Trickle Down doesn't know where its backend lives. In <code>config.js</code>, set <code>API_BASE</code> to your Heroku app's URL (see DEPLOY.md), then reload.</p>
-        <p class="muted">Want to see the game without a backend? <a href="?demo">Open the demo</a>: invented prices, made-up charities, nothing saved.</p>
+        <p class="muted">Want to see the game without a backend? <a href="?demo">Open the demo</a>: invented prices, nothing saved.</p>
       </div>`;
   }
 
@@ -346,6 +346,7 @@
       updateMenuDot();
       maybeWallToast(me);
       maybeFollowerPeek(me);
+      maybeCharityChooser(me);
       if (me.fresh_cards && me.fresh_cards.length) setTimeout(() => announceCards(me.fresh_cards), me.allowance ? 5400 : 800);
       if (!state.justBought) maybeAchievement(me.allowance && !REDUCED ? 2600 : 900);
       if (!Explainer.seen('main') && !state.oriented) {
@@ -668,6 +669,7 @@
     const town = me.town;
     // Earned, but the popup was closed (or the tab was): the gift is still waiting.
     for (const key of unclaimedKeys(me)) { const a = achOf(me, key); items.push({ k: 'gift', id: key, text: `🏆 <b>${esc(a.title)}</b>: ${esc(a.from)} sent ${money(a.gift, { whole: true })}. Open it` }); }
+    if (me.needs_charity) items.push({ k: 'charity', text: '❤️ <b>Choose your charity.</b> Your lobbyists are waiting for a cause' });
     if (me.wall_unread) items.push({ k: 'wall', text: `💬 ${wallWho(me)} on your wall. Read it` });
     if (me.town && me.town.cat && !me.town.cat.name) items.push({ k: 'cat', text: '🐈 The cat is waiting for a <b>name</b>' });
     const nf = me.new_followers || [];
@@ -831,6 +833,7 @@
         else if (k === 'wall') { prof.toWall = true; location.hash = '#profile'; }
         else if (k === 'cat') openCat('name');
         else if (k === 'friend') location.hash = '#friends';
+        else if (k === 'charity') openCharityChooser();
         else if (k === 'cards') { flip(true); if (Explainer.seen('town')) setTimeout(() => openAdvisors(), REDUCED ? 50 : 700); }
         else if (k === 'invest') { const sch = $('#carve-search'); if (sch) { sch.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'center' }); sch.focus(); } }
         else if (k === 'site') { flip(true); if (Explainer.seen('town')) setTimeout(() => openSite(b.dataset.slot), REDUCED ? 50 : 700); }
@@ -1252,7 +1255,7 @@
     const decided = town.issues.length - pending;
     const defaultName = (() => {
       const id = user.charity_id; if (!id) return null;
-      const c = state.charities.find((x) => x.id === id) || me.donations_by_charity.find((x) => x.id === id);
+      const c = state.charities.find((x) => x.id === id);  // a retired default isn't one
       return c ? c.name : null;
     })();
     const r = town.report;
@@ -1297,7 +1300,7 @@
       <section class="t-section t-panel t-payroll records">
         ${tHead('payroll', 'Payroll', `marches to Lobbyfest on ${esc(festDate(day.quarter_ends_at))}`)}
         ${given.length ? `<ul class="given">${given.map((c, i) => `
-          <li><span><span class="sw" style="background:${CHARITY_COLORS[i % 6]}"></span>${esc(c.name)}${c.id === user.charity_id ? ' <em class="default-tag">default</em>' : ''}</span><span>${lobbyists(c.amount, { mini: true, max: 12 })} <b>${esc(lobbyN(c.amount))}</b></span></li>`).join('')}</ul>` : '<p class="muted small">Nobody on the payroll this quarter yet.</p>'}
+          <li><span><span class="sw" style="background:var(--ch${i % 6})"></span>${esc(c.name)}${c.id === user.charity_id && c.active !== false ? ' <em class="default-tag">default</em>' : ''}</span><span>${lobbyists(c.amount, { mini: true, max: 12 })} <b>${esc(lobbyN(c.amount))}</b></span></li>`).join('')}</ul>` : '<p class="muted small">Nobody on the payroll this quarter yet.</p>'}
         <p class="small payroll-default">${defaultName ? `New lobbyists go to <b>${esc(defaultName)}</b>. ` : ''}The charity with the most lobbyists at Lobbyfest gets the biggest share of the real money.</p>
         <button type="button" class="btn primary wide" id="btn-assign">Assign lobbyists</button>
         <div class="rank-row">
@@ -1838,7 +1841,8 @@
     const me = state.me;
     const now = new Map((me.donations_by_charity || []).filter((c) => c.amount > 0).map((c) => [c.id, round2(c.amount)]));
     assign.alloc = new Map(now); assign.start = new Map(now); assign.pool = 0;
-    assign.def = me.user.charity_id || null; assign.startDef = assign.def;
+    // A retired default isn't one: no radio is checked until they pick a real charity.
+    assign.def = state.charities.some((c) => c.id === me.user.charity_id) ? me.user.charity_id : null; assign.startDef = assign.def;
     // Charities with your lobbyists first (biggest first), then the rest in list order.
     const has = [...now.keys()].sort((a, b) => now.get(b) - now.get(a));
     assign.order = [...has, ...state.charities.map((c) => c.id).filter((id) => !now.has(id))].filter((id) => state.charities.some((c) => c.id === id) || now.has(id));
@@ -1856,10 +1860,12 @@
       ${total > 0 ? `<div class="assign-pool ${assign.pool > 0.004 ? 'open' : ''}" aria-live="polite">${assign.pool > 0.004 ? `<b>${esc(lobby(assign.pool))}</b> waiting for a charity. Tap + to place them.` : 'Every lobbyist has a charity.'}</div>` : ''}
       <ul class="assign-list">${assign.order.map((id) => {
         const n = round2(assign.alloc.get(id) || 0);
+        const real = state.charities.some((c) => c.id === id);
         return `<li class="${n > 0 ? 'has' : ''} ${assign.def === id ? 'is-default' : ''}">
           <div class="al-name">
             <b>${esc(name(id))}</b>
-            <label class="al-default"><input type="radio" name="al-default" value="${id}" ${assign.def === id ? 'checked' : ''}> ${assign.def === id ? 'New hires go here' : 'Make default'}</label>
+            ${real ? `<label class="al-default"><input type="radio" name="al-default" value="${id}" ${assign.def === id ? 'checked' : ''}> ${assign.def === id ? 'New hires go here' : 'Make default'}</label>`
+              : '<span class="al-default muted">Retired: move these to a real charity</span>'}
           </div>
           ${total > 0 ? `<div class="al-step">
             <button type="button" class="al-btn" data-dec="${id}" ${n <= 0 ? 'disabled' : ''} aria-label="One fewer for ${esc(name(id))}">−</button>
@@ -1868,7 +1874,8 @@
             <button type="button" class="linkish al-all" data-all="${id}" ${n >= total - 0.004 ? 'disabled' : ''}>All here</button>
           </div>` : ''}
         </li>`;
-      }).join('')}</ul>`;
+      }).join('')}</ul>
+      <p class="muted small assign-request"><button type="button" class="linkish" data-request-charity>Don't see your charity? Request one.</button></p>`;
     const save = $('#assign-save');
     save.disabled = !changed || assign.pool > 0.004;
     save.textContent = assign.pool > 0.004 ? `Place ${lobby(assign.pool)} first` : changed ? 'Save' : 'No changes';
@@ -1921,13 +1928,10 @@
         <p class="muted small">Your default charity. To move lobbyists or change the default, use <b>Assign lobbyists</b> at the bottom of TrickleTown.</p>
       </div>`;
     }
-    const options = state.charities.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     return `
       <div class="assign assign-first">
-        <div class="assign-head"><b>Pick your charity</b></div>
-        <p>${conditional ? 'If this lands as a profit, the tax hires lobbyists.' : `The tax hires ${who}.`} Lobbyists lobby for one charity, and at Lobbyfest the charity with the most lobbyists gets the biggest share of the real ad money. Whatever you pick here becomes your default: every lobbyist you hire goes there from now on.</p>
-        <label class="field charity-pick"><span>Lobby for</span><select id="${selectId}" required><option value="" disabled selected>Choose a charity…</option>${options}</select></label>
-        <p class="muted small">You can move lobbyists between charities, or change the default, anytime from TrickleTown → Assign lobbyists.</p>
+        <div class="assign-head"><b>Next: choose your charity</b></div>
+        <p>${conditional ? 'If this lands as a profit, the tax hires lobbyists.' : `The tax hires ${who}.`} Right after this, you'll choose the real charity they lobby for.</p>
       </div>`;
   }
   // A first-cash-out picker must be answered before the button works.
@@ -2083,7 +2087,7 @@
   // The page and the server ship separately. If the server is older than this
   // page expects, say so to admins, loudly, instead of letting it look like
   // missing features. Players just get the fallbacks.
-  const API_WANTS = 9;
+  const API_WANTS = 11;
   function checkServer(me) {
     if (API.demo || state.serverWarned || (me.api || 0) >= API_WANTS) return;
     state.serverWarned = true;
@@ -2235,8 +2239,14 @@
         openHireCeremony(rc, hiredNow, 'Gift', { swap: true });
       } else {
         await softClose($('#dlg-ach'));
-        toast(`${money(rc.net)} onto the coin.${hiredNow > 0 && rc.charity ? ` Tax ${minus(rc.tax)} hired ${lobby(hiredNow)} for ${rc.charity.name}.` : ''}`, 4200);
-        maybeAchievement(REDUCED ? 300 : 1400); // another one waiting?
+        if (hiredNow > 0 && state.me.needs_charity) {
+          // New lobbyists and no charity yet: the choice comes next, not later.
+          toast(`${money(rc.net)} onto the coin, and ${lobby(hiredNow)} hired.`, 3200);
+          setTimeout(() => openCharityChooser(), REDUCED ? 100 : 700);
+        } else {
+          toast(`${money(rc.net)} onto the coin.${hiredNow > 0 && rc.charity ? ` Tax ${minus(rc.tax)} hired ${lobby(hiredNow)} for ${rc.charity.name}.` : ''}`, 4200);
+          maybeAchievement(REDUCED ? 300 : 1400); // another one waiting?
+        }
       }
     } catch (e) {
       toast(e.message, 4000); btn.disabled = false; btn.textContent = 'Try again';
@@ -2275,6 +2285,7 @@
   function openHireCeremony(rc, hiredNow, how, { swap = false } = {}) {
     const count = Math.min(10, Math.max(1, Math.ceil(hiredNow - 1e-9)));
     const dlg = $('#dlg-hire');
+    const choose = !!(state.me && state.me.needs_charity && state.charities.length);
     dlg.classList.toggle('swap', swap);
     $('#hire-title').textContent = hiredNow >= 2 ? 'Your first lobbyists' : 'Your first lobbyist';
     $('#hire-body').innerHTML = `
@@ -2285,15 +2296,35 @@
         <div class="hire-desk"><b>RECRUITER</b><span>${money(rc.hire_cost || 1)} a head</span></div>
         <div class="hire-to">${lobbyists(hiredNow, { max: count })}</div>
       </div>
+      ${choose ? `
+      <p class="hire-line"><b>${esc(lobby(hiredNow))}</b> hired. They've moved into <b>TrickleTown</b>, the company town on the other side of your coin. But first, they need a cause.</p>
+      <section class="ch-pick">
+        <h3>Who do they lobby for?</h3>
+        ${charityExplain()}
+        ${charityCards()}
+        <button type="button" class="linkish ch-request" data-request-charity>Don't see yours? Request a charity</button>
+      </section>
+      <div class="ch-go"><button type="button" class="btn primary wide" id="hire-flip" disabled>Choose a charity above</button>
+      <button type="button" class="linkish center" id="hire-later">Decide later</button></div>` : `
       <p class="hire-line"><b>${esc(lobby(hiredNow))}</b> hired for <b>${esc(rc.charity.name)}</b>. They've moved into <b>TrickleTown</b>, the company town on the other side of your coin. You own it. They'd like a word.</p>
       <button type="button" class="btn primary wide" id="hire-flip">Meet them in TrickleTown</button>
-      <button type="button" class="linkish center" id="hire-later">Later</button>`;
+      <button type="button" class="linkish center" id="hire-later">Later</button>`}`;
     dlg.showModal();
+    let picked = null;
+    if (choose) {
+      wireCharityCards($('#hire-body'), (c) => { picked = c; const b = $('#hire-flip'); b.disabled = false; b.textContent = `Lobby for ${c.name}`; });
+      wireRequestLinks($('#hire-body'));
+    }
     const targets = $$('#hire-body .hire-to .lobbyist');
     targets.forEach((t) => t.classList.add('arriving'));
     setTimeout(() => deskAnimation(targets), REDUCED ? 0 : 650); // after the sheet settles: the flight is measured from it
     $('#hire-later').onclick = () => { softClose(dlg).then(renderUnder); };
     $('#hire-flip').onclick = async () => {
+      if (choose) {
+        if (!picked) return;
+        const b = $('#hire-flip'); b.disabled = true; b.textContent = 'Signing them up…';
+        try { await chooseCharity(picked.id); } catch (e) { toast(e.message, 4000); b.disabled = false; b.textContent = `Lobby for ${picked.name}`; return; }
+      }
       dlg.close();
       state.ceremony = true; // the flip must not start the tour; we do, after the bills land
       try { flip(true); await hireAnimation(hiredNow); } finally { state.ceremony = false; }
@@ -2474,7 +2505,7 @@
         ${backLink()}
         <h1>Lobbyfest</h1>
         <p class="lede">Where the real money goes. At Lobbyfest, ${t.demo ? 'the' : "this site's"} ad money is split between these charities by how many lobbyists each has.</p>
-        ${t.demo ? `<div class="note warn">Demo: the charities are made up and no real money is moving yet.</div>` : ''}
+        ${t.demo ? `<div class="note warn">Demo: the money here is pretend. The charities are the real list, each rated four stars by Charity Navigator.</div>` : t.pool_usd > 0 ? '' : `<div class="note">Real charities, each rated four stars by Charity Navigator. No ads are running yet, so the pool is $0 for now; the lobbyist counts are live, and they decide the split once there's money to split.</div>`}
         <div class="lobby-stats">
           <div><b>${esc(lobbyN(t.quarter_total))}</b><span>lobbyists this quarter, from ${t.quarter_donors} player${t.quarter_donors === 1 ? '' : 's'}</span></div>
           <div><b data-fest="${esc(t.quarter_ends_at)}">${esc(untilLong(t.quarter_ends_at))}</b><span>until Lobbyfest, ${esc(festDate(t.quarter_ends_at))}</span></div>
@@ -2484,7 +2515,7 @@
           ${t.charities.map((c) => `
             <li class="charity">
               <div class="charity-top">
-                ${c.url ? `<a class="name" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.name)}</a>` : `<span class="name">${esc(c.name)}</span>`}
+                ${safeHref(c.url) ? `<a class="name" href="${safeHref(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.name)}</a>` : `<span class="name">${esc(c.name)}</span>`}
                 <b>${Math.round(c.share * 100)}%</b>
               </div>
               <div class="charity-bar"><i style="--w:${(c.share / max * 100).toFixed(1)}%"></i></div>
@@ -2492,10 +2523,10 @@
                 <span>${esc(lobby(c.quarter_total))} from ${c.quarter_donors} player${c.quarter_donors === 1 ? '' : 's'}</span>
                 <span>${t.pool_usd > 0 ? `would get ${money(c.est_usd)}` : ''}</span>
               </div>
-              <p class="blurb">${esc(c.blurb)}</p>
+              <p class="blurb">${esc(c.blurb)}${c.rating ? ` <span class="ch-rating"><span aria-hidden="true">★★★★</span> ${esc(c.rating)}</span>` : ''}</p>
             </li>`).join('')}
         </ul>
-        <p class="muted small">Every quarter starts at zero. Career totals and ranks carry over.</p>`;
+        <p class="muted small">Every quarter starts at zero. Career totals and ranks carry over. <button type="button" class="linkish" data-request-charity>Don't see your charity? Request one.</button></p>`;
     } catch (e) {
       el.innerHTML = `${backLink()}<h1>Lobbyfest</h1><p class="lede">${esc(e.message)}</p>`;
     }
@@ -2934,7 +2965,27 @@
     how: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6V14M12 17.2v.1"/>',
     account: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
     out: '<path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/>',
+    theme: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+    bug: '<path d="M9 7.5a3 3 0 0 1 6 0"/><rect x="7" y="7.5" width="10" height="11" rx="5"/><path d="M12 11v7.5M3.5 13H7M17 13h3.5M4.5 8.5 7 10M19.5 8.5 17 10M4.5 18.5 7 16.5M19.5 18.5 17 16.5"/>',
+    admin: '<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8 7.5 9.5 4.3-1.5 7.5-4.9 7.5-9.5V6L12 3z"/><path d="M9 12l2 2 4-4"/>',
   };
+  // Appearance: Auto (follow the device), Light, Dark. js/theme.js does the work.
+  const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
+  function themePickMarkup() {
+    const now = window.Theme ? Theme.choice() : 'auto';
+    return `<div class="theme-pick">${mIcon('theme')}<span id="theme-pick-label">Appearance</span>
+      <div class="theme-seg" role="group" aria-labelledby="theme-pick-label">${THEMES.map(([k, label]) => `<button type="button" data-theme-pick="${k}" aria-pressed="${k === now}">${label}</button>`).join('')}</div>
+    </div>`;
+  }
+  function wireThemePick(root) {
+    root.querySelectorAll('[data-theme-pick]').forEach((b) => {
+      b.onclick = () => {
+        if (!window.Theme) return;
+        Theme.set(b.dataset.themePick);
+        root.querySelectorAll('[data-theme-pick]').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+      };
+    });
+  }
   const mIcon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${M_ICON[k]}</svg>`;
 
   // "erin wrote" / "erin and ravi_k wrote" / "erin, ravi_k and 2 others wrote"
@@ -3030,10 +3081,14 @@
       <a href="#trickle"${cur('trickle')}>${mIcon('lobby')}<span>Lobbyfest &amp; charities</span></a>
       <button type="button" data-menu-act="trophies">${mIcon('trophies')}<span>Trophies</span>${a ? `<small>${a.earned}/${a.total}</small>` : ''}</button>
       <a href="#how"${cur('how')}>${mIcon('how')}<span>How to play</span></a>
+      <button type="button" data-menu-act="bug">${mIcon('bug')}<span>Report a bug</span></button>
+      ${u.is_admin ? `<a href="#admin"${cur('admin')}>${mIcon('admin')}<span>Admin</span></a>` : ''}
       <hr>
+      ${themePickMarkup()}
       <button type="button" data-menu-act="account">${mIcon('account')}<span>Account</span></button>
       <button type="button" data-menu-act="signout">${mIcon('out')}<span>Sign out</span></button>`;
     const dlg = $('#dlg-menu');
+    wireThemePick($('#menu-body'));
     $$('#menu-body a').forEach((l) => { l.onclick = () => softClose(dlg); });
     $$('#menu-body [data-menu-act]').forEach((b) => {
       b.onclick = async () => {
@@ -3041,9 +3096,441 @@
         if (b.dataset.menuAct === 'trophies') openTrophies();
         if (b.dataset.menuAct === 'account') openAccount();
         if (b.dataset.menuAct === 'signout') signOut();
+        if (b.dataset.menuAct === 'bug') openBugReport();
       };
     });
     dlg.showModal();
+  }
+
+  // --- choosing a charity ----------------------------------------------------------------------------
+  // The default charity matters: every lobbyist goes there, and at Lobbyfest
+  // the real money follows lobbyists. So the first time someone has
+  // lobbyists (or theirs was retired), the choice gets a screen of its own.
+
+  const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+  // Only ever link to http(s); anything else renders as plain text.
+  const safeHref = (url) => (/^https?:\/\//i.test(String(url || '')) ? esc(url) : '');
+
+  function charityExplain(retired = false) {
+    return `<div class="ch-explain">
+      ${retired ? '<p><b>Trickle Down now lobbies for real charities</b>, each rated four stars by Charity Navigator. The pretend one your lobbyists had is retired, so choose a real one.</p>' : ''}
+      <p>Every lobbyist you hire goes to this charity by default. At Lobbyfest each quarter, this site's ad revenue is split by headcount: <b>the more lobbyists a charity has, the bigger its share.</b></p>
+      <p class="muted small">Change your mind anytime: TrickleTown → Assign lobbyists moves them and changes the default.</p>
+    </div>`;
+  }
+  function charityCards(selectedId = null) {
+    return `<ul class="ch-list" role="radiogroup" aria-label="Charities">${state.charities.map((c) => {
+      const href = safeHref(c.url);
+      return `<li class="ch-item">
+        <button type="button" class="ch-card" role="radio" aria-checked="${c.id === selectedId}" data-charity="${c.id}">
+          <span class="ch-top"><b>${esc(c.name)}</b>${c.category ? `<em>${esc(c.category)}</em>` : ''}</span>
+          ${c.blurb ? `<span class="ch-blurb">${esc(c.blurb)}</span>` : ''}
+          ${c.rating ? `<span class="ch-rating"><span aria-hidden="true">★★★★</span> ${esc(c.rating)}</span>` : ''}
+        </button>
+        ${href ? `<a class="ch-link" href="${href}" target="_blank" rel="noopener noreferrer">${esc(hostOf(c.url))} ↗</a>` : ''}
+      </li>`;
+    }).join('')}</ul>`;
+  }
+  function wireCharityCards(root, onPick) {
+    $$('[data-charity]', root).forEach((b) => {
+      b.onclick = () => {
+        $$('[data-charity]', root).forEach((o) => o.setAttribute('aria-checked', String(o === b)));
+        const c = state.charities.find((x) => x.id === Number(b.dataset.charity));
+        if (c) onPick(c);
+      };
+    });
+  }
+  function wireRequestLinks(root) { $$('[data-request-charity]', root).forEach((b) => { b.onclick = () => openCharityRequest(); }); }
+
+  async function chooseCharity(id) {
+    const r = await API.post('/charity/choose', { charity_id: id });
+    if (state.me) {
+      Object.assign(state.me.user, r.user);
+      state.me.donations_by_charity = r.donations_by_charity;
+      state.me.needs_charity = false;
+    }
+    return r;
+  }
+
+  async function openCharityChooser({ auto = false } = {}) {
+    if (!state.me) return;
+    try { await ensureCharities(); } catch (e) { toast(e.message); return; }
+    if (!state.charities.length) return;
+    const retired = (state.me.donations_by_charity || []).some((c) => c.amount > 0 && c.active === false);
+    const total = round2((state.me.donations_by_charity || []).reduce((x, c) => x + Math.max(0, c.amount), 0));
+    const dlg = $('#dlg-charity');
+    $('#charity-title').textContent = retired ? 'Choose a real charity' : 'Choose your charity';
+    $('#charity-body').innerHTML = `
+      ${total > 0 ? `<div class="ch-crew">${lobbyists(total, { max: 12 })}<span><b>${esc(lobby(total))}</b> on your payroll, waiting for a cause.</span></div>` : ''}
+      ${charityExplain(retired)}
+      ${charityCards(state.me.user.charity_id)}
+      <button type="button" class="linkish ch-request" data-request-charity>Don't see yours? Request a charity</button>
+      <div class="ch-go"><button type="button" class="btn primary wide" id="charity-go" disabled>Choose a charity above</button></div>`;
+    let picked = null;
+    wireCharityCards($('#charity-body'), (c) => { picked = c; const b = $('#charity-go'); b.disabled = false; b.textContent = `Lobby for ${c.name}`; });
+    wireRequestLinks($('#charity-body'));
+    $('#charity-go').onclick = async () => {
+      if (!picked) return;
+      const b = $('#charity-go'); b.disabled = true; b.textContent = 'Signing them up…';
+      try {
+        const r = await chooseCharity(picked.id);
+        await softClose(dlg);
+        toast(r.moved > 0 ? `${lobby(r.moved)} now lobby for ${r.charity.name}. New hires go there too.` : `New lobbyists will lobby for ${r.charity.name}.`, 4200);
+        renderToday();
+      } catch (e) { toast(e.message, 4000); b.disabled = false; b.textContent = `Lobby for ${picked.name}`; }
+    };
+    if (auto) { try { sessionStorage.setItem('trickledown.charity-asked', '1'); } catch (e) { /* fine */ } }
+    dlg.showModal();
+  }
+
+  // Lobbyists and no charity: ask, once a session on its own, and the to-do
+  // line keeps asking. Never on top of a gift or another sheet.
+  function maybeCharityChooser(me) {
+    if (!me.needs_charity) return;
+    try { if (sessionStorage.getItem('trickledown.charity-asked')) return; } catch (e) { /* ask anyway */ }
+    setTimeout(() => {
+      if (!state.me || !state.me.needs_charity || $('dialog[open]') || $('.ach-peek') || unclaimedKeys(state.me).length || Explainer.isOpen()) return;
+      if (state.tab !== 'today') return;
+      openCharityChooser({ auto: true });
+    }, REDUCED ? 600 : 1800);
+  }
+
+  function openCharityRequest() {
+    const dlg = $('#dlg-request');
+    ['#rq-name', '#rq-url', '#rq-reason'].forEach((sel) => { $(sel).value = ''; });
+    $('#rq-error').hidden = true;
+    const btn = $('#rq-submit'); btn.disabled = false; btn.textContent = 'Send request';
+    const prev = $('dialog[open]');
+    if (prev && prev !== dlg) prev.close();
+    dlg.showModal();
+    setTimeout(() => $('#rq-name').focus(), 50);
+  }
+  async function submitCharityRequest(ev) {
+    ev.preventDefault();
+    const name = $('#rq-name').value.trim(), url = $('#rq-url').value.trim(), reason = $('#rq-reason').value.trim();
+    const err = $('#rq-error');
+    const fail = (m) => { err.textContent = m; err.hidden = false; };
+    if (name.length < 2) return fail("What's the charity called?");
+    if (!/^(https?:\/\/)?[^\s/]+\.[^\s]+$/i.test(url)) return fail("Add the charity's website, like example.org.");
+    const btn = $('#rq-submit'); btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await API.post('/charity-requests', { name, url, reason });
+      await softClose($('#dlg-request'));
+      toast(`Thanks. ${name} is on the list to check out.`, 4200);
+    } catch (e) { fail(e.message); btn.disabled = false; btn.textContent = 'Send request'; }
+  }
+
+  // ☰ → Report a bug: an interstitial with the page they were on attached.
+  function openBugReport() {
+    const dlg = $('#dlg-bug');
+    $('#bug-desc').value = '';
+    $('#bug-url').textContent = location.href;
+    $('#bug-url-on').checked = true;
+    $('#bug-error').hidden = true;
+    const btn = $('#bug-submit'); btn.disabled = false; btn.textContent = 'Send report';
+    dlg.dataset.url = location.href;
+    dlg.showModal();
+    setTimeout(() => $('#bug-desc').focus(), 50);
+  }
+  async function submitBug(ev) {
+    ev.preventDefault();
+    const dlg = $('#dlg-bug');
+    const description = $('#bug-desc').value.trim();
+    const err = $('#bug-error');
+    if (description.length < 4) { err.textContent = 'Say a few words about what went wrong.'; err.hidden = false; return; }
+    const client = [`build ${BUILD || 'dev'}`, `${innerWidth}×${innerHeight}`, window.Theme ? Theme.current() : '', navigator.userAgent.slice(0, 200)].filter(Boolean).join(' · ');
+    const btn = $('#bug-submit'); btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await API.post('/bugs', { description, url: $('#bug-url-on').checked ? dlg.dataset.url : '', client });
+      await softClose(dlg);
+      toast('Thanks. Bug report sent.', 3600);
+    } catch (e) { err.textContent = e.message; err.hidden = false; btn.disabled = false; btn.textContent = 'Send report'; }
+  }
+
+  // --- admin -----------------------------------------------------------------------------------------
+  // Everything, for ADMIN_USERNAMES only (the server checks; this page just
+  // asks): every transaction in order, every open position, every player, and
+  // the charity requests and bug reports waiting to be read.
+  const admin = { tab: 'tx', tx: [], txMore: false, who: '', users: null, sort: 'last_seen_at', dir: -1, sel: new Set() };
+  const when = (iso) => {
+    if (!iso) return '—';
+    const d = new Date(iso), today = d.toDateString() === new Date().toDateString();
+    return d.toLocaleString('en-US', today ? { hour: 'numeric', minute: '2-digit' } : { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  };
+  const sMoney = (n) => (n == null ? '' : n < 0 ? minus(-n) : n > 0 ? `+${money(n)}` : money(0));
+  const TX_LABEL = { buy: 'Buy', ride: 'Ride', rolled: 'Rolled into a ride', sell: 'Sold early', collect: 'Collected', bust: 'Busted', gift: 'Gift', vested: 'Vested', allowance: 'Allowance', card: 'Card', build: 'Built', upgrade: 'Upgrade', cat: 'Cat', 'admin grant': 'Admin grant', 'admin undo': 'Admin undo', 'admin remove': 'Admin remove', assign: 'Lobbyists' };
+
+  async function loadAdmin(tab) {
+    const el = $('#screen-admin');
+    if (!state.me || !state.me.user.is_admin) { el.innerHTML = `${backLink()}<h1>Admin</h1><p class="lede">Admins only.</p>`; return; }
+    if (tab) admin.tab = tab;
+    el.innerHTML = `${backLink()}<h1>Admin</h1><div id="adm-overview" class="adm-stats"></div>
+      <div class="scope-toggle adm-tabs" role="tablist">${[['tx', 'Transactions'], ['pos', 'Positions'], ['users', 'Players'], ['req', 'Requests']].map(([k, label]) => `<button type="button" class="chip ${admin.tab === k ? 'on' : ''}" role="tab" aria-selected="${admin.tab === k}" data-adm-tab="${k}">${label}<span class="adm-badge" data-adm-badge="${k}"></span></button>`).join('')}</div>
+      <div id="adm-body" class="adm-body"><p class="muted">Loading…</p></div>`;
+    $$('[data-adm-tab]', el).forEach((b) => { b.onclick = () => loadAdmin(b.dataset.admTab); });
+    adminOverview();
+    try {
+      if (admin.tab === 'tx') await adminTx(true);
+      if (admin.tab === 'pos') await adminPositions();
+      if (admin.tab === 'users') await adminUsers();
+      if (admin.tab === 'req') await adminRequests();
+    } catch (e) { $('#adm-body').innerHTML = `<p class="note warn">${esc(e.message)}</p>`; }
+  }
+
+  function adminOverview() {
+    API.get('/admin/overview').then((o) => {
+      const el = $('#adm-overview'); if (!el) return;
+      el.innerHTML = [['Players', o.users, `${o.guests} guests`], ['Active today', o.active_today, 'last 24 hours'], ['Open positions', o.open_positions, ''], ['Lobbyists', lobbyN(o.quarter_lobbyists), 'this quarter']]
+        .map(([k, v, sub]) => `<div><b>${esc(String(v))}</b><span>${esc(k)}${sub ? `<br><small>${esc(sub)}</small>` : ''}</span></div>`).join('');
+      const n = o.new_requests + o.new_bugs; const badge = $('[data-adm-badge="req"]');
+      if (badge) badge.textContent = n || '';
+    }).catch(() => {});
+  }
+
+  async function adminTx(reset) {
+    const body = $('#adm-body');
+    if (reset) { admin.tx = []; admin.txMore = false; admin.txCursor = null; }
+    const q = new URLSearchParams({ limit: '150' });
+    if (!reset && admin.txCursor) q.set('cursor', admin.txCursor);
+    if (admin.who) q.set('username', admin.who);
+    const r = await API.get(`/admin/transactions?${q}`);
+    admin.tx = admin.tx.concat(r.transactions); admin.txMore = r.more && !!r.cursor; admin.txCursor = r.cursor || null;
+    const detail = (t) => [
+      t.kind === 'buy' || t.kind === 'ride' ? `${money(t.amount)} in${t.note ? `, ${esc(t.note)}` : ''}` : '',
+      t.profit != null ? `profit ${sMoney(t.profit)}` : '', t.tax ? `tax ${minus(t.tax)}` : '',
+      t.lobbyists ? `${esc(lobbyN(t.lobbyists))} lobbyists${t.charity ? ` → ${esc(t.charity)}` : ''}` : '',
+      !['buy', 'ride'].includes(t.kind) && t.note ? esc(t.note) : '',
+    ].filter(Boolean).join(' · ');
+    body.innerHTML = `
+      <form class="adm-filter" id="adm-who"><input type="text" id="adm-who-in" placeholder="Filter by player" value="${esc(admin.who)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn small" type="submit">Filter</button>${admin.who ? '<button class="linkish" type="button" id="adm-who-clear">Clear</button>' : ''}</form>
+      ${admin.tx.length ? `<div class="adm-scroll"><table class="adm-table">
+        <thead><tr><th>Player · when</th><th>What</th><th class="num">Cash</th><th>Detail</th><th><span class="sr">Delete</span></th></tr></thead>
+        <tbody>${admin.tx.map((t) => `<tr class="k-${esc(t.kind.replace(/\s+/g, '-'))}">
+          <td class="adm-who">${playerLink(t.username)}<small>${esc(when(t.at))}</small></td>
+          <td class="nowrap"><span class="adm-kind">${esc(TX_LABEL[t.kind] || t.kind)}</span>${t.what ? ` <b>${esc(t.what)}</b>` : ''}</td>
+          <td class="num nowrap ${t.cash > 0 ? 'up' : t.cash < 0 ? 'down' : ''}">${t.cash == null ? '<span class="muted">—</span>' : sMoney(t.cash)}</td>
+          <td class="adm-detail">${detail(t)}</td>
+          <td class="adm-act">${t.undoable && t.ref ? `<button type="button" class="adm-del" data-undo="${esc(t.ref)}" aria-label="Delete this ${esc(TX_LABEL[t.kind] || t.kind)} for ${esc(t.username)}">Delete</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No transactions yet.</p>'}
+      ${admin.txMore ? '<button type="button" class="btn quiet small" id="adm-more">Load older</button>' : ''}`;
+    $('#adm-who').onsubmit = (e) => { e.preventDefault(); admin.who = $('#adm-who-in').value.trim(); adminTx(true).catch((er) => toast(er.message)); };
+    const clr = $('#adm-who-clear'); if (clr) clr.onclick = () => { admin.who = ''; adminTx(true).catch((er) => toast(er.message)); };
+    const more = $('#adm-more'); if (more) more.onclick = () => { more.disabled = true; adminTx(false).catch((er) => toast(er.message)); };
+    $$('[data-undo]', body).forEach((b) => { b.onclick = () => adminUndo(b.dataset.undo).catch((er) => toast(er.message)); });
+  }
+
+  async function adminPositions() {
+    const r = await API.get('/admin/positions');
+    $('#adm-body').innerHTML = r.positions.length ? `<p class="muted small">${r.positions.length} open. Values use the last price the server saw; no fresh lookups.</p>
+      <div class="adm-scroll"><table class="adm-table">
+        <thead><tr><th>Player</th><th>Stock</th><th class="num">In</th><th class="num">Now</th><th class="num">Swing</th><th>×</th><th>Status</th><th>Matures</th></tr></thead>
+        <tbody>${r.positions.map((p) => `<tr>
+          <td>${playerLink(p.username)}</td><td><b>${esc(p.symbol)}</b>${p.ride_count ? ` <span class="tag">ride ${p.ride_count}</span>` : ''}</td>
+          <td class="num">${money(p.invested)}</td><td class="num">${p.value == null ? '<span class="muted">?</span>' : money(p.value)}</td>
+          <td class="num ${p.swing_pct > 0 ? 'up' : p.swing_pct < 0 ? 'down' : ''}">${p.swing_pct == null ? '' : pct(p.swing_pct, 0)}</td>
+          <td>${esc(mult(p.multiplier))}</td><td>${esc(p.status)}</td><td class="nowrap">${esc(when(p.matures_at))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No open positions.</p>';
+  }
+
+  const USER_COLS = [
+    ['username', 'Player'], ['last_seen_at', 'Last seen'], ['cash', 'Cash'], ['lobbyists', 'Lobbyists'], ['quarter_lobbyists', 'This qtr'],
+    ['open_positions', 'Open'], ['total_positions', 'Positions'], ['cards_played', 'Cards'], ['buildings', 'Built'], ['achievements', 'Trophies'],
+    ['friends', 'Friends'], ['streak', 'Streak'], ['realized_pnl', 'P&L'], ['charity', 'Charity'], ['cat', 'Cat'], ['created_at', 'Joined'],
+  ];
+  async function adminUsers() {
+    if (!admin.users) admin.users = (await API.get('/admin/users')).users;
+    const rows = [...admin.users].sort((a, b) => {
+      const x = a[admin.sort], y = b[admin.sort];
+      if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+      return (typeof x === 'string' ? x.localeCompare(y) : x - y) * admin.dir;
+    });
+    const cell = (u, k) => {
+      const v = u[k];
+      if (k === 'username') return `${playerLink(u.username)}${u.is_guest ? ' <span class="tag">guest</span>' : ''}${u.is_admin ? ' <span class="tag">admin</span>' : ''}
+        <div class="adm-acts"><button type="button" class="linkish" data-lob="${esc(u.username)}">Lobbyists</button>${u.is_admin ? '' : ` · <button type="button" class="linkish adm-rm" data-rm="${esc(u.username)}">Remove</button>`}</div>`;
+      if (k === 'last_seen_at' || k === 'created_at') return esc(when(v));
+      if (k === 'cash') return money(v);
+      if (k === 'realized_pnl') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${sMoney(v)}</span>`;
+      if (k === 'lobbyists' || k === 'quarter_lobbyists') return esc(lobbyN(v));
+      return v == null ? '<span class="muted">—</span>' : esc(String(v));
+    };
+    admin.sel = new Set([...admin.sel].filter((n) => admin.users.some((u) => u.username === n && !u.is_admin)));
+    $('#adm-body').innerHTML = `<p class="muted small">${rows.length} players. Tap a column to sort; tick players to remove several at once.</p>
+      <div class="adm-selbar" ${admin.sel.size ? '' : 'hidden'}><b id="adm-sel-n">${admin.sel.size} selected</b><button type="button" class="btn small danger" id="adm-rm-sel">Remove…</button><button type="button" class="linkish" id="adm-sel-clear">Clear</button></div>
+      <div class="adm-scroll"><table class="adm-table adm-users">
+        <thead><tr><th class="adm-check"><input type="checkbox" id="adm-sel-all" aria-label="Select every player shown (not admins)"></th>${USER_COLS.map(([k, label]) => `<th><button type="button" class="adm-sort ${admin.sort === k ? 'on' : ''}" data-sort="${k}">${label}${admin.sort === k ? (admin.dir < 0 ? ' ↓' : ' ↑') : ''}</button></th>`).join('')}</tr></thead>
+        <tbody>${rows.map((u) => `<tr class="${admin.sel.has(u.username) ? 'sel' : ''}"><td class="adm-check">${u.is_admin ? '' : `<input type="checkbox" data-sel="${esc(u.username)}" ${admin.sel.has(u.username) ? 'checked' : ''} aria-label="Select ${esc(u.username)}">`}</td>${USER_COLS.map(([k]) => `<td class="${['username', 'charity', 'cat'].includes(k) ? '' : 'num'} nowrap">${cell(u, k)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <button type="button" class="linkish" id="adm-users-refresh">Refresh</button>`;
+    $$('[data-sort]').forEach((b) => { b.onclick = () => { const k = b.dataset.sort; if (admin.sort === k) admin.dir = -admin.dir; else { admin.sort = k; admin.dir = ['username', 'charity', 'cat'].includes(k) ? 1 : -1; } adminUsers(); }; });
+    $('#adm-users-refresh').onclick = () => { admin.users = null; adminUsers().catch((e) => toast(e.message)); };
+    const paintSel = () => {
+      $('.adm-selbar').hidden = !admin.sel.size; $('#adm-sel-n').textContent = `${admin.sel.size} selected`;
+      $$('[data-sel]').forEach((c) => { c.closest('tr').classList.toggle('sel', c.checked); });
+    };
+    $$('[data-sel]').forEach((c) => { c.onchange = () => { if (c.checked) admin.sel.add(c.dataset.sel); else admin.sel.delete(c.dataset.sel); paintSel(); }; });
+    $('#adm-sel-all').onchange = (e) => { $$('[data-sel]').forEach((c) => { c.checked = e.target.checked; if (c.checked) admin.sel.add(c.dataset.sel); else admin.sel.delete(c.dataset.sel); }); paintSel(); };
+    $('#adm-sel-clear').onclick = () => { admin.sel.clear(); $('#adm-sel-all').checked = false; $$('[data-sel]').forEach((c) => { c.checked = false; }); paintSel(); };
+    $('#adm-rm-sel').onclick = () => adminRemove([...admin.sel]).catch((e) => toast(e.message));
+    $$('[data-rm]').forEach((b) => { b.onclick = () => adminRemove([b.dataset.rm]).catch((e) => toast(e.message)); });
+    $$('[data-lob]').forEach((b) => { b.onclick = () => adminLobbyists(b.dataset.lob).catch((e) => toast(e.message)); });
+  }
+
+  // --- admin clean-up: delete a transaction, remove lobbyists, remove accounts ---
+  // Every one asks the server for a dry run first, so the sheet says exactly
+  // what will change. Undo and lobbyists take two taps; removing accounts
+  // (which can't be undone at all) takes typing the name, or the count.
+  function admSheet({ title, html, go, typeWord = null, arm = false, onGo, wire }) {
+    const d = $('#dlg-adm'), err = $('#adm-error'), btn = $('#adm-go');
+    $('#adm-title').textContent = title;
+    $('#adm-sheet-body').innerHTML = html + (typeWord ? `<label class="field adm-type"><span>Type <b>${esc(typeWord)}</b> to confirm</span><input type="text" id="adm-type-in" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></label>` : '');
+    err.hidden = true;
+    const typed = $('#adm-type-in');
+    const ui = {
+      label: go, enabled: !typeWord, armed: false,
+      set(label, enabled) { ui.label = label; ui.enabled = enabled; ui.armed = false; ui.paint(); },
+      paint() {
+        btn.textContent = ui.armed ? `Yes, ${ui.label.charAt(0).toLowerCase()}${ui.label.slice(1)}` : ui.label;
+        btn.disabled = !ui.enabled; btn.classList.toggle('armed', ui.armed);
+      },
+    };
+    ui.paint();
+    if (typed) typed.oninput = () => { ui.enabled = typed.value.trim().toLowerCase() === typeWord.toLowerCase(); err.hidden = true; ui.paint(); };
+    btn.onclick = async () => {
+      if (!ui.enabled || btn.dataset.busy) return;
+      if (arm && !ui.armed) { ui.armed = true; ui.paint(); return; }
+      btn.dataset.busy = '1'; btn.disabled = true; btn.textContent = 'Working…';
+      try { await onGo(typed ? typed.value.trim() : null); d.close(); }
+      catch (e) { err.textContent = e.message; err.hidden = false; ui.armed = false; ui.paint(); }
+      finally { delete btn.dataset.busy; }
+    };
+    if (wire) wire($('#adm-sheet-body'), ui);
+    if (!d.open) d.showModal();
+    if (typed) setTimeout(() => typed.focus(), 80);
+  }
+
+  // After a clean-up: fresh numbers on top, a fresh player list next time, and
+  // a fresh /me if the admin just changed their own account.
+  function afterAdminChange(username) {
+    adminOverview();
+    admin.users = null;
+    if (state.me && username === state.me.user.username) API.get('/me').then((me) => { state.me = me; renderToday(); }).catch(() => {});
+  }
+
+  async function adminUndo(ref) {
+    const r = await API.post('/admin/transactions/undo', { ref, dry_run: true });
+    const kindWord = (i) => (i.kind === 'gift' || i.kind === 'vested' ? 'Gift' : i.kind === 'ride' ? 'Ride' : 'Buy');
+    const fate = (i) => (i.status === 'open' ? 'still open' : i.status === 'rolled' ? 'rode on' : i.status === 'closed' ? `paid out ${money(Math.max(0, (i.proceeds || 0) - (i.tax || 0)))}` : `paid ${money(Math.max(0, (i.proceeds || 0) - (i.tax || 0)))}`);
+    const short = Math.abs(r.cash - r.cash_wanted) > 0.004;
+    const effects = [
+      `<li>Cash <b>${r.cash ? esc(sMoney(r.cash)) : 'unchanged'}</b>${short ? ` <span class="muted">(${esc(sMoney(r.cash_wanted))} by the numbers, but they have ${esc(money(r.cash_before))} and cash stops at $0)</span>` : ''}</li>`,
+      r.lobbyists ? `<li>Lobbyists <b>${esc(lobbyN(r.lobbyists))}</b> <span class="muted">(off the payroll and the all-time count)</span></li>` : '',
+      r.pnl ? `<li>P&amp;L <b>${esc(sMoney(r.pnl))}</b></li>` : '',
+      r.reopened && r.reopened.length ? '<li>The gift goes back to unclaimed, so they can claim it again</li>' : '',
+    ].filter(Boolean).join('');
+    admSheet({
+      title: 'Delete this transaction?',
+      html: `<p><b>${esc(r.username)}</b> · ${esc(r.label)}</p>
+        ${r.items.length > 1 ? '<p class="muted small">A ride only exists on top of the one before it, so the whole chain goes:</p>' : ''}
+        ${r.items.length ? `<ul class="adm-chain">${r.items.map((i) => `<li><span class="adm-kind">${kindWord(i)}</span> <b>${esc(i.what)}</b> ${i.invested ? `${esc(money(i.invested))} ${esc(mult(i.multiplier))} ` : ''}<span class="muted">· ${esc(fate(i))}</span></li>`).join('')}</ul>` : ''}
+        ${r.note ? `<p class="muted small">${esc(r.note)}</p>` : ''}
+        <p class="adm-eff-h">What changes for ${esc(r.username)}</p>
+        <ul class="adm-effects">${effects}</ul>
+        <p class="muted small">It leaves the feed; an “Admin undo” line records what changed and who did it.</p>`,
+      go: 'Delete and undo', arm: true,
+      onGo: async () => {
+        const done = await API.post('/admin/transactions/undo', { ref });
+        const bits = [done.cash ? `cash ${sMoney(done.cash)}` : '', done.lobbyists ? `${lobbyN(done.lobbyists)} lobbyists` : ''].filter(Boolean).join(', ');
+        toast(`Deleted. ${done.username}${bits ? `: ${bits}` : ''}.`, 3600);
+        afterAdminChange(done.username);
+        adminTx(true).catch((e) => toast(e.message));
+      },
+    });
+  }
+
+  async function adminLobbyists(name) {
+    const r = await API.get(`/admin/lobbyists?username=${encodeURIComponent(name)}`);
+    const list = r.donations_by_charity;
+    const total = round2(list.reduce((s, c) => s + c.amount, 0));
+    admSheet({
+      title: `${r.username}'s lobbyists`,
+      html: list.length ? `<p>This quarter they have <b>${esc(lobby(total))}</b> on the payroll (${esc(lobbyN(r.total_donated))} hired all-time). How many should go?</p>
+        <ul class="adm-lob">${list.map((c) => `<li>
+          <span class="adm-lob-name"><b>${esc(c.name)}</b><small>${esc(lobbyN(c.amount))} now${c.active === false ? ' · retired' : ''}</small></span>
+          <input type="number" inputmode="decimal" min="0" max="${c.amount}" step="any" value="0" data-take="${c.id}" data-max="${c.amount}" aria-label="Lobbyists to remove from ${esc(c.name)}">
+          <button type="button" class="linkish" data-take-all="${c.id}">All</button></li>`).join('')}</ul>
+        ${list.length > 1 ? '<button type="button" class="linkish" id="adm-take-every">All of them, everywhere</button>' : ''}
+        <p class="muted small">Removed lobbyists are gone, not moved: off this quarter's Lobbyfest count and their all-time total. An “Admin remove” line records it.</p>`
+        : `<p>${esc(r.username)} has no lobbyists on this quarter's payroll.</p>`,
+      go: 'Remove lobbyists', arm: true,
+      wire: (body, ui) => {
+        const amounts = () => $$('[data-take]', body).map((i) => ({ charity_id: Number(i.dataset.take), amount: round2(Math.min(Number(i.dataset.max), Math.max(0, Number(i.value) || 0))) }));
+        const paint = () => { const n = round2(amounts().reduce((s, t) => s + t.amount, 0)); ui.set(n > 0 ? `Remove ${lobby(n)}` : 'Remove lobbyists', n > 0); };
+        $$('[data-take]', body).forEach((i) => { i.oninput = paint; });
+        $$('[data-take-all]', body).forEach((b) => { b.onclick = () => { const i = $(`[data-take="${b.dataset.takeAll}"]`, body); i.value = i.dataset.max; paint(); }; });
+        const every = $('#adm-take-every', body); if (every) every.onclick = () => { $$('[data-take]', body).forEach((i) => { i.value = i.dataset.max; }); paint(); };
+        paint();
+        ui.amounts = amounts;
+      },
+      onGo: async () => {
+        const take = $$('#adm-sheet-body [data-take]').map((i) => ({ charity_id: Number(i.dataset.take), amount: round2(Math.min(Number(i.dataset.max), Math.max(0, Number(i.value) || 0))) })).filter((t) => t.amount > 0);
+        const done = await API.post('/admin/lobbyists/remove', { username: r.username, take });
+        toast(`Removed ${lobby(done.removed)} from ${done.username}.`, 3200);
+        afterAdminChange(done.username);
+        if (admin.tab === 'users') adminUsers().catch((e) => toast(e.message));
+      },
+    });
+  }
+
+  async function adminRemove(names) {
+    if (!names.length) return;
+    const r = await API.post('/admin/users/remove', { usernames: names, dry_run: true });
+    const n = r.users.length;
+    const qtr = round2(r.users.reduce((s, u) => s + (u.quarter_lobbyists || 0), 0));
+    admSheet({
+      title: n === 1 ? `Remove ${r.users[0].username}?` : `Remove ${n} players?`,
+      html: `<p>Everything of theirs goes: positions, lobbyists, town and cat, friends (their list, and their place on other people's), and wall posts. Their charity requests and bug reports stay, unsigned. <b>This can't be undone.</b></p>
+        <ul class="adm-rmlist">${r.users.slice(0, 30).map((u) => `<li><b>${esc(u.username)}</b>${u.is_guest ? ' <span class="tag">guest</span>' : ''}<small>${esc(money(u.cash))} · ${esc(lobbyN(u.lobbyists))} lobbyists · ${u.positions} position${u.positions === 1 ? '' : 's'}${u.followers ? ` · followed by ${u.followers}` : ''}</small></li>`).join('')}${n > 30 ? `<li class="muted">and ${n - 30} more</li>` : ''}</ul>
+        ${qtr > 0 ? `<p class="muted small">${esc(lobby(qtr))} leave this quarter's Lobbyfest count.</p>` : ''}`,
+      typeWord: r.confirm_with, go: n === 1 ? 'Remove for good' : `Remove ${n} for good`,
+      onGo: async (typed) => {
+        const done = await API.post('/admin/users/remove', { usernames: names, confirm: typed });
+        toast(`Removed ${done.removed} account${done.removed === 1 ? '' : 's'}.`, 3200);
+        admin.sel.clear();
+        afterAdminChange(null);
+        if (admin.tab === 'users') adminUsers().catch((e) => toast(e.message));
+      },
+    });
+  }
+
+  async function adminRequests() {
+    const r = await API.get('/admin/requests');
+    const link = (url) => (safeHref(url) ? `<a href="${safeHref(url)}" target="_blank" rel="noopener noreferrer nofollow">${esc(url)}</a>` : esc(url || ''));
+    // The "Page" on a bug report is whatever the reporter sent. It's a link only
+    // when it points at this game; anything else shows as plain text.
+    const ours = (url) => { try { const o = new URL(url).origin; return o === location.origin || o === new URL(SITE_LINK).origin; } catch (e) { return false; } };
+    const pageLink = (url) => (ours(url) ? `<a href="${safeHref(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>` : `<span class="adm-plain">${esc(url)}</span>`);
+    const actions = (kind, x) => `<div class="adm-actions">${x.status === 'new'
+      ? `<button type="button" class="btn small" data-req="${kind}:${x.id}:done">Done</button><button type="button" class="btn small quiet" data-req="${kind}:${x.id}:dismissed">Dismiss</button>`
+      : `<span class="tag">${esc(x.status)}</span><button type="button" class="linkish" data-req="${kind}:${x.id}:new">Reopen</button>`}</div>`;
+    $('#adm-body').innerHTML = `
+      <h2 class="board-h">Charity requests <span class="muted">${r.requests.filter((x) => x.status === 'new').length} new</span></h2>
+      ${r.requests.length ? `<ul class="adm-reqs">${r.requests.map((x) => `<li class="${x.status === 'new' ? 'new' : 'old'}">
+        <div class="adm-req-top"><b>${esc(x.name)}</b> ${link(x.url)}</div>
+        ${x.reason ? `<p class="adm-text">${esc(x.reason)}</p>` : ''}
+        <div class="adm-meta">${x.username ? playerLink(x.username) : '<span class="muted">deleted player</span>'} · ${esc(when(x.created_at))}</div>
+        ${actions('charity', x)}</li>`).join('')}</ul>` : '<p class="muted">No requests yet.</p>'}
+      <h2 class="board-h">Bug reports <span class="muted">${r.bugs.filter((x) => x.status === 'new').length} new</span></h2>
+      ${r.bugs.length ? `<ul class="adm-reqs">${r.bugs.map((x) => `<li class="${x.status === 'new' ? 'new' : 'old'}">
+        <p class="adm-text">${esc(x.description)}</p>
+        ${x.url ? `<div class="adm-meta">Page: ${pageLink(x.url)}</div>` : ''}
+        ${x.client ? `<div class="adm-meta adm-client">${esc(x.client)}</div>` : ''}
+        <div class="adm-meta">${x.username ? playerLink(x.username) : '<span class="muted">deleted player</span>'} · ${esc(when(x.created_at))}</div>
+        ${actions('bug', x)}</li>`).join('')}</ul>` : '<p class="muted">No bug reports yet.</p>'}`;
+    $$('[data-req]').forEach((b) => {
+      b.onclick = async () => {
+        const [kind, id, status] = b.dataset.req.split(':');
+        b.disabled = true;
+        try { await API.post(`/admin/requests/${kind}/${id}`, { status }); await adminRequests(); } catch (e) { toast(e.message); b.disabled = false; }
+      };
+    });
   }
 
   // --- how -----------------------------------------------------------------------------------------
@@ -3064,7 +3551,9 @@
       ['How much money do I get?', `${money(rules.daily_base, { whole: true })} a day. Each day of your streak adds ${money(rules.streak_bonus, { whole: true })}, up to ${money(rules.daily_cap, { whole: true })}. Miss a day and it drops back to ${money(rules.daily_base, { whole: true })}. Bills you don't spend stay on the coin.`],
       [`What's the ×10?`, `Every buy rides the real market for ${h} hours, and the move is multiplied. It starts at ${mult(rules.mult_floor)} the moment you buy and climbs to ×10 at the ${h}-hour mark (×5 for crypto). The multiplier works on the move, not the money: the stock goes up 1% over the day, you're up 10%; down 1%, down 10%. At ${h} hours it matures and the value freezes. A position can fall to $0; it can't go below.`],
       ['Collect, sell early, or ride?', `<b>Collect</b> a matured position and the money comes back to the coin. <b>Sell early</b> any time at the current, smaller multiplier. <b>Ride</b> a matured winner instead: the profit so far is taxed at half rate (${pct / 2}%), and what's left goes back on the same stock for another ${h} hours with the multiplier climbing higher (×10 to ×20, then ×30). The other half of the tax is due if you sell the ride early, forgiven if you let it mature.`],
-      ['What happens when I win?', `Only the gain is taxed, at ${pct}%, never what you put in. Put in $50K, collect $60K: the gain is $10K, so ${money(10 * pct / 100)} is tax and ${money(60 - 10 * pct / 100)} comes back to you. The tax hires <b>lobbyists</b> (about $1K a head; the exact price is set by your town's happiness) for your <b>charity</b>, which you pick at your first cash-out. Losses aren't taxed.`],
+      ['What happens when I win?', `Only the gain is taxed, at ${pct}%, never what you put in. Put in $50K, collect $60K: the gain is $10K, so ${money(10 * pct / 100)} is tax and ${money(60 - 10 * pct / 100)} comes back to you. The tax hires <b>lobbyists</b> (about $1K a head; the exact price is set by your town's happiness) for your <b>charity</b>, which you choose when you hire your first lobbyist. Losses aren't taxed.`],
+      ['Which charities?', `Real ones: well-known charities across hunger, health, kids, disaster relief, poverty, water, the environment, animals, housing, education, justice, veterans and mental health, each rated four stars (out of four) by Charity Navigator when we added it. The more lobbyists a charity has at Lobbyfest, the bigger its share of this site's ad money. Don't see yours? <button type="button" class="linkish" data-request-charity>Request a charity</button>; a person checks every request.`],
+      ['Found a bug?', `☰ → <b>Report a bug</b>. Say what happened; the page you were on comes along with it, so it's easier to find.`],
       ['What is Lobbyfest?', `Every quarter, on the last day at midnight Central, every lobbyist in the game marches off to Lobbyfest. The ad money this site earned is split between the charities by headcount: the charity with the most lobbyists gets the biggest share. Then every village empties and the next quarter starts at zero. ☰ → Lobbyfest &amp; charities shows the standings.`],
       ['What is TrickleTown?', `The other side of your coin, where your lobbyists live. It has two scores. <b>Profit</b>: what the town adds to (or takes from) your daily money. <b>Happiness</b>: what each new lobbyist costs you, from $1.4K in a miserable town to $500 in a happy one. Two lots to build on: extractive buildings (a casino, tenements) make profit and unhappiness; decent ones (a clinic, a co-op) cost profit and make people happy. Buildings get upgrade proposals as the town grows. The Company Store takes 20% off anything a card costs.`],
       ['What are the cards?', `Each day Preston (wants profit) and Dolores (wants happiness) bring a few decisions to Town Hall: a headline everyone gets, plus cards your own town has unlocked. Pick a side on each. The arrows show which way a choice pushes; a tag says if it comes back around later. Unplayed cards expire at midnight, and once you've built something, skipping them costs a little happiness. The deck shows every card and what unlocks it.`],
@@ -3078,7 +3567,7 @@
       <h1>How it works</h1>
       <p class="lede">Fake money, real stocks, real charity. The whole game in one sentence: invest, hold ${h} hours, and your wins hire lobbyists for a charity.</p>
       <div class="row-actions" style="margin:6px 0 14px"><button class="btn quiet small" id="btn-orient-how">Replay the training</button>${me && me.town && me.town.unlocked ? '<button class="btn quiet small" id="btn-town-how">Replay the TrickleTown tour</button>' : ''}</div>
-      ${rules.demo ? `<div class="note warn">Demo. The charities are fictional and no real money moves. The game is real; the philanthropy isn't yet.</div>` : ''}
+      ${rules.demo ? `<div class="note warn">Demo. No real money moves here. The charities are real; the payouts in this copy are pretend.</div>` : ''}
       <div class="faq">${qa.map(([q, a], n) => `<details class="faq-item" ${n === 0 ? 'open' : ''}><summary>${esc(q)}</summary><p>${a}</p></details>`).join('')}</div>`;
     $('#btn-orient-how').onclick = () => Explainer.open({ deck: 'main', rules });
     const tt = $('#btn-town-how'); if (tt) tt.onclick = () => Explainer.open({ deck: 'town' });
@@ -3124,7 +3613,8 @@
       const target = slot.querySelector('div') || slot;
       target.innerHTML = '';
       gsi.intent = intent;
-      window.google.accounts.id.renderButton(target, { theme: 'outline', size: 'large', shape: 'pill', width: Math.min(320, target.clientWidth || 320), text: intent === 'link' ? 'continue_with' : 'signin_with' });
+      (gsi.mounted = gsi.mounted || {})[containerId] = intent;
+      window.google.accounts.id.renderButton(target, { theme: window.Theme && Theme.dark() ? 'filled_black' : 'outline', size: 'large', shape: 'pill', width: Math.min(320, target.clientWidth || 320), text: intent === 'link' ? 'continue_with' : 'signin_with' });
       return true;
     } catch (e) {
       slot.innerHTML = `<p class="muted small">${esc(e.message)}</p>`;
@@ -3428,6 +3918,11 @@
     $$('dialog.sheet').forEach((d) => { d.addEventListener('click', (e) => { if (e.target === d) { if (d.classList.contains('soft')) softClose(d); else d.close(); } }); });
     $('#form-sell').addEventListener('submit', submitSell);
     $('#form-auth').addEventListener('submit', submitAuth);
+    $('#form-request').addEventListener('submit', submitCharityRequest);
+    $('#form-bug').addEventListener('submit', submitBug);
+    $('#form-request').addEventListener('input', () => { $('#rq-error').hidden = true; });
+    $('#form-bug').addEventListener('input', () => { $('#bug-error').hidden = true; });
+    document.addEventListener('click', (e) => { if (e.target.closest('[data-request-charity]') && !e.target.closest('#hire-body, #charity-body')) openCharityRequest(); });
     $('#auth-switch').onclick = () => openAuth(state.authMode === 'login' ? 'register' : 'login');
     $('#auth-code-link').onclick = () => openAuth(state.authMode === 'code' ? 'login' : 'code');
     $('#btn-claim').onclick = () => openAuth('claim');
@@ -3475,6 +3970,17 @@
         location.reload();
       })
       .catch(() => { /* offline: keep what we have */ });
+  }
+
+  // A theme switch repaints through CSS; only Google's button (an iframe
+  // drawn once) needs redrawing in its other style.
+  if (window.Theme) {
+    Theme.onChange(() => {
+      Object.entries(gsi.mounted || {}).forEach(([id, intent]) => {
+        const slot = $(`#${id}`);
+        if (slot && !slot.hidden && slot.isConnected && slot.offsetParent) mountGoogle(id, intent);
+      });
+    });
   }
 
   wire();

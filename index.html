@@ -2,10 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- Content-Security-Policy: a backstop against injected script. Only this
+       site's own files and Google's sign-in script may run; the page may only
+       talk to itself, the API and Google sign-in. If you move the API, change
+       connect-src to match config.js. If you add an ad network or analytics,
+       its domains must be added here or it will be silently blocked. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' https://trickle-down-io-ac476d1e18c9.herokuapp.com http://localhost:3000 https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Trickle Down</title>
   <meta name="description" content="A free daily game: $100K of fake money to bet on real stocks at ×10. Your wins send real ad money to charity. Two minutes a day.">
   <meta name="theme-color" content="#EDF1F2">
+  <!-- Light or dark, decided before anything paints. Nothing above it may block it. -->
+  <script src="js/theme.js?v=20261029o"></script>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <!-- Link previews (Slack, iMessage, Discord, X...). Crawlers don't run JS, so
@@ -29,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;900&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261029k">
+  <link rel="stylesheet" href="css/style.css?v=20261029o">
 </head>
 <body>
 
@@ -59,6 +67,7 @@
   <section id="screen-friends" class="screen" hidden></section>
   <section id="screen-profile" class="screen" hidden></section>
   <section id="screen-how" class="screen" hidden></section>
+  <section id="screen-admin" class="screen" hidden></section>
 </main>
 
 <footer class="foot" id="foot" hidden>
@@ -133,6 +142,22 @@
   </div>
 </dialog>
 
+<!-- Admin clean-up: delete a transaction, remove lobbyists, remove accounts -->
+<dialog id="dlg-adm" class="sheet soft adm-sheet" aria-labelledby="adm-title">
+  <div class="sheet-body">
+    <div class="sheet-head">
+      <h2 id="adm-title">Are you sure?</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div id="adm-sheet-body"></div>
+    <p class="form-error" id="adm-error" role="alert" hidden></p>
+    <div class="adm-sheet-go">
+      <button type="button" class="btn quiet" data-close>Cancel</button>
+      <button type="button" class="btn danger" id="adm-go">Go</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- The cat: name, coat, wardrobe -->
 <dialog id="dlg-cat" class="sheet soft cat-sheet" aria-label="The cat">
   <div class="sheet-body">
@@ -142,6 +167,49 @@
     </div>
     <div id="cat-body"></div>
   </div>
+</dialog>
+
+<!-- Choose your charity: right after the first lobbyist, or when yours was retired -->
+<dialog id="dlg-charity" class="sheet soft charity-sheet" aria-labelledby="charity-title">
+  <div class="sheet-body">
+    <div class="sheet-head">
+      <h2 id="charity-title">Choose your charity</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <div id="charity-body"></div>
+  </div>
+</dialog>
+
+<!-- Request a charity that isn't on the list -->
+<dialog id="dlg-request" class="sheet soft" aria-labelledby="request-title">
+  <form method="dialog" class="sheet-body" id="form-request" novalidate>
+    <div class="sheet-head">
+      <h2 id="request-title">Request a charity</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <p class="muted">Which charity should your lobbyists be able to lobby for? A person reads every request and checks the charity out before adding it.</p>
+    <label class="field"><span>Charity name</span><input id="rq-name" maxlength="100" autocomplete="off" required></label>
+    <label class="field"><span>Website</span><input id="rq-url" type="text" inputmode="url" maxlength="300" placeholder="example.org" autocomplete="off" autocapitalize="off" spellcheck="false" required></label>
+    <label class="field"><span>Why this one? <small>(optional)</small></span><textarea id="rq-reason" maxlength="600" rows="3"></textarea></label>
+    <p class="form-error" id="rq-error" hidden></p>
+    <button type="submit" class="btn primary wide" id="rq-submit">Send request</button>
+  </form>
+</dialog>
+
+<!-- Report a bug, with the page it happened on -->
+<dialog id="dlg-bug" class="sheet soft" aria-labelledby="bug-title">
+  <form method="dialog" class="sheet-body" id="form-bug" novalidate>
+    <div class="sheet-head">
+      <h2 id="bug-title">Report a bug</h2>
+      <button type="button" class="close" data-close aria-label="Close">×</button>
+    </div>
+    <p class="muted">What happened, and what did you expect to happen? Every report gets read.</p>
+    <label class="field"><span>What went wrong</span><textarea id="bug-desc" maxlength="2000" rows="5" required></textarea></label>
+    <label class="bug-url"><input type="checkbox" id="bug-url-on" checked><span>Include the page you were on<code id="bug-url"></code></span></label>
+    <p class="muted small">Your browser, screen size and the app's version come along too, to help reproduce it. Nothing else.</p>
+    <p class="form-error" id="bug-error" hidden></p>
+    <button type="submit" class="btn primary wide" id="bug-submit">Send report</button>
+  </form>
 </dialog>
 
 <!-- Share my day: the text card, previewed -->
@@ -233,12 +301,12 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
-<script src="config.js?v=20261029k"></script>
-<script src="js/town.js?v=20261029k"></script>
-<script src="js/demo-api.js?v=20261029k"></script>
-<script src="js/api.js?v=20261029k"></script>
-<script src="js/coin.js?v=20261029k"></script>
-<script src="js/explainer.js?v=20261029k"></script>
-<script src="js/app.js?v=20261029k"></script>
+<script src="config.js?v=20261029o"></script>
+<script src="js/town.js?v=20261029o"></script>
+<script src="js/demo-api.js?v=20261029o"></script>
+<script src="js/api.js?v=20261029o"></script>
+<script src="js/coin.js?v=20261029o"></script>
+<script src="js/explainer.js?v=20261029o"></script>
+<script src="js/app.js?v=20261029o"></script>
 </body>
 </html>

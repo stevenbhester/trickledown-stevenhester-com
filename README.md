@@ -9,6 +9,7 @@ No build step. Plain HTML, CSS, and JS.
 index.html        the shell: masthead (with the ☰ menu), screens, bottom sheets
 config.js         API_BASE and SITE_URL — the only thing you must edit
 css/style.css     the whole look; design tokens at the top
+js/theme.js       light / dark / auto, decided in <head> before anything paints
 js/coin.js        draws the coin (SVG): wedges, bills, the village, the advocates
 js/town.js        TrickleTown rules + the card deck (byte-identical to the backend's src/town.js)
 js/explainer.js   the two tutorials
@@ -67,7 +68,8 @@ README's Security section for the rest.
 ## The menu, profiles, friends
 
 Today's game is the page. Everything else is behind ☰: your profile,
-Leaderboards, Friends, Lobbyfest & charities, Trophies, How to play, Account.
+Leaderboards, Friends, Lobbyfest & charities, Trophies, How to play, Report a
+bug, Appearance, Account (and Admin, for admins).
 
 Every username opens a profile (`#u/<name>`; yours is `#profile`): a
 Robinhood-style chart of trading gains (positions only: gifts and town
@@ -88,10 +90,40 @@ someone wrote on yours. Guests can add friends but can't be added, since a
 guest's name isn't shareable. In demo mode, `ravi_k` and `bagholder_ben` are
 addable, and erin's and ravi_k's walls are open to you.
 
+## Charities, requests, bug reports, admin
+
+The charities are real (18, each 4 of 4 stars on Charity Navigator; the list
+lives in the backend's `src/charities.js`). Players choose one right after
+their first lobbyists, in the first-hire sheet: the cards show cause, one
+line, stars and site, with the reminder that the default is where every new
+lobbyist goes and that more lobbyists means a bigger share of the ad money.
+Skipped, it comes back (a to-do line, and once a session on its own). Anyone
+whose charity was retired gets the same chooser.
+
+"Don't see yours? Request a charity" (in the chooser, Assign lobbyists,
+Lobbyfest and the FAQ) sends a name, website and reason. ☰ → Report a bug sends
+a description plus the page they were on (they can untick it). Both land on
+☰ → Admin (`#admin`), which only admins see: every transaction in order, every
+open position, every player with their numbers, and the requests and reports.
+The server checks admin on every call; the page just asks.
+
+Cleaning up (all from the admin page, each with a confirmation sheet that
+shows exactly what will change, from a server dry run):
+- Transactions → Delete: undoes that transaction (a position with its ride
+  chain; money, lobbyists and P&L back where they were). Two taps.
+- Players → Lobbyists: take some or all of a player's lobbyists away this
+  quarter. Two taps.
+- Players → Remove, or tick several → Remove…: deletes the accounts and
+  everything of theirs. Type the username (or the count) to confirm. Admin
+  accounts can't be removed.
+
 ## Deploy to GitHub Pages
 
 1. Edit `config.js`: set `API_BASE` to your Heroku app URL (no trailing slash)
-   and `SITE_URL` to where the site will live.
+   and `SITE_URL` to where the site will live. `index.html` has a
+   Content-Security-Policy: if the API URL changes, change its `connect-src`
+   too, and if you add an ad network or analytics, add its domains, or the
+   browser blocks them without a word.
 2. Push to GitHub. Settings → Pages → deploy from the `main` branch, root.
 3. If you use a custom domain, add a `CNAME` file containing it, the same way as
    your other GitHub Pages sites.
@@ -126,6 +158,39 @@ units is $1M, one decimal at most (`money()` in `js/app.js`, mirrored in
 so a $40 tax doesn't round to nothing. Real stock prices use `price()` and
 stay in real dollars. The amount input takes thousands too (its suffix
 says K).
+
+## Light and dark
+
+☰ → Appearance: Auto (follows the device, and changes with it), Light, or
+Dark. The choice is per device (`localStorage`, key `trickledown.theme`;
+Auto stores nothing) and syncs across open tabs. `js/theme.js` runs first
+thing in `<head>`, before any stylesheet, and sets `data-theme` on `<html>`,
+`color-scheme` (so form controls and scrollbars match) and the
+`theme-color` the phone's browser bar uses. So there's no white flash.
+
+Colours are tokens on `:root` in `css/style.css`; dark mode is one block of
+the same tokens under `:root[data-theme="dark"]`, plus overrides for things
+that draw with their own colours. Use a token for any new colour (`--card`
+for a white surface, `--edge` for a strong border, `--inverse` /
+`--on-inverse` for a solid ink chip, `--on-accent` for text on a water,
+rise or sink fill, `--tip` for toasts). In light mode every token resolves
+to the colour it replaced, so light mode is pixel for pixel what it was.
+
+The drawings carry both palettes, so a switch repaints everything without a
+re-render, open sheets included:
+
+- The coin turns pewter instead of polished silver. Each wedge carries its
+  light and dark fill (`--wf` / `--wfd`) and a label colour for each.
+- TrickleTown is the same town at night: the sky and grass follow happiness
+  as before, a moon and stars when it's happy, darker clouds when it isn't,
+  windows lit.
+- Building tiles, the portraits behind Preston, Dolores and the cat, and the
+  tutorial art have dark versions. The achievement note is lamp-lit paper.
+- Google's sign-in button is redrawn in its dark style.
+
+On phones, double-tap doesn't zoom the page (`touch-action: manipulation`)
+and every form field is at least 16px, which iOS Safari otherwise zooms into
+when you tap it. Pinch zoom still works.
 
 ## Design notes
 

@@ -28,8 +28,8 @@ window.Explainer = (function () {
 
   // A little town on a strip of grass, for the town deck.
   const miniTown = (extra = '') => `
-    <rect x="0" y="0" width="280" height="104" fill="#CDE4EB"/><circle cx="240" cy="30" r="12" fill="#F2D06B"/>
-    <rect x="0" y="104" width="280" height="46" fill="#9BC48F"/>
+    <rect x="0" y="0" width="280" height="104" fill="#CDE4EB" class="xs-sky"/><circle cx="240" cy="30" r="12" fill="#F2D06B" class="xs-sun"/>
+    <rect x="0" y="104" width="280" height="46" fill="#9BC48F" class="xs-grass"/>
     <rect x="56" y="40" width="26" height="64" fill="#9FB6C2" stroke="#4F6874"/><path d="M56 40 L69 28 L82 40 Z" fill="#D4A72C"/>
     <rect x="160" y="72" width="44" height="32" fill="#E7C48F" stroke="#8A6A3A"/><path d="M156 72 L182 54 L208 72 Z" fill="#B0412E"/>
     ${extra}`;
@@ -52,8 +52,8 @@ window.Explainer = (function () {
           ${arrow(84, 104, 70)}
           ${suit(112, 52, '', 0.85)}${suit(130, 52, '', 0.85)}${suit(148, 52, '', 0.85)}
           ${arrow(172, 192, 70)}
-          <rect x="204" y="52" width="52" height="38" fill="#fff" stroke="#8EA3AC"/><path d="M200 52 L230 34 L260 52 Z" fill="#1879A0"/>
-          <text x="230" y="78" text-anchor="middle" fill="#B0412E" font-size="18">♥</text>
+          <rect x="204" y="52" width="52" height="38" fill="#fff" stroke="#8EA3AC" class="xs-white"/><path d="M200 52 L230 34 L260 52 Z" fill="#1879A0"/>
+          <text x="230" y="78" text-anchor="middle" fill="#B0412E" font-size="18" class="xs-heart">♥</text>
           <text x="46" y="122" text-anchor="middle" class="x-small">fake money</text>
           <text x="139" y="122" text-anchor="middle" class="x-small">lobbyists</text>
           <text x="230" y="122" text-anchor="middle" class="x-small">real charity</text>`),
@@ -85,16 +85,16 @@ window.Explainer = (function () {
           ${arrow(196, 216, 70)}
           ${suit(224, 52, 'pop p1')}${suit(246, 52, 'pop p2')}`),
         body: `Only your gains are taxed, at ${pct}%. Put in $50K, collect $60K: the gain is $10K, so $${fmtK(10 * pct / 100)}K is tax. Losses aren't taxed. The tax hires lobbyists for your charity. Every quarter at Lobbyfest, the charity with the most lobbyists gets the biggest share of the real money.`,
-        fine: r.demo ? 'The money will be real. The charities in this demo are not.' : 'Receipts are posted on the Lobbyfest page.',
+        fine: r.demo ? 'The charities are real. In this demo, the money is not.' : 'Real charities, four stars on Charity Navigator. Receipts go on the Lobbyfest page.',
         next: 'Got it',
       },
       {
         title: 'Your first buy pays a bonus',
         art: svg(`
           ${miniTown()}
-          <rect x="0" y="0" width="280" height="150" fill="#EDF1F2" opacity=".82"/>
-          <rect x="96" y="40" width="88" height="56" rx="6" fill="#fff" stroke="#0F2430" stroke-width="2"/>
-          <text x="140" y="76" text-anchor="middle" fill="#0F2430" font-size="22" font-weight="900">$${r.vest_amount || 40}K</text>
+          <rect x="0" y="0" width="280" height="150" fill="#EDF1F2" opacity=".82" class="xs-veil"/>
+          <rect x="96" y="40" width="88" height="56" rx="6" fill="#fff" stroke="#0F2430" stroke-width="2" class="xs-card"/>
+          <text x="140" y="76" text-anchor="middle" fill="#0F2430" font-size="22" font-weight="900" class="xs-card-text">$${r.vest_amount || 40}K</text>
           <text x="140" y="122" text-anchor="middle" class="x-tag">from Mommy &amp; Daddy</text>`),
         body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K. It's all gain, so ${pct}% of it is tax. That tax hires your first lobbyists, and they need somewhere to live. That's TrickleTown, on the other side of your coin. We'll show you around when you get there.`,
         fine: 'Nothing about this is normal. Everything about it is legal.',
@@ -115,11 +115,11 @@ window.Explainer = (function () {
       {
         title: 'Money, or people',
         art: svg(`
-          <rect x="0" y="104" width="280" height="46" fill="#9BC48F"/>
+          <rect x="0" y="104" width="280" height="46" fill="#9BC48F" class="xs-grass"/>
           <rect x="34" y="56" width="80" height="48" fill="#8E2232"/><rect x="34" y="50" width="80" height="8" fill="#D4A72C"/>
           <text x="74" y="86" text-anchor="middle" fill="#F2D06B" font-size="20" font-weight="900">$ $ $</text>
           <text x="74" y="130" text-anchor="middle" class="x-tag up">+ profit</text>
-          <rect x="168" y="58" width="76" height="46" fill="#fff" stroke="#8EA3AC"/>
+          <rect x="168" y="58" width="76" height="46" fill="#fff" stroke="#8EA3AC" class="xs-white"/>
           <rect x="200" y="62" width="12" height="26" fill="#2E9C72"/><rect x="193" y="69" width="26" height="12" fill="#2E9C72"/>
           <text x="206" y="130" text-anchor="middle" class="x-tag up">+ happiness</text>`),
         body: 'Two empty lots. Each offers three buildings: a casino or tenement makes profit and unhappy lobbyists; a clinic or co-op costs profit and makes them happy; one in the middle. Tap a lot to build.',

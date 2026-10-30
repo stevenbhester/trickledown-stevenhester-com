@@ -35,25 +35,33 @@ window.Coin = (function () {
     const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
     return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * k).toString(16).padStart(2, '0')).join('');
   }
-  // Colour by outcome. Intensity saturates around ±60%.
-  function wedgeFill(p) {
-    if (p.quote_error) return '#C9D4D9';
-    if (p.busted) return '#0F2430';
+  // Colour by outcome. Intensity saturates around ±60%. Two palettes: the
+  // silver coin (light theme) and the pewter one (dark), both carried on the
+  // wedge as --wf / --wfd so a theme switch repaints without a re-render.
+  function wedgeFill(p, dark = false) {
+    if (p.quote_error) return dark ? '#3A4A52' : '#C9D4D9';
+    if (p.busted) return dark ? '#05090B' : '#0F2430';
     const s = p.swing_pct || 0;
     const k = Math.min(1, Math.abs(s) / 0.6);
-    if (s > 0) return mix('#DDF0E6', '#2E9C72', k);
-    if (s < 0) return mix('#F4E1DC', '#C04A35', k);
-    return '#CDE4EB';
+    if (s > 0) return dark ? mix('#1E3A2F', '#3DBE8C', k) : mix('#DDF0E6', '#2E9C72', k);
+    if (s < 0) return dark ? mix('#3E2622', '#E2654D', k) : mix('#F4E1DC', '#C04A35', k);
+    return dark ? '#23404C' : '#CDE4EB';
+  }
+  // Relative luminance, for picking a label colour that reads on a fill.
+  function lum(hex) {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
   }
   // Play money in thousands, like the rest of the UI: $50K, $1.2M.
   const fmt1 = (v) => { const r = Math.round(v * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
   const money = (n) => (n >= 1000 ? `$${fmt1(n / 1000)}M` : n > 0 && n < 0.1 ? `$${Math.round(n * 1000)}` : `$${fmt1(n)}K`);
 
-  function label(a0, sweep, lines, cls = '', light = false) {
+  // light: white text on the silver coin. darkLight: white text on the pewter one.
+  function label(a0, sweep, lines, cls = '', light = false, darkLight = false) {
     if (sweep < 20) return '';
     const [x, y] = polar(RM, a0 + sweep / 2);
     const second = sweep >= 34 ? lines[1] : null;
-    return `<text class="wedge-label ${cls} ${light ? 'light' : ''}" x="${f(x)}" y="${f(y)}" text-anchor="middle">
+    return `<text class="wedge-label ${cls} ${light ? 'light' : ''} ${darkLight ? 'dk-light' : ''}" x="${f(x)}" y="${f(y)}" text-anchor="middle">
       <tspan x="${f(x)}" dy="${second ? '-0.1em' : '0.35em'}" class="wl-ticker">${esc(lines[0])}</tspan>
       ${second ? `<tspan x="${f(x)}" dy="1.25em" class="wl-sub">${esc(second)}</tspan>` : ''}
     </text>`;
@@ -82,11 +90,12 @@ window.Coin = (function () {
   function body(back) {
     const id = back ? 'cb' : 'cf';
     const k = back ? ' back' : '';
+    // Front stops carry classes so dark mode can turn the silver to pewter.
     const defs = back ? `
       <radialGradient id="${id}-field" cx="38%" cy="32%" r="85%"><stop offset="0" stop-color="#2C4654"/><stop offset="0.65" stop-color="#15293A"/><stop offset="1" stop-color="#0A1820"/></radialGradient>
       <linearGradient id="${id}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4A6473"/><stop offset="0.5" stop-color="#1E3442"/><stop offset="1" stop-color="#0B1A22"/></linearGradient>` : `
-      <radialGradient id="${id}-field" cx="38%" cy="32%" r="85%"><stop offset="0" stop-color="#FDFEFE"/><stop offset="0.55" stop-color="#E9EEF0"/><stop offset="1" stop-color="#C3CDD2"/></radialGradient>
-      <linearGradient id="${id}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6F8F9"/><stop offset="0.5" stop-color="#C2CCD1"/><stop offset="1" stop-color="#98A8B0"/></linearGradient>`;
+      <radialGradient id="${id}-field" cx="38%" cy="32%" r="85%"><stop offset="0" stop-color="#FDFEFE" class="cf-f0"/><stop offset="0.55" stop-color="#E9EEF0" class="cf-f1"/><stop offset="1" stop-color="#C3CDD2" class="cf-f2"/></radialGradient>
+      <linearGradient id="${id}-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6F8F9" class="cf-r0"/><stop offset="0.5" stop-color="#C2CCD1" class="cf-r1"/><stop offset="1" stop-color="#98A8B0" class="cf-r2"/></linearGradient>`;
     return `
       <defs>${defs}<clipPath id="${id}-hole"><circle cx="${CX}" cy="${CY}" r="${RI - 3}"/></clipPath></defs>
       <circle cx="${CX}" cy="${CY}" r="159" class="coin-edge${k}" fill="url(#${id}-rim)"/>
@@ -129,9 +138,10 @@ window.Coin = (function () {
       const sw = p.busted ? Math.max(deg(p.v), 3) : deg(p.v);
       if (sw <= 0) continue;
       const cls = ['wedge', p.quote_error ? 'stale' : p.busted ? 'busted' : p.swing_pct > 0 ? 'up' : p.swing_pct < 0 ? 'down' : 'flat', p.matured ? 'matured' : ''].join(' ');
-      wedges += `<path class="${cls}" data-id="${p.id}" d="${sector(a, sw)}" style="fill:${wedgeFill(p)}" tabindex="0" role="button" aria-label="${esc(p.symbol)}, ${money(p.invested)} in"></path>`;
+      const dk = wedgeFill(p, true);
+      wedges += `<path class="${cls}" data-id="${p.id}" d="${sector(a, sw)}" style="--wf:${wedgeFill(p)};--wfd:${dk}" tabindex="0" role="button" aria-label="${esc(p.symbol)}, ${money(p.invested)} in"></path>`;
       const strong = !p.busted && !p.quote_error && Math.abs(p.swing_pct || 0) >= 0.45;
-      labels += label(a, sw, [p.symbol, p.busted ? 'gone' : money(p.invested)], p.busted ? 'busted' : '', p.busted || strong);
+      labels += label(a, sw, [p.symbol, p.busted ? 'gone' : money(p.invested)], p.busted ? 'busted' : '', p.busted || strong, lum(dk) < 0.18);
       a += sw;
     }
     const cashSweep = deg(cashShown);
@@ -157,7 +167,7 @@ window.Coin = (function () {
   // The two advocates, as small portraits. size is the rendered width in px.
   function preston(size = 40) {
     return `<svg class="advocate preston" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r="20" fill="#E7EEF1"/>
+      <circle cx="20" cy="20" r="20" fill="#E7EEF1" class="pt-bg"/>
       <path d="M6 40 C6 30 12 27 20 27 C28 27 34 30 34 40 Z" fill="#1B2F4A"/>
       <path d="M17 27 L20 38 L23 27 Z" fill="#fff"/><path d="M19 28 L21 28 L21.6 35 L20 37 L18.4 35 Z" fill="#D4A72C"/>
       <circle cx="20" cy="17" r="8" fill="#E9C6A1"/>
@@ -168,7 +178,7 @@ window.Coin = (function () {
   }
   function dolores(size = 40) {
     return `<svg class="advocate dolores" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">
-      <circle cx="20" cy="20" r="20" fill="#E7EEF1"/>
+      <circle cx="20" cy="20" r="20" fill="#E7EEF1" class="pt-bg"/>
       <path d="M6 40 C6 30 12 27 20 27 C28 27 34 30 34 40 Z" fill="#2F7A6B"/>
       <rect x="23" y="29" width="9" height="11" rx="1" fill="#C9A46A"/><rect x="24.5" y="31" width="6" height="7" fill="#fff"/>
       <circle cx="20" cy="17" r="8" fill="#C99A72"/>
@@ -237,6 +247,10 @@ window.Coin = (function () {
     const hp = town.happiness / 100, hl = hp; // one mood: the sky and the grass both follow happiness
     const sky0 = mix('#8E9AA0', '#7FC3DD', hp), sky1 = mix('#C7CED1', '#E6F4F8', hp);
     const ground = mix('#9C8F6E', '#7DB27A', hl), ground2 = mix('#857A5C', '#5E9A5E', hl);
+    // Dark theme: the same town at night. Same mood logic, darker sky, a moon.
+    const nsky0 = mix('#262C31', '#132B45', hp), nsky1 = mix('#454D53', '#335877', hp);
+    const nground = mix('#4F4836', '#365B3D', hl), nground2 = mix('#3E3829', '#2A4C31', hl);
+    const night = `--v-sky0d:${nsky0};--v-sky1d:${nsky1};--v-gd:${nground};--v-g2d:${nground2};--v-cut:${mix(nsky0, nsky1, 0.3)}`;
     const plots = Object.fromEntries(town.plots.map((p) => [p.slot, p.key]));
     const n = Math.min(14, Math.ceil(pop - 1e-9));
     const frac = round2(pop - Math.floor(pop));
@@ -253,22 +267,24 @@ window.Coin = (function () {
         : `<g class="v-walk" style="animation-delay:${(i % 5) * 0.6}s"><g class="v-person" transform="translate(${x} ${y}) scale(0.75)"${clip}>${LOBBYIST_PATHS}${sad && i % 4 === 0 ? '<rect x="6" y="-14" width="14" height="10" class="v-protest"/><line x1="13" y1="-4" x2="13" y2="12" class="v-protest-stick"/>' : ''}</g></g>`;
     }
     const weather = hp > 0.55
-      ? `<circle cx="252" cy="70" r="13" class="v-sun"/>`
+      ? `<circle cx="252" cy="70" r="13" class="v-sun"/>
+         <g class="v-night"><g class="v-stars">${[[70, 52], [98, 34], [132, 74], [188, 30], [214, 82], [276, 104], [58, 96], [160, 88]].map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="${i % 3 ? 0.9 : 1.3}"/>`).join('')}</g>
+         <circle cx="252" cy="70" r="12" class="v-moon"/><circle cx="258.5" cy="65" r="10.5" class="v-moon-cut"/></g>`
       : `<g class="v-cloud"><ellipse cx="238" cy="72" rx="20" ry="9"/><ellipse cx="252" cy="66" rx="13" ry="9"/></g>${hp < 0.3 ? '<g class="v-cloud dark"><ellipse cx="96" cy="84" rx="22" ry="9"/><ellipse cx="110" cy="78" rx="12" ry="8"/></g>' : ''}`;
     const advocates = pending > 0 ? `
       <g class="v-advocate a1" transform="translate(98 262)">${preston(36).replace(/<svg[^>]*>/, '').replace('</svg>', '')}<g transform="translate(26 -10)"><rect width="16" height="14" rx="3" class="v-bubble"/><text x="8" y="11" text-anchor="middle" class="v-bubble-text">!</text></g></g>
       <g class="v-advocate a2" transform="translate(186 262)">${dolores(36).replace(/<svg[^>]*>/, '').replace('</svg>', '')}<g transform="translate(26 -10)"><rect width="16" height="14" rx="3" class="v-bubble"/><text x="8" y="11" text-anchor="middle" class="v-bubble-text">!</text></g></g>` : '';
-    return `<svg class="coin-svg village" viewBox="0 0 320 320" aria-label="Your lobbyist village">
+    return `<svg class="coin-svg village" viewBox="0 0 320 320" aria-label="Your lobbyist village" style="${night}">
       ${body(true)}
       <defs>
         <clipPath id="v-clip"><circle cx="${CX}" cy="${CY}" r="${R + 1}"/></clipPath>
-        <linearGradient id="v-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky0}"/><stop offset="1" stop-color="${sky1}"/></linearGradient>
+        <linearGradient id="v-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky0}" class="v-sky0"/><stop offset="1" stop-color="${sky1}" class="v-sky1"/></linearGradient>
       </defs>
       <g clip-path="url(#v-clip)">
         <rect x="0" y="0" width="320" height="200" fill="url(#v-sky)"/>
         ${weather}
-        <rect x="0" y="196" width="320" height="130" fill="${ground}"/>
-        <path d="M0 214 Q160 200 320 214 L320 222 Q160 208 0 222 Z" fill="${ground2}" opacity=".5"/>
+        <rect x="0" y="196" width="320" height="130" fill="${ground}" class="v-ground"/>
+        <path d="M0 214 Q160 200 320 214 L320 222 Q160 208 0 222 Z" fill="${ground2}" opacity=".5" class="v-ground2"/>
         <text x="160" y="46" text-anchor="middle" class="v-title">${locked ? '???' : 'TRICKLETOWN'}</text>
         ${locked ? '' : `<text x="160" y="62" text-anchor="middle" class="v-pop">pop. ${esc(pop % 1 ? pop.toFixed(2).replace(/0$/, '') : pop)}</text>`}
         <g class="v-site" data-site="housing">${BUILDINGS[plots.housing || 'empty'](104, 200)}</g>
@@ -331,7 +347,7 @@ window.Coin = (function () {
     return `<svg class="cat-portrait" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true">
       <defs><clipPath id="${id}"><circle cx="60" cy="60" r="60"/></clipPath></defs>
       <g clip-path="url(#${id})">
-        <rect width="120" height="120" fill="#E7EEF1"/>
+        <rect width="120" height="120" fill="#E7EEF1" class="pt-bg"/>
         <path d="M18 122 C18 93 36 83 60 83 C84 83 102 93 102 122 Z" fill="${c.base}"/>
         <path d="M45 122 C47 99 52 91 60 91 C68 91 73 99 75 122 Z" fill="${c.light}"/>
         ${body}
@@ -386,9 +402,9 @@ window.Coin = (function () {
   function buildingIcon(key, size = 120) {
     const art = BUILDINGS[key || 'empty'](70, 118);
     return `<svg class="b-icon" width="${size}" height="${Math.round(size * 0.8)}" viewBox="0 0 140 112" aria-hidden="true">
-      <rect x="0" y="0" width="140" height="112" fill="#DCEAF0"/>
-      <rect x="0" y="100" width="140" height="12" fill="#9BC48F"/>
-      ${art}
+      <rect x="0" y="0" width="140" height="112" fill="#DCEAF0" class="bi-sky"/>
+      <rect x="0" y="100" width="140" height="12" fill="#9BC48F" class="bi-grass"/>
+      <g class="bi-art">${art}</g>
     </svg>`;
   }
 

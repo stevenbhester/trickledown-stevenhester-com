@@ -1,6 +1,7 @@
 // Where the backend lives. Change this to your Heroku app URL after deploying
 // heroku-trickledown, e.g. 'https://trickledown-api-abc123.herokuapp.com'.
-// Leave off the trailing slash.
+// Leave off the trailing slash. If you change the Heroku URL, change it in
+// index.html's Content-Security-Policy (connect-src) too, or the game can't reach it.
 window.TRICKLE_CONFIG = {
   API_BASE: (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
     ? 'http://localhost:3000'

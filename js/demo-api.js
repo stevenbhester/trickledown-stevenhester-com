@@ -18,17 +18,27 @@
     ['DOGE', 'Dogecoin', 'crypto', 'Unhinged'], ['SHIB', 'Shiba Inu', 'crypto', 'Unhinged'],
   ].map(([symbol, name, type, mood]) => ({ symbol, name, type, mood, multiplier: type === 'crypto' ? 5 : 10 }));
 
-  // Made up on purpose. See src/charities.js in the backend for the same list.
+  // The real list, as in src/charities.js in the backend (4 stars on Charity Navigator).
   const CHARITIES = [
-    ['Society for Slightly Taller Trees', 'Forestry', "We can't make trees taller. We can make them feel taller."],
-    ['Pigeons With Dignity', 'Animals', 'Tiny hats. Big self-esteem.'],
-    ['Fund for Ducks Who Are Owed Bread', 'Animals', 'A debt generations in the making.'],
-    ['Left Sock Recovery Initiative', 'Household', "They're somewhere. We are going to find them."],
-    ['Hold Music Appreciation Trust', 'Arts', 'Someone wrote that. They deserve to know it mattered.'],
-    ['Puddle Preservation League', 'Water', 'Every puddle was once a cloud. Thematically appropriate.'],
-    ["Lighthouse Keepers' Lunch Program", 'Hunger', "It's a long way down for a sandwich."],
-    ['Umbrella Relief Fund for Umbrellas', 'Weather', 'You left it on the train. We take it from here.'],
-  ].map(([name, category, blurb], i) => ({ id: i + 1, slug: name.toLowerCase().replace(/[^a-z]+/g, '-'), name, category, blurb, url: '' }));
+    ['Against Malaria Foundation', 'Malaria', 'https://www.againstmalaria.com', 'Funds long-lasting insecticidal nets that protect families from malaria.'],
+    ['Best Friends Animal Society', 'Animals', 'https://bestfriends.org', "Working to end the killing of dogs and cats in America's shelters."],
+    ['charity: water', 'Clean water', 'https://www.charitywater.org', 'Funds clean, safe drinking water projects in developing countries.'],
+    ['Crisis Text Line', 'Mental health', 'https://www.crisistextline.org', 'Free, 24/7 support by text for anyone in crisis.'],
+    ['Direct Relief', 'Medical aid', 'https://www.directrelief.org', 'Gets medicine and medical supplies to people hit by poverty and emergencies.'],
+    ['Doctors Without Borders USA', 'Global health', 'https://www.doctorswithoutborders.org', 'Independent medical care in war zones, epidemics and disasters.'],
+    ['DonorsChoose', 'Education', 'https://www.donorschoose.org', 'Funds classroom projects requested by public school teachers.'],
+    ['Equal Justice Initiative', 'Justice', 'https://eji.org', 'Represents people who were wrongly convicted or unfairly sentenced.'],
+    ['Feeding America', 'Hunger', 'https://www.feedingamerica.org', 'A nationwide network of food banks fighting hunger in the US.'],
+    ['Fisher House Foundation', 'Veterans', 'https://fisherhouse.org', "Free lodging for military and veterans' families while a loved one is in the hospital."],
+    ['GiveDirectly', 'Poverty', 'https://www.givedirectly.org', 'Sends cash directly to people living in extreme poverty.'],
+    ['Habitat for Humanity International', 'Housing', 'https://www.habitat.org', 'Builds and repairs homes with families who need affordable housing.'],
+    ['International Rescue Committee', 'Refugees', 'https://www.rescue.org', 'Helps people whose lives are upended by conflict and disaster survive and rebuild.'],
+    ['The Nature Conservancy', 'Environment', 'https://www.nature.org', 'Protects lands and waters around the world.'],
+    ['Save the Children', 'Children', 'https://www.savethechildren.org', 'Helps children in the US and around the world stay healthy, learn and stay safe.'],
+    ['Smile Train', "Kids' surgery", 'https://www.smiletrain.org', 'Funds cleft lip and palate surgery and care for children worldwide.'],
+    ["St. Jude Children's Research Hospital", "Kids' health", 'https://www.stjude.org', 'Treats children with cancer and other deadly diseases. Families never get a bill. (Rated as ALSAC, its fundraising arm.)'],
+    ['World Central Kitchen', 'Disaster relief', 'https://wck.org', 'Cooks and serves fresh meals on the front lines of disasters and crises.'],
+  ].map(([name, category, url, blurb], i) => ({ id: i + 1, slug: name.toLowerCase().replace(/[^a-z]+/g, '-'), name, category, blurb, url, rating: '4 stars' }));
 
   const RULES = { tax_rate: 0.25, ride_tax_factor: 0.5, ride_max_steps: 2, daily_base: 100, streak_bonus: 10, daily_cap: 200, hold_hours: 24, mult_floor: 1, demo: true };
   const BADGES = [[1, 'Intern'], [10, 'Staffer'], [50, 'Consultant'], [250, 'Lobbyist'], [1000, 'Fixer'], [5000, 'Kingmaker'], [25000, 'Shadow Cabinet']].map(([at, name]) => ({ at, name }));
@@ -125,6 +135,21 @@
     return { list, unclaimed: list.filter((a) => a.earned_at && !a.claimed_at).map((a) => a.key), earned: list.filter((a) => a.earned_at).length, total: list.length };
   }
 
+  // Admin clean-up, demo-sized: other players' allowance rows that were undone.
+  const demoUndone = new Set();
+  function demoLobbyists(name) {
+    const n = String(name || '').toLowerCase();
+    if (n === user.username.toLowerCase()) {
+      const mine = donations.filter((d) => d.user === user.username);
+      const split = CHARITIES.map((c) => ({ id: c.id, name: c.name, active: true, amount: round2(mine.filter((d) => d.charity_id === c.id).reduce((s, d) => s + d.amount, 0)) })).filter((c) => c.amount > 0);
+      return { username: user.username, quarter: '2026-Q4', total_donated: user.total_donated, donations_by_charity: split };
+    }
+    const o = otherPlayers.find((x) => x.username.toLowerCase() === n); if (!o) fail('No player by that name.', 404);
+    const c = CHARITIES.find((x) => x.name === o.top_charity) || CHARITIES[0];
+    return { username: o.username, quarter: '2026-Q4', total_donated: o.donated, donations_by_charity: o.donated > 0 ? [{ id: c.id, name: c.name, active: true, amount: round2(o.donated) }] : [] };
+  }
+  const demoRequests = [{ id: 1, name: 'Austin Pets Alive!', url: 'https://www.austinpetsalive.org/', reason: 'Saved my dog. Please add them!', status: 'new', created_at: new Date(Date.now() - 5 * 3.6e6).toISOString(), username: 'erin' }];
+  const demoBugs = [{ id: 1, description: 'The coin flipped twice when I tapped it fast.', url: 'https://trickledown.stevenhester.com/#today', client: 'build demo · 390×844 · light · Mozilla/5.0 (iPhone)', status: 'new', created_at: new Date(Date.now() - 26 * 3.6e6).toISOString(), username: 'ravi_k' }];
   const donations = [
     { charity_id: 6, amount: 0.6, user: 'guest_demo' },
     { charity_id: 1, amount: 61.25, user: 'ravi_k' }, { charity_id: 2, amount: 48, user: 'ravi_k' }, { charity_id: 4, amount: 33.1, user: 'erin' },
@@ -141,13 +166,13 @@
     return p;
   };
   const otherPlayers = [
-    { username: 'ravi_k', donated: 109.25, realized_pnl: 437, streak: 12, cash: 14, hours_ago: 1, top_charity: 'Society for Slightly Taller Trees', town: { happiness: 71, income: 9, motto: 'Nobody is complaining. Officially.', buildings: [{ slot: 'housing', key: 'coop', name: 'Maple Co-op', tier: 'good' }, { slot: 'square', key: 'clinic', name: 'Free Clinic', tier: 'good' }] },
+    { username: 'ravi_k', donated: 109.25, realized_pnl: 437, streak: 12, cash: 14, hours_ago: 1, top_charity: 'charity: water', town: { happiness: 71, income: 9, motto: 'Nobody is complaining. Officially.', buildings: [{ slot: 'housing', key: 'coop', name: 'Maple Co-op', tier: 'good' }, { slot: 'square', key: 'clinic', name: 'Free Clinic', tier: 'good' }] },
       positions: () => [pos('SOL', 100, 22, 0.94), pos('BTC', 50, 6, 0.99), pos('NVDA', 36, 2, 1.004)] },
-    { username: 'erin', donated: 45.85, realized_pnl: 183.4, streak: 7, cash: 0, hours_ago: 4, top_charity: 'Left Sock Recovery Initiative', town: { happiness: 58, income: 6, motto: 'A town, technically.', buildings: [{ slot: 'housing', key: 'tenement', name: 'Tenement Row', tier: 'bad' }, { slot: 'square', key: null }] },
+    { username: 'erin', donated: 45.85, realized_pnl: 183.4, streak: 7, cash: 0, hours_ago: 4, top_charity: 'Best Friends Animal Society', town: { happiness: 58, income: 6, motto: 'A town, technically.', buildings: [{ slot: 'housing', key: 'tenement', name: 'Tenement Row', tier: 'bad' }, { slot: 'square', key: null }] },
       positions: () => [pos('COST', 40, 5, 0.985), pos('NVDA', 30, 1, 1.002), pos('GLD', 40, 9, 0.997)] },
-    { username: 'bagholder_ben', donated: 29.3, realized_pnl: -41, streak: 2, cash: 32, hours_ago: 30, top_charity: 'Puddle Preservation League', town: null,
+    { username: 'bagholder_ben', donated: 29.3, realized_pnl: -41, streak: 2, cash: 32, hours_ago: 30, top_charity: 'Feeding America', town: null,
       positions: () => [pos('GME', 80, 27, 1.2), pos('AMZN', 20, 3, 1.01)] },
-    { username: 'moonshot_mia', donated: 17.75, realized_pnl: 71, streak: 5, cash: 10, hours_ago: 0.3, top_charity: 'Hold Music Appreciation Trust', town: { happiness: 39, income: 14, motto: 'Prosperity for some.', buildings: [{ slot: 'housing', key: 'pinnacle', name: 'The Pinnacle', tier: 'bad' }, { slot: 'square', key: 'casino', name: 'Lucky Lobby Casino', tier: 'bad' }] },
+    { username: 'moonshot_mia', donated: 17.75, realized_pnl: 71, streak: 5, cash: 10, hours_ago: 0.3, top_charity: 'World Central Kitchen', town: { happiness: 39, income: 14, motto: 'Prosperity for some.', buildings: [{ slot: 'housing', key: 'pinnacle', name: 'The Pinnacle', tier: 'bad' }, { slot: 'square', key: 'casino', name: 'Lucky Lobby Casino', tier: 'bad' }] },
       positions: () => [pos('DOGE', 60, 15, 0.93), pos('SHIB', 40, 15, 1.08)] },
   ];
   const findPlayer = (name) => otherPlayers.find((p) => p.username.toLowerCase() === String(name || '').toLowerCase());
@@ -219,7 +244,7 @@
       return { username: user.username, is_guest: user.is_guest, joined: addDay(today, -11) + 'T15:00:00Z', streak: user.streak, total_donated: user.total_donated, quarter_donated: quarterOf(user.username), badges: badgesFor(user.total_donated), cash: user.cash,
         in_play: round2(user.cash + mine.reduce((s, p) => s + p.value, 0)), positions: mine, performance: perfFromCloses(closes, mine, firstDay),
         lobbyists_by_charity: CHARITIES.map((c) => ({ name: c.name, slug: c.slug, amount: round2(mineDon.filter((d) => d.charity_id === c.id).reduce((s2, d) => s2 + d.amount, 0)) })).filter((c) => c.amount > 0),
-        top_charity: 'Puddle Preservation League', last_seen: 'today',
+        top_charity: 'Feeding America', last_seen: 'today',
         achievements: { earned: achView().list.filter((a) => a.earned_at).map((a) => ({ key: a.key, title: a.title, how: a.how, at: a.earned_at })), total: ACH.length },
         town: tv ? { happiness: tv.happiness, income: tv.income, hire_cost: tv.hire_cost, motto: tv.motto, sides: { ...(town.sides || { preston: 0, dolores: 0 }) },
           pet: town.cat && town.cat.name ? { name: town.cat.name, pronoun: town.cat.pronoun, coat: town.cat.coat, wearing: { ...town.cat.wearing }, owned: town.cat.owned.length, spent: town.cat.spent } : null,
@@ -279,7 +304,7 @@
       const picks = [['NVDA', 'Nvidia', 9], ['BTC', 'Bitcoin', 5], ['TSLA', 'Tesla', 4], ['DOGE', 'Dogecoin', 2], ['GLD', 'Gold (ETF)', 1]]
         .map(([symbol, name, buys]) => ({ symbol, name, buys, invested: buys * 60 }));
       const mine = donations.filter((d) => d.user === user.username);
-      const byCharity = CHARITIES.map((c) => { const amt = round2(mine.filter((d) => d.charity_id === c.id).reduce((s, d) => s + d.amount, 0)); return { id: c.id, name: c.name, slug: c.slug, amount: amt, times: mine.filter((d) => d.charity_id === c.id).length, all_time: amt }; })
+      const byCharity = CHARITIES.map((c) => { const amt = round2(mine.filter((d) => d.charity_id === c.id).reduce((s, d) => s + d.amount, 0)); return { id: c.id, name: c.name, slug: c.slug, active: true, amount: amt, times: mine.filter((d) => d.charity_id === c.id).length, all_time: amt }; })
         .filter((c) => c.amount > 0).sort((a, b) => b.amount - a.amount);
       return {
         user: { ...publicUser(), quarter_donated: round2(byCharity.reduce((s, c) => s + c.amount, 0)) },
@@ -294,9 +319,28 @@
         wall_unread_from: wallSeen ? [] : [...new Set((walls.get(user.username) || []).filter((w) => w.author !== user.username).map((w) => w.author))].slice(0, 3),
         wall_latest: wallSeen ? null : ((walls.get(user.username) || []).find((w) => w.author !== user.username) || {}).id || null,
         today_donated: history.filter((h) => h.closed_day === today).reduce((s, h) => s + h.tax, 0),
+        needs_charity: !user.charity_id && user.total_donated > 0,
       };
     }
     if (path === '/achievements') return achView();
+    if (path === '/admin/overview') return { users: otherPlayers.length + 1, guests: 1, active_today: 4, open_positions: positions.filter((p) => p.status === 'open').length, quarter_lobbyists: round2(donations.reduce((s2, d) => s2 + d.amount, 0)), new_requests: demoRequests.filter((r) => r.status === 'new').length, new_bugs: demoBugs.filter((r) => r.status === 'new').length };
+    if (path.startsWith('/admin/transactions')) {
+      const tx = [];
+      for (const p of positions) {
+        if (p.status !== 'gift' && p.status !== 'vested') tx.push({ ref: `p${p.id}`, undoable: true, at: p.opened_at, username: user.username, kind: p.ride_count ? 'ride' : 'buy', what: p.symbol, cash: p.ride_count ? null : -p.invested, amount: p.invested, note: `×${p.multiplier}` });
+        if (p.closed_at) tx.push({ ref: `c${p.id}`, undoable: true, at: p.closed_at, username: user.username, kind: p.status === 'gift' ? 'gift' : p.status === 'rolled' ? 'rolled' : (p.proceeds || 0) <= 0 ? 'bust' : 'collect', what: p.symbol, cash: p.status === 'rolled' ? null : round2((p.proceeds || 0) - (p.tax || 0)), profit: p.profit, tax: p.tax, lobbyists: p.tax ? round2(p.tax) : null, charity: p.charity_id ? CHARITIES.find((c) => c.id === p.charity_id).name : null, note: p.tier || '' });
+      }
+      otherPlayers.forEach((o, i) => { const ref = `l${9000 + i}`; if (!demoUndone.has(o.username)) tx.push({ ref, undoable: true, at: new Date(Date.now() - (i + 1) * 3.6e6).toISOString(), username: o.username, kind: 'allowance', what: '', cash: 110 + i * 10, note: `stipend 100 · streak ${o.streak}` }); });
+      tx.sort((a, b) => new Date(b.at) - new Date(a.at));
+      return { transactions: tx, more: false };
+    }
+    if (path === '/admin/positions') return { positions: positions.filter((p) => p.status === 'open').map(shape).map((p) => ({ id: p.id, username: user.username, symbol: p.symbol, invested: p.invested, value: p.value, swing_pct: p.swing_pct, multiplier: p.multiplier, ride_count: p.ride_count || 0, opened_at: p.opened_at, matures_at: p.matures_at, status: p.matured ? 'matured' : 'live' })) };
+    if (path === '/admin/users') {
+      return { users: [{ username: user.username, is_guest: user.is_guest, is_admin: true, created_at: addDay(today, -11) + 'T15:00:00Z', last_seen_at: new Date().toISOString(), cash: user.cash, lobbyists: user.total_donated, quarter_lobbyists: user.total_donated, realized_pnl: user.realized_pnl, streak: user.streak, open_positions: positions.filter((p) => p.status === 'open').length, total_positions: positions.length, invested_open: 0, cards_played: (town.sides ? town.sides.preston + town.sides.dolores : 0), buildings: Object.values(town.plots).filter(Boolean).length, cat: town.cat && town.cat.name, achievements: 3, friends: friends.size, charity: (CHARITIES.find((c) => c.id === user.charity_id) || {}).name || null }]
+        .concat(otherPlayers.map((o) => ({ username: o.username, is_guest: false, is_admin: false, created_at: addDay(today, -20) + 'T15:00:00Z', last_seen_at: new Date(Date.now() - o.hours_ago * 3.6e6).toISOString(), cash: o.cash, lobbyists: o.donated, quarter_lobbyists: round2(o.donated * 0.6), realized_pnl: o.realized_pnl, streak: o.streak, open_positions: 2, total_positions: 9, invested_open: 80, cards_played: 7, buildings: o.town ? o.town.buildings.filter((b) => b.key).length : 0, cat: SEED_PETS[o.username] ? SEED_PETS[o.username].name : null, achievements: 2, friends: 1, charity: o.top_charity }))) };
+    }
+    if (path === '/admin/lobbyists') return demoLobbyists(new URLSearchParams(qs || '').get('username'));
+    if (path === '/admin/requests') return { requests: demoRequests.slice().reverse(), bugs: demoBugs.slice().reverse() };
     if (path === '/admin/switches') { TownRules.migrate(town); return { username: user.username, unlock_all: !!town.admin_all_open, deal_all: !!town.admin_deal_all }; }
     if (path === '/friends') {
       const list = [...friends].map(findPlayer).filter(Boolean).map(friendRow).sort((a, b) => b.quarter_donated - a.quarter_donated || a.username.localeCompare(b.username));
@@ -351,6 +395,80 @@
       if (path === '/auth/claim' || path === '/auth/register') { if (!/^[A-Za-z0-9_]{3,20}$/.test(body.username || '')) fail('Usernames are 3–20 letters, numbers or underscores.'); if (String(body.password || '').length < 8) fail('Passwords need at least 8 characters.'); user.has_password = true; donations.forEach((d) => { if (d.user === user.username) d.user = body.username; }); user.username = body.username; user.is_guest = false; }
       if (path === '/auth/login') { if (!body.username) fail('Wrong username or password.', 401); user.username = body.username; user.is_guest = false; }
       return { token: 'demo', user: publicUser() };
+    }
+    if (path === '/charity/choose') {
+      const c = CHARITIES.find((x) => x.id === Number(body.charity_id));
+      if (!c) fail("That charity isn't on the list.");
+      const had = !!user.charity_id;
+      let moved = 0;
+      if (!had) {
+        const mine = donations.filter((d) => d.user === user.username);
+        const have = new Map(); for (const d of mine) have.set(d.charity_id, round2((have.get(d.charity_id) || 0) + d.amount));
+        for (const [id, n] of have) if (id !== c.id && n > 0) { donations.push({ charity_id: id, amount: -n, user: user.username }, { charity_id: c.id, amount: n, user: user.username }); moved = round2(moved + n); }
+      }
+      user.charity_id = c.id;
+      const me = await get('/me');
+      return { ok: true, moved, charity: { id: c.id, name: c.name }, user: publicUser(), donations_by_charity: me.donations_by_charity };
+    }
+    if (path === '/charity-requests') {
+      if (String(body.name || '').trim().length < 2) fail("What's the charity called?");
+      demoRequests.push({ id: demoRequests.length + 1, name: String(body.name).trim().slice(0, 100), url: String(body.url || '').trim(), reason: String(body.reason || '').trim().slice(0, 600), status: 'new', created_at: new Date().toISOString(), username: user.username });
+      return { ok: true };
+    }
+    if (path === '/bugs') {
+      if (String(body.description || '').trim().length < 4) fail('Say a few words about what went wrong.');
+      demoBugs.push({ id: demoBugs.length + 1, description: String(body.description).trim().slice(0, 2000), url: String(body.url || ''), client: String(body.client || '').slice(0, 300), status: 'new', created_at: new Date().toISOString(), username: user.username });
+      return { ok: true };
+    }
+    if (path === '/admin/transactions/undo') {
+      const ref = String(body.ref || ''), dry = body.dry_run === true;
+      if (ref[0] === 'l') {
+        const i = Number(ref.slice(1)) - 9000, o = otherPlayers[i];
+        if (!o || demoUndone.has(o.username)) fail('That one is already gone.', 404);
+        const want = -(110 + i * 10), before = o.cash, after = round2(Math.max(0, before + want));
+        if (!dry) { demoUndone.add(o.username); o.cash = after; }
+        return { ok: true, dry_run: dry, username: o.username, label: 'allowance', note: 'Takes the allowance back.', cash: round2(after - before), cash_wanted: want, cash_before: before, lobbyists: 0, pnl: 0, reopened: [], items: [] };
+      }
+      const p = positions.find((x) => x.id === Number(ref.slice(1))); if (!p) fail('That one is already gone.', 404);
+      const want = round2((p.ride_count || p.status === 'gift' ? 0 : p.invested) - (p.closed_at && p.status !== 'rolled' ? (p.proceeds || 0) - (p.tax || 0) : 0));
+      const before = user.cash, after = round2(Math.max(0, before + want));
+      if (!dry) { positions.splice(positions.indexOf(p), 1); user.cash = after; }
+      return { ok: true, dry_run: dry, username: user.username, label: `${p.symbol} position`, cash: round2(after - before), cash_wanted: want, cash_before: before, lobbyists: 0, pnl: 0, reopened: [],
+        items: [{ kind: p.status === 'gift' ? 'gift' : p.ride_count ? 'ride' : 'buy', what: p.symbol, invested: p.invested, multiplier: p.multiplier, status: p.status, proceeds: p.proceeds == null ? null : p.proceeds, tax: p.tax == null ? null : p.tax }] };
+    }
+    if (path === '/admin/lobbyists/remove') {
+      const info = demoLobbyists(body.username), dry = body.dry_run === true;
+      let removed = 0;
+      for (const t of [].concat(body.take || [])) {
+        const c = info.donations_by_charity.find((x) => x.id === Number(t && t.charity_id));
+        const k = c ? round2(Math.min(Number(t.amount) || 0, c.amount)) : 0;
+        if (k <= 0) continue;
+        removed = round2(removed + k);
+        if (dry) continue;
+        if (info.username === user.username) donations.push({ charity_id: c.id, amount: -k, user: user.username });
+        else { const o = otherPlayers.find((x) => x.username === info.username); o.donated = round2(Math.max(0, o.donated - k)); }
+      }
+      if (!removed) fail("They don't have those lobbyists this quarter.");
+      if (!dry && info.username === user.username) user.total_donated = round2(Math.max(0, user.total_donated - removed));
+      return { ok: true, dry_run: dry, username: info.username, removed, donations_by_charity: demoLobbyists(info.username).donations_by_charity };
+    }
+    if (path === '/admin/users/remove') {
+      const names = [...new Set([].concat(body.usernames || []).map((n) => String(n).toLowerCase()))];
+      if (names.includes(user.username.toLowerCase())) fail(`Admin accounts can't be removed here (${user.username}).`);
+      const list = names.map((n) => otherPlayers.find((o) => o.username.toLowerCase() === n));
+      if (!list.length || list.some((x) => !x)) fail('No player by that name.', 404);
+      const summary = list.map((o) => ({ username: o.username, is_guest: false, cash: o.cash, lobbyists: o.donated, quarter_lobbyists: round2(o.donated * 0.6), positions: 9, followers: friends.has(o.username) ? 1 : 0 }));
+      const word = list.length === 1 ? list[0].username : String(list.length);
+      if (body.dry_run === true) return { ok: true, dry_run: true, confirm_with: word, users: summary };
+      if (String(body.confirm || '').trim().toLowerCase() !== word.toLowerCase()) fail(`To confirm, type ${list.length === 1 ? 'the username' : 'the number of players'}: ${word}`);
+      for (const o of list) { otherPlayers.splice(otherPlayers.indexOf(o), 1); friends.delete(o.username); }
+      return { ok: true, removed: list.length, users: summary };
+    }
+    if (path.startsWith('/admin/requests/')) {
+      const [, , , kind, id] = path.split('/');
+      const list = kind === 'charity' ? demoRequests : demoBugs;
+      const r = list.find((x) => x.id === Number(id)); if (!r) fail('Not found.', 404);
+      r.status = body.status; return { ok: true };
     }
     if (path === '/lobbyists/assign') {
       const mine = donations.filter((d) => d.user === user.username);
@@ -559,7 +677,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     const b = document.createElement('div');
     b.className = 'demo-banner';
-    b.textContent = 'Demo. The prices are invented and move fast, the charities are made up, and nothing is saved.';
+    b.textContent = 'Demo. The prices are invented and move fast, the money is pretend, and nothing is saved.';
     document.body.prepend(b);
   });
 })();
