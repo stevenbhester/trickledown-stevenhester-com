@@ -408,5 +408,5 @@ window.Coin = (function () {
     </svg>`;
   }
 
-  return { front, village, buildingIcon, preston, dolores, catPortrait, catSprite };
+  return { front, village, buildingIcon, preston, dolores, catPortrait, catSprite, LOBBYIST_PATHS };
 })();

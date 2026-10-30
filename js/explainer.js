@@ -161,6 +161,7 @@ window.Explainer = (function () {
             <button type="button" class="btn primary" data-finale="register">Create an account</button>
             <button type="button" class="btn primary" data-finale="guest">Play as a guest</button>
           </div>
+          <p class="age-note"><b>18+ only.</b> By creating an account or playing as a guest, you confirm you're 18 or older.</p>
           <button type="button" class="linkish center" data-finale="login">Already have an account? Sign in</button>
         </div>
       </div>`;
@@ -213,7 +214,7 @@ window.Explainer = (function () {
   }
 
   function open({ deck = 'main', rules, onDone, onClose, finale = false, onFinale } = {}) {
-    const r = Object.assign({ daily_base: 100, streak_bonus: 10, daily_cap: 200, tax_rate: 0.25, hold_hours: 24, demo: true }, rules || {});
+    const r = Object.assign({ daily_base: 100, streak_bonus: 10, daily_cap: 200, tax_rate: 0.25, hold_hours: 24, demo: false }, rules || {});
     if (!dlg) build();
     if (current) close(false);
     current = { deck, onDone, onClose, finale, onFinale };

@@ -16,7 +16,10 @@ js/explainer.js   the two tutorials
 js/app.js         screens, carving, collect/sell/ride, the flip, TrickleTown Hall, the Site Office, the menu, leaderboards, friends, profiles and walls
 js/api.js         fetch wrapper with the auth token
 js/demo-api.js    in-memory fake API for demo mode (see below)
-favicon.svg       the droplet
+js/review.js      the welcome-back performance review chart
+sw.js             service worker: daily-reminder pushes and taps only, no caching
+manifest.webmanifest  makes it installable (Share → Add to Home Screen)
+favicon.svg       the droplet; icon-192.png / icon-512.png / apple-touch-icon.png are it as app icons
 ```
 
 ## Run it locally
@@ -36,6 +39,13 @@ has the placeholder backend URL shows a "not connected yet" notice (with a
 link to the demo) rather than quietly running the fake game.
 
 ## The landing page
+
+At phone width (under 1000px): the headline, both faces of a sample coin
+("heads: your money", "tails: your lobbyists"), "Play as a guest · no
+account", "Create an account", "60-second training first", the 18+ line, the
+three pitches, and a live line from `/trickle` ("$100 to charity on January
+1 · N players lobbying", the count only from 25 up). Wider than that, as
+below.
 
 Hero, three one-line pitches, then "Take the employee training" (the
 orientation deck; when taken before signing up its last slide ends in the

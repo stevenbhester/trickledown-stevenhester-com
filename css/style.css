@@ -61,6 +61,11 @@
   --coin-sep: #F7F9FA;
   --coin-cash: #F7F9FA;
   --coin-cash-hover: #F0F4F5;
+  /* Chart series (the performance review): a fixed order, checked for
+     colour-blind separation on the card in both themes. */
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --s-other: #5A6B73;
   /* Charity swatches */
   --ch0: #1879A0; --ch1: #2C9BC4; --ch2: #0F5873; --ch3: #63B6D3; --ch4: #1B6E8C; --ch5: #9ED3E4;
 
@@ -568,12 +573,12 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
 html.popup-open body { position: fixed; left: 0; right: 0; overflow: hidden; }
 .sheet-body { padding: 18px var(--gutter) 22px; overflow: auto; max-height: 92vh; max-height: 92dvh; }
 /* The long sheets keep their title and × in view while the rest scrolls. */
-.cat-sheet .sheet-head, .charity-sheet .sheet-head, .adm-sheet .sheet-head {
+.cat-sheet .sheet-head, .charity-sheet .sheet-head, .adm-sheet .sheet-head, .review-sheet .sheet-head {
   position: sticky; top: -18px; z-index: 3;
   margin: -18px calc(-1 * var(--gutter)) 12px; padding: 18px var(--gutter) 8px;
   background: var(--paper); box-shadow: 0 1px 0 var(--line); border-radius: 10px 10px 0 0;
 }
-@media (min-width: 600px) { .cat-sheet .sheet-head, .charity-sheet .sheet-head, .adm-sheet .sheet-head { border-radius: 6px 6px 0 0; } }
+@media (min-width: 600px) { .cat-sheet .sheet-head, .charity-sheet .sheet-head, .adm-sheet .sheet-head, .review-sheet .sheet-head { border-radius: 6px 6px 0 0; } }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .sheet-head h2 { font-family: var(--display); font-weight: 700; font-size: 26px; }
 .close { background: none; border: 0; font-size: 28px; line-height: 1; cursor: pointer; color: var(--mud); padding: 4px 8px; }
@@ -583,7 +588,7 @@ html.popup-open body { position: fixed; left: 0; right: 0; overflow: hidden; }
 
 .field { display: block; margin-bottom: 12px; }
 .field > span { display: block; font-size: 14px; color: var(--mud); margin-bottom: 4px; }
-input[type="search"], input[type="number"], input[type="text"], input[type="password"], input:not([type]), select {
+input[type="search"], input[type="number"], input[type="text"], input[type="password"], input[type="date"], input:not([type]), select {
   width: 100%;
   padding: 10px 12px;
   border: 1.5px solid var(--line);
@@ -609,7 +614,12 @@ input:focus { border-color: var(--water); }
   border: 1.5px dashed var(--gold); border-radius: var(--radius); padding: 10px 12px; margin: 4px 0 12px; font-size: 13px; color: var(--mud);
 }
 .ride-box b { grid-area: head; color: var(--ink); font-family: var(--display); font-size: 18px; font-weight: 700; }
-.ride-box span { grid-area: body; }
+.ride-box span, .ride-box .ride-lines { grid-area: body; }
+.ride-box .ride-lines p { margin: 3px 0 0; font-size: 13px; line-height: 1.4; }
+@media (max-width: 480px) {
+  .ride-box { grid-template-columns: 1fr; grid-template-areas: "head" "body" "btn"; }
+  .ride-box .btn { justify-self: start; margin-top: 8px; }
+}
 .ride-box .btn { grid-area: btn; border-color: var(--gold); }
 .position .action .btn + .btn { margin-left: 6px; }
 
@@ -1949,6 +1959,12 @@ html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
 .ch-rating span { letter-spacing: .05em; }
 .ch-link { position: absolute; right: 12px; bottom: 10px; font-size: 12px; font-weight: 600; text-decoration: none; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-link:hover { text-decoration: underline; }
+/* The site link and "Give for real" share the card's corner. */
+/* The links get their own row at the bottom of the card, clear of the stars. */
+.ch-item.has-links .ch-card { padding-bottom: 34px; }
+.ch-links { position: absolute; left: 46px; right: 14px; bottom: 10px; display: flex; justify-content: flex-end; gap: 14px; }
+.ch-links .ch-link { position: static; max-width: 55%; }
+.give-link { font-size: 12px; font-weight: 600; color: var(--water-deep); white-space: nowrap; }
 .ch-request { display: block; margin: 6px 0 14px; font-size: 14px; }
 .ch-go { position: sticky; bottom: -22px; margin: 0 calc(-1 * var(--gutter)) -22px; padding: 12px var(--gutter) 18px; background: linear-gradient(to bottom, transparent, var(--paper) 22%); }
 .charity-sheet .sheet-body { padding-bottom: 22px; }
@@ -2056,6 +2072,165 @@ html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
 .adm-client { font-size: 12px; overflow-wrap: anywhere; }
 .adm-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 
+/* Your team's place this quarter, with a Recruit button (Lobbyfest, Payroll). */
+.team-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; font-size: 14px; }
+.team-line p { margin: 0; line-height: 1.4; }
+.team-line .btn { flex: none; }
+/* Empty friends: an invite, not a dead end. */
+.invite-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.invite-empty p { margin: 0; }
+.invite-row { margin: 10px 0 0; }
+/* Someone's profile, signed out: the way in, pinned to the bottom. */
+#screen-profile.visitor { padding-bottom: 150px; }
+.visitor-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  margin: 0 auto; max-width: var(--max); padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom));
+  background: var(--paper); border-top: 2px solid var(--water); box-shadow: 0 -6px 18px rgb(var(--sh) / .12);
+}
+.visitor-bar p { margin: 0 0 8px; font-size: 15px; }
+.visitor-ways { display: flex; gap: 8px; flex-wrap: wrap; }
+.visitor-bar small { display: block; margin-top: 6px; font-size: 12px; }
+
+/* --- Landing at phone width: the coin, both faces, then the way in (4.1) --- */
+.hero-coins, .phone-ways, .landing-stats { display: none; }
+@media (max-width: 999px) {
+  .welcome .hero { font-size: 46px; margin-bottom: 10px; }
+  .hero-coins { display: block; position: relative; height: clamp(190px, 58vw, 300px); margin: 0 0 14px; }
+  .hc { position: absolute; margin: 0; text-align: center; }
+  .hc-face { aspect-ratio: 1; filter: drop-shadow(0 10px 14px rgb(var(--sh) / .22)); }
+  .hc-face svg { width: 100%; height: 100%; display: block; }
+  .hc figcaption { margin-top: 4px; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--mud); }
+  .hc-heads { left: 0; top: 0; width: 60%; transform: rotate(-6deg); z-index: 2; }
+  .hc-tails { right: 0; top: 14%; width: 46%; transform: rotate(5deg); }
+  .phone-ways { display: grid; gap: 8px; margin: 0 0 18px; }
+  .phone-ways .btn { padding: 13px 12px; font-size: 16px; }
+  .phone-ways .linkish.center { margin: 2px auto 0; }
+  .phone-ways .age-note { margin-top: 2px; }
+  .welcome .training, .welcome .ways-in, .welcome .desk-age { display: none; }
+  .landing-stats:not([hidden]) { display: block; margin: -6px 0 14px; font-size: 15px; color: var(--mud); }
+  .landing-stats b { color: var(--ink); }
+}
+@media (max-width: 380px) { .welcome .hero { font-size: 40px; } }
+
+/* --- "Put it on your home screen" (3.1) --- */
+.install-hint { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 12px; padding: 10px 6px 10px 12px; background: var(--card); border: 1px dashed var(--water); border-radius: 6px; font-size: 14px; }
+.install-hint p { margin: 0; flex: 1; line-height: 1.4; }
+.install-hint .close { font-size: 22px; padding: 0 6px; }
+
+/* --- The weekly beat (4.5) --- */
+.event-banner { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; padding: 9px 12px; background: var(--gold-wash); color: var(--gold-wash-ink); border-left: 3px solid var(--gold); border-radius: 0 6px 6px 0; font-size: 14px; }
+.event-banner p { margin: 0; line-height: 1.4; }
+.event-banner .muted { color: inherit; opacity: .8; }
+.eb-tag { flex: none; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.feat-line { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--gold-ink); }
+
+/* --- "While you were out": the digest and the review's last word (3.2) --- */
+.out-list { list-style: none; margin: 0; padding: 0; }
+.out-list li { display: grid; grid-template-columns: 26px 1fr; gap: 4px; padding: 5px 0; line-height: 1.4; font-size: 15px; }
+.out-ico { text-align: center; }
+.digest-sheet .sheet-head h2 { line-height: 1; }
+.digest-sheet .sheet-head h2 small { display: block; font-family: var(--body); font-weight: 700; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--water-deep); margin-bottom: 3px; }
+.digest-sheet .out-list { margin-bottom: 16px; }
+
+/* --- A position at zero: the service (3.4) --- */
+.rip-scene { margin: 2px 0 10px; display: flex; align-items: center; gap: 12px; }
+.rip-svg { width: 120px; height: 46px; flex: none; overflow: visible; }
+.rip-svg .rip-bow { fill: var(--ink); transform-box: fill-box; transform-origin: 50% 100%; transform: rotate(-10deg); }
+.rip-stone path { fill: var(--line); stroke: var(--mud); stroke-width: 1; }
+.rip-stone text { fill: var(--ink); font-family: var(--display); font-weight: 700; font-size: 7px; letter-spacing: .04em; }
+.rip-stone .rip-tk { font-size: 6.5px; }
+.rip-ground { stroke: var(--mud); stroke-width: 1; }
+.rip-scene figcaption { font-size: 13px; color: var(--mud); line-height: 1.35; }
+@media (prefers-reduced-motion: no-preference) {
+  .rip-svg .rip-bow { animation: rip-bow 1.6s ease-out both; }
+  .rip-svg g:nth-child(2) .rip-bow { animation-delay: .15s; }
+  .rip-svg g:nth-child(3) .rip-bow { animation-delay: .3s; }
+}
+@keyframes rip-bow { from { transform: rotate(0deg); } }
+
+/* --- Past Lobbyfests (3.5) --- */
+.fest { margin: 14px 0; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+.fest h2 { margin: 0 0 4px; font-family: var(--display); font-size: 22px; }
+.fest h2 .muted { font-family: var(--body); font-size: 13px; font-weight: 400; }
+.fest-pot { margin: 0 0 8px; font-size: 15px; }
+.fest-pot b { font-family: var(--display); font-size: 24px; }
+.fest-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 8px; }
+.fest-table th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--mud); border-bottom: 1px solid var(--line); padding: 4px 0; }
+.fest-table td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.fest-table .num { text-align: right; font-variant-numeric: tabular-nums; padding-left: 16px; white-space: nowrap; }
+.history-link { font-weight: 600; }
+.adm-fest { margin: 8px 0 18px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+.adm-fest h3 { margin: 0 0 4px; }
+.adm-fest-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 10px; }
+.adm-fest-table input { width: 100%; min-width: 70px; padding: 6px 8px; }
+.adm-list { list-style: none; padding: 0; margin: 0 0 12px; }
+.adm-list li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.danger-link { color: var(--sink); margin-left: 8px; }
+
+/* Adults only: under every way to make an account or start as a guest. */
+/* "Hide the meters" (card 66): a friend's numbers, redacted for the week. */
+.prof-nums b.hidden-meter { font-family: var(--body); font-size: 13px; font-weight: 600; font-style: italic; color: var(--mud); }
+.age-note { margin: 10px 0 0; text-align: center; font-size: 13px; line-height: 1.4; color: var(--mud); }
+.age-note b { color: var(--ink); }
+.x-finale .age-note { margin: 10px 0 2px; }
+
+/* ---------------------------------------------------------------------------
+   Welcome-back performance review: one line per position, swept on a clock
+   --------------------------------------------------------------------------- */
+.review-sheet .sheet-head h2 { line-height: 1; }
+.review-sheet .sheet-head h2 small { display: block; font-family: var(--body); font-weight: 700; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--water-deep); margin-bottom: 3px; }
+.rv-sub { color: var(--mud); font-size: 13px; margin: -4px 0 10px; }
+.rv-card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px 2px; }
+.rv-readout { display: flex; justify-content: space-between; align-items: baseline; padding: 0 6px 2px; font-variant-numeric: tabular-nums; }
+.rv-clock { font-size: 12.5px; color: var(--mud); }
+.rv-total small { font-size: 10.5px; font-weight: 700; color: var(--mud); text-transform: uppercase; letter-spacing: 0.06em; }
+.rv-total b { font-family: var(--display); font-size: 22px; font-weight: 700; }
+.rv-chart { touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.rv-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.rv-grid line { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
+.rv-axis { fill: var(--mud); font-family: var(--body); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.rv-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.rv-line.quiet { stroke-width: 1.25; stroke-opacity: 0.55; }
+.rv-head.quiet .rv-lab-bg, .rv-head.quiet .rv-lab, .rv-head.quiet .rv-leader { display: none; }
+.rv-buy { fill: var(--card); stroke-width: 1.5; }
+.rv-dot { stroke: var(--card); stroke-width: 2; }
+.rv-cursor { stroke: var(--ink); stroke-opacity: 0.3; stroke-width: 1; }
+.rv-leader { stroke: var(--dim-line); stroke-width: 1; }
+.rv-lab-bg { fill: var(--card); fill-opacity: 0.9; }
+.rv-lab { font-family: var(--body); font-size: 11px; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
+.rv-lab-t { fill: var(--ink); font-weight: 700; }
+.rv-lab-v { fill: var(--mud); }
+.rv-ctl { display: flex; justify-content: flex-end; padding: 0 6px 6px; font-size: 13px; }
+.rv-rows { list-style: none; margin: 12px 0 0; padding: 0; }
+.rv-row {
+  display: grid; grid-template-columns: 14px 1fr auto; grid-template-areas: "key sym val" "key state pct";
+  column-gap: 8px; row-gap: 1px; align-items: baseline;
+  padding: 8px 2px; border-bottom: 1px solid var(--line);
+}
+.rv-row:last-child { border-bottom: 0; }
+.rv-key { grid-area: key; align-self: center; width: 14px; height: 3px; border-radius: 2px; background: var(--c); }
+.rv-sym { grid-area: sym; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-sym b { font-size: 15px; }
+.rv-sym small { color: var(--mud); font-size: 12.5px; margin-left: 6px; }
+.rv-val { grid-area: val; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rv-val small { color: var(--mud); font-size: 12.5px; }
+.rv-val b { font-size: 15px; }
+.rv-state { grid-area: state; color: var(--mud); font-size: 12.5px; }
+.rv-final { grid-area: pct; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rv-pct.up { color: var(--rise); }
+.rv-pct.down { color: var(--sink); }
+.rv-verdict { margin: 14px 0 0; padding: 10px 12px; background: var(--gold-wash); color: var(--gold-wash-ink); border-left: 3px solid var(--gold); border-radius: 0 6px 6px 0; font-size: 14px; line-height: 1.45; }
+.rv-verdict .rv-pct { font-weight: 700; }
+.rv-also { margin-top: 12px; font-size: 14px; }
+.rv-also > b { display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mud); margin-bottom: 4px; }
+.rv-also ul { list-style: none; margin: 0; padding: 0; }
+.rv-also li { padding: 3px 0; line-height: 1.4; }
+.rv-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+/* The percentages, verdict and news wait for the clock to land. */
+.rv-final, .rv-after { transition: opacity 360ms ease-out; }
+.review-sheet:not(.landed) .rv-final, .review-sheet:not(.landed) .rv-after { opacity: 0; visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .rv-final, .rv-after { transition: none; } }
+
 /* ===========================================================================
    Dark mode
    ---------------------------------------------------------------------------
@@ -2124,6 +2299,9 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
   --coin-sep: #1B252B;
   --coin-cash: #33424A;
   --coin-cash-hover: #3B4B54;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --s-other: #93A6AF;
   --ch0: #4DAED6; --ch1: #2D86AB; --ch2: #8FD0EA; --ch3: #1D6788; --ch4: #66BFE0; --ch5: #B8E3F2;
 }
 

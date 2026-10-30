@@ -38,7 +38,7 @@
     ['Smile Train', "Kids' surgery", 'https://www.smiletrain.org', 'Funds cleft lip and palate surgery and care for children worldwide.'],
     ["St. Jude Children's Research Hospital", "Kids' health", 'https://www.stjude.org', 'Treats children with cancer and other deadly diseases. Families never get a bill. (Rated as ALSAC, its fundraising arm.)'],
     ['World Central Kitchen', 'Disaster relief', 'https://wck.org', 'Cooks and serves fresh meals on the front lines of disasters and crises.'],
-  ].map(([name, category, url, blurb], i) => ({ id: i + 1, slug: name.toLowerCase().replace(/[^a-z]+/g, '-'), name, category, blurb, url, rating: '4 stars' }));
+  ].map(([name, category, url, blurb], i) => ({ id: i + 1, slug: name.toLowerCase().replace(/[^a-z]+/g, '-'), name, category, blurb, url, donate: `${url}/donate`, rating: '4 stars' }));
 
   const RULES = { tax_rate: 0.25, ride_tax_factor: 0.5, ride_max_steps: 2, daily_base: 100, streak_bonus: 10, daily_cap: 200, hold_hours: 24, mult_floor: 1, demo: true };
   const BADGES = [[1, 'Intern'], [10, 'Staffer'], [50, 'Consultant'], [250, 'Lobbyist'], [1000, 'Fixer'], [5000, 'Kingmaker'], [25000, 'Shadow Cabinet']].map(([at, name]) => ({ at, name }));
@@ -61,6 +61,7 @@
   const seedNvda = find('NVDA'), seedDoge = find('DOGE'), seedKo = find('KO');
   const HOLD_MS = RULES.hold_hours * 3600e3;
   const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString();
+  const isoDay = (n) => new Date(Date.now() + n * 86400e3).toISOString().slice(0, 10);
   const positions = [
     // Live, bought 3h ago, up.
     { id: 1, symbol: 'NVDA', name: 'Nvidia', asset_type: 'stock', multiplier: 10, invested: 50, entry_price: round2(priceOf(seedNvda).price * 0.985), opened_at: ago(3), opened_day: today, matures_at: new Date(Date.now() + HOLD_MS - 3 * 3600e3).toISOString(), status: 'open' },
@@ -293,6 +294,35 @@
     await sleep(120);
     const [path, qs] = String(fullPath).split('?');
     const params = new URLSearchParams(qs || '');
+    // The welcome-back review: a made-up but plausible path for each position,
+    // starting at what went in and landing exactly where it froze.
+    if (path === '/positions/review') {
+      settleMatured();
+      const ids = String(params.get('ids') || '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
+      const open = positions.filter((p) => p.status === 'open');
+      const done = open.filter((p) => p.matured_at && ids.includes(p.id));
+      if (!done.length) return { start: null, end: null, positions: [] };
+      const ms = (d) => new Date(d).getTime();
+      const end = Math.max(...done.map((p) => ms(p.matures_at)));
+      const start = Math.min(...done.map((p) => ms(p.opened_at)));
+      const live = open.filter((p) => !p.matured_at && ms(p.opened_at) < end);
+      return {
+        start, end,
+        positions: [...done, ...live].map((p) => {
+          const t0 = Math.max(ms(p.opened_at), start), t1 = p.matured_at ? ms(p.matures_at) : end;
+          const last = p.matured_at ? p.matured_price : priceOf(find(p.symbol)).price;
+          const seed = hash(p.symbol), n = 72, points = [];
+          for (let i = 0; i <= n; i++) {
+            const k = i / n, t = t0 + (t1 - t0) * k;
+            const wob = Math.sin(k * 9 + seed * 20) * 0.6 + Math.sin(k * 23 + seed * 7) * 0.3 + Math.sin(k * 51 + seed * 3) * 0.12;
+            const px = p.entry_price + (last - p.entry_price) * k + p.entry_price * 0.012 * wob * Math.sin(Math.PI * k);
+            points.push([Math.round(t), valueOf(p, px, t).value]);
+          }
+          if (p.matured_at) points[n][1] = p.matured_value;
+          return { id: p.id, symbol: p.symbol, name: p.name, matured: !!p.matured_at, invested: p.invested, opened_at: p.opened_at, matures_at: p.matures_at, final_value: points[n][1], points };
+        }),
+      };
+    }
     if (path === '/me') {
       settleMatured();
       TownRules.ensureIssues(town, townCtx());
@@ -355,6 +385,16 @@
     if (path === '/auth/options') return { google: false, google_client_id: null, password_min: 8 };
     if (path === '/assets') return { assets: ASSETS };
     if (path === '/charities') return { charities: CHARITIES };
+    // Past Lobbyfests: none yet (the first is January 1, 2027).
+    if (path === '/lobbyfests') return { lobbyfests: [] };
+    // The weekly beat: your own charity is featured this week, ×1.25.
+    if (path === '/events/current' || path === '/admin/events') {
+      const c = CHARITIES.find((x) => x.id === (user.charity_id || 6));
+      const ev = { id: 1, kind: 'featured_charity', starts_on: isoDay(-2), ends_on: isoDay(4), charity_id: c.id, charity_name: c.name, multiplier: 1.25, title: 'Featured charity', blurb: '' };
+      return path === '/events/current' ? { events: [ev] } : { events: [ev], today };
+    }
+    // Reminders need a real server (and its keys); the demo has neither.
+    if (path === '/push/key') return { key: null, hour: 17 };
     if (path === '/config') return { ...RULES, badges: BADGES };
     if (path.startsWith('/quote/')) { const a = find(decodeURIComponent(path.slice(7))); if (!a) fail('Not in the game.', 404); return { symbol: a.symbol, ...priceOf(a), source: 'demo' }; }
     if (path === '/trickle') {
@@ -366,7 +406,8 @@
       for (;;) { const t = inn.reduce((s, c) => s + c.quarter_total, 0); const under = inn.filter((c) => t && pot * c.quarter_total / t < 5); if (!under.length || under.length === inn.length) break; inn = inn.filter((c) => !under.includes(c)); }
       const it = inn.reduce((s, c) => s + c.quarter_total, 0);
       return { quarter: '2026-Q4', quarter_ends_at: quarterEndsAt(), demo: true, pool_usd: pool, payout_usd: pot, min_usd: 100, charity_min_usd: 5, quarter_total: round2(qt), all_time: round2(totals.reduce((s, c) => s + c.all_time, 0)), quarter_donors: 5,
-        charities: totals.map((c) => ({ ...c, share: qt ? c.quarter_total / qt : 0, est_usd: inn.includes(c) && it ? round2(pot * c.quarter_total / it) : 0, left_out: c.quarter_total > 0 && !inn.includes(c) })).sort((a, b) => b.quarter_total - a.quarter_total) };
+        charities: totals.map((c) => ({ ...c, share: qt ? c.quarter_total / qt : 0, est_usd: inn.includes(c) && it ? round2(pot * c.quarter_total / it) : 0, left_out: c.quarter_total > 0 && !inn.includes(c) })).sort((a, b) => b.quarter_total - a.quarter_total)
+          .map((c, i, all) => ({ ...c, rank: i + 1, gap_to_next: i === 0 ? 0 : round2(Math.max(0, all[i - 1].quarter_total - c.quarter_total)) })) };
     }
     if (path === '/leaderboard') {
       const friendsOnly = params.get('friends') === '1';
@@ -623,6 +664,7 @@
       if (!t) fail('No player by that name. Usernames are case-insensitive; check the spelling. (In the demo, try ravi_k or bagholder_ben.)', 404);
       friends.add(t.username); return { ok: true, username: t.username, friend_count: friends.size };
     }
+    if (path === '/friends/invite') return { ok: true, username: String(body.from || '') };
     if (path === '/friends/remove') { const t = findPlayer(body.username); if (t) friends.delete(t.username); return { ok: true, friend_count: friends.size }; }
     if (path === '/ride') {
       const p = positions.find((x) => x.id === Number(body.position_id)); if (!p) fail('No such position.', 404); if (p.status !== 'open') fail('Already collected.');
@@ -664,6 +706,9 @@
       if (lobbyists > 0) donations.push({ charity_id: charity.id, amount: lobbyists, user: user.username });
       return { ok: true, user: publicUser(), receipt: { position_id: p.id, symbol: p.symbol, name: p.name, invested: p.invested, value: live.value, ...live, ...s, lobbyists, hire_cost: hireCost, collected: !!p.matured_at, exit_price: exitPrice, charity } };
     }
+    // Admin forms: accepted, and forgotten (the demo saves nothing).
+    if (['/admin/lobbyfests', '/admin/lobbyfests/delete', '/admin/events', '/admin/events/delete'].includes(path)) return { ok: true };
+    if (path === '/push/subscribe' || path === '/push/unsubscribe') fail("Reminders need the real site.", 400);
     fail('Not found.', 404);
   }
 
@@ -673,7 +718,13 @@
   const origGet = get;
   get = async function (path) {
     const out = await origGet(path);
-    if (path === '/me' && firstMe) { firstMe = false; out.allowance = { amount: 120 + TownRules.income(town), streak: 3, base: 120, town_income: TownRules.income(town) }; }
+    if (path === '/me' && firstMe) {
+      firstMe = false;
+      out.allowance = { amount: 120 + TownRules.income(town), streak: 3, base: 120, town_income: TownRules.income(town) };
+      // A night's worth of news for "While you were out".
+      out.user.last_seen_at = new Date(Date.now() - 30 * 3600e3).toISOString();
+      if (out.town) out.town.expired_yesterday = 2;
+    }
     return out;
   };
 
