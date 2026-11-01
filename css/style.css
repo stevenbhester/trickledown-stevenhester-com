@@ -420,7 +420,7 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
 .chips button.on { background: var(--shallow); }
 .asset-list {
   list-style: none; margin: 0 0 10px; padding: 0;
-  max-height: 216px; overflow: auto;
+  max-height: 216px; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--card);
 }
 .asset-list li {
@@ -433,6 +433,8 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
 .asset-list .mood.Spicy { color: var(--spicy); }
 .asset-list .mood.Unhinged { color: var(--sink); }
 .asset-list .nothing { padding: 12px; color: var(--mud); cursor: default; display: block; }
+.asset-list .row-end { display: inline-flex; align-items: center; gap: 6px; justify-self: end; }
+.mkt-zz { font-size: 13px; line-height: 1; opacity: .85; }
 .quote-line {
   display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   font-size: 14px; margin: 0 0 10px; color: var(--mud);
@@ -670,9 +672,9 @@ input:focus { border-color: var(--water); }
 .welcome .hero { font-family: var(--display); font-weight: 900; font-size: 64px; line-height: 0.88; margin: 6px 0 16px; max-width: 9ch; }
 @media (max-width: 480px) { .welcome .hero { font-size: 52px; } }
 .welcome p { max-width: 46ch; font-size: 17px; }
-.welcome .pitch { list-style: none; margin: 0 0 18px; padding: 0; max-width: 46ch; }
-.welcome .pitch li { font-size: 16px; padding: 7px 0 7px 14px; border-left: 3px solid var(--line); margin: 0 0 4px; }
-.welcome .pitch li b { font-family: var(--display); font-weight: 900; font-size: 19px; letter-spacing: 0.01em; }
+.welcome .pitch, .visit-intro .pitch { list-style: none; margin: 0 0 18px; padding: 0; max-width: 46ch; }
+.welcome .pitch li, .visit-intro .pitch li { font-size: 16px; padding: 7px 0 7px 14px; border-left: 3px solid var(--line); margin: 0 0 4px; }
+.welcome .pitch li b, .visit-intro .pitch li b { font-family: var(--display); font-weight: 900; font-size: 19px; letter-spacing: 0.01em; }
 .training {
   display: grid; width: 100%; text-align: left; gap: 2px; padding: 12px 14px; margin: 0 0 14px; cursor: pointer;
   border: 2px solid var(--edge); border-radius: var(--radius); background: var(--paper); color: var(--ink); font: inherit;
@@ -1541,6 +1543,10 @@ body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foo
 .up-who > span { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
 .up-who small { color: var(--mud); font-size: 11px; }
 .up-side q { font-size: 13px; color: var(--mud); font-style: italic; quotes: none; flex: 1; }
+.up-name { font-size: 14px; line-height: 1.25; }
+.up-side .chips, .up-side .fx-chips { margin: 0; }
+.up-later { align-self: flex-start; font-size: 13px; color: var(--mud); }
+.site-ups li.up-passed .up-side { opacity: .85; }
 .up-act { align-self: flex-start; font-size: 13px; font-weight: 700; border-radius: 8px; padding: 4px 10px; background: var(--water); color: var(--on-accent); }
 @media (prefers-reduced-motion: reduce) { .up-side { transition: none; } .up-side:not(:disabled):hover { transform: none; } }
 .fresh-card { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--gold-wash); font-size: 13px; }
@@ -2120,6 +2126,19 @@ html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
 .visitor-bar p { margin: 0 0 8px; font-size: 15px; }
 .visitor-ways { display: flex; gap: 8px; flex-wrap: wrap; }
 .visitor-bar small { display: block; margin-top: 6px; font-size: 12px; }
+.visitor-bar { transition: transform 200ms ease-out; }
+.visitor-bar.vb-away { transform: translateY(110%); }
+@media (prefers-reduced-motion: reduce) { .visitor-bar { transition: none; } }
+/* ...and, at the top, what the game is, so the profile below makes sense. */
+.visit-intro { margin: 4px 0 22px; padding: 14px 16px 16px; border: 2px solid var(--edge); border-radius: var(--radius); background: var(--paper); box-shadow: 4px 4px 0 var(--edge); }
+.vi-kicker { margin: 0 0 4px; font-size: 14px; color: var(--mud); }
+.vi-kicker b { color: var(--ink); }
+.vi-title { font-family: var(--display); font-weight: 900; font-size: 34px; line-height: 0.95; margin: 0 0 12px; max-width: 14ch; }
+.visit-intro .pitch { margin-bottom: 12px; }
+.visit-intro .pitch li { font-size: 15px; }
+.visit-intro .pitch li b { font-size: 17px; }
+.vi-below { margin: 0 0 12px; font-size: 14px; color: var(--mud); }
+.vi-ways { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 
 /* --- Landing at phone width: the coin, both faces, then the way in (4.1) --- */
 .hero-coins, .phone-ways, .landing-stats { display: none; }
@@ -2482,3 +2501,38 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
 /* Stocks are quiet: closed now, or closing soon for a long stretch. */
 .mkt-note { margin: 0 0 10px; padding: 9px 12px; border-radius: 10px; background: var(--gold-wash); border: 1px solid rgb(var(--gold-rgb) / .35); font-size: 13px; line-height: 1.45; color: var(--ink); }
 .mkt-note b { display: block; font-size: 14px; margin-bottom: 2px; }
+
+/* --- The cat, resting: breathe, blink, flick an ear, swish the tail. ---------
+   Four phase offsets (cp-d0..3, from the name) keep two cats out of step. */
+.cat-portrait .cp-breathe { transform-box: view-box; transform-origin: 60px 120px; animation: cp-breathe 3.6s ease-in-out infinite; }
+.cat-portrait .cp-lid { transform-box: fill-box; transform-origin: center; animation: cp-blink 5.4s infinite; }
+.cat-portrait .cp-ear-r { transform-box: fill-box; transform-origin: 30% 100%; animation: cp-ear 7.5s infinite; }
+.cat-portrait .cp-tail { transform-box: view-box; transform-origin: 84px 118px; animation: cp-tail 3.2s ease-in-out infinite; }
+.cat-portrait.cp-d1 .cp-lid { animation-delay: -1.3s; } .cat-portrait.cp-d1 .cp-breathe { animation-delay: -.9s; } .cat-portrait.cp-d1 .cp-ear-r { animation-delay: -2.5s; }
+.cat-portrait.cp-d2 .cp-lid { animation-delay: -2.7s; } .cat-portrait.cp-d2 .cp-breathe { animation-delay: -1.8s; } .cat-portrait.cp-d2 .cp-tail { animation-delay: -1.1s; }
+.cat-portrait.cp-d3 .cp-lid { animation-delay: -4.1s; } .cat-portrait.cp-d3 .cp-ear-r { animation-delay: -5s; } .cat-portrait.cp-d3 .cp-tail { animation-delay: -2.2s; }
+@keyframes cp-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.012, 1.028); } }
+@keyframes cp-blink { 0%, 90%, 96%, 100% { transform: scaleY(1); } 93% { transform: scaleY(.08); } }
+@keyframes cp-ear { 0%, 84%, 89%, 93%, 100% { transform: rotate(0); } 86% { transform: rotate(9deg); } 91% { transform: rotate(5deg); } }
+@keyframes cp-tail { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(7deg); } }
+/* In the village: a slow breath and a lazy tail. */
+.v-cat .v-cat-breathe { transform-box: fill-box; transform-origin: 50% 100%; animation: cp-breathe 3.8s ease-in-out infinite; }
+.v-cat .v-cat-tail { transform-box: fill-box; transform-origin: 0% 100%; animation: cp-tail 3.4s ease-in-out infinite; }
+.v-cat .v-cat-eyes { transform-box: fill-box; transform-origin: center; animation: cp-blink 6s infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cat-portrait .cp-breathe, .cat-portrait .cp-lid, .cat-portrait .cp-ear-r, .cat-portrait .cp-tail,
+  .v-cat .v-cat-breathe, .v-cat .v-cat-tail, .v-cat .v-cat-eyes { animation: none; }
+}
+
+/* Petting someone's cat. */
+.pet-art { position: relative; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; flex: none; line-height: 0; }
+.pet-art:disabled { cursor: default; }
+.pet-art:focus-visible { outline: 2px solid var(--water); outline-offset: 3px; }
+.pet-art.patted .cat-portrait { animation: pet-squish 420ms ease-out; }
+@keyframes pet-squish { 0% { transform: scale(1); } 35% { transform: scale(1.06, .94); } 70% { transform: scale(.98, 1.02); } 100% { transform: scale(1); } }
+.pet-pop { position: absolute; left: 50%; top: 20%; font-size: 20px; line-height: 1; pointer-events: none; animation: pet-pop 1.1s ease-out forwards; }
+@keyframes pet-pop { 0% { opacity: 0; transform: translate(-50%, 6px) scale(.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx, 0px)), -46px) scale(1.15); } }
+.pet-ways { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pet-said { min-height: 1em; font-style: italic; }
+.pet-today { color: var(--ink) !important; }
+@media (prefers-reduced-motion: reduce) { .pet-art.patted .cat-portrait, .pet-pop { animation: none; } .pet-pop { display: none; } }

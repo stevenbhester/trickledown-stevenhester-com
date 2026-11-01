@@ -16,6 +16,7 @@
     ['SPY', 'S&P 500 (ETF)', 'stock', 'Calm'], ['GLD', 'Gold (ETF)', 'stock', 'Calm'], ['PLTR', 'Palantir', 'stock', 'Spicy'],
     ['BTC', 'Bitcoin', 'crypto', 'Spicy'], ['ETH', 'Ethereum', 'crypto', 'Spicy'], ['SOL', 'Solana', 'crypto', 'Unhinged'],
     ['DOGE', 'Dogecoin', 'crypto', 'Unhinged'], ['SHIB', 'Shiba Inu', 'crypto', 'Unhinged'],
+    ['BNB', 'BNB', 'crypto', 'Spicy'], ['PEPE', 'Pepe', 'crypto', 'Unhinged'], ['HYPE', 'Hyperliquid', 'crypto', 'Unhinged'], ['PAXG', 'Pax Gold (gold token)', 'crypto', 'Calm'],
   ].map(([symbol, name, type, mood]) => ({ symbol, name, type, mood, multiplier: type === 'crypto' ? 5 : 10 }));
 
   // The real list, as in src/charities.js in the backend (4 stars on Charity Navigator).
@@ -40,7 +41,7 @@
     ['World Central Kitchen', 'Disaster relief', 'https://wck.org', 'Cooks and serves fresh meals on the front lines of disasters and crises.'],
   ].map(([name, category, url, blurb], i) => ({ id: i + 1, slug: name.toLowerCase().replace(/[^a-z]+/g, '-'), name, category, blurb, url, donate: `${url}/donate`, rating: '4 stars' }));
 
-  const RULES = { tax_rate: 0.25, ride_tax_factor: 0.5, ride_max_steps: 2, daily_base: 100, streak_bonus: 10, daily_cap: 200, hold_hours: 24, mult_floor: 1, demo: true };
+  const RULES = { tax_rate: 0.25, ride_tax_factor: 1, ride_max_steps: 1, daily_base: 100, streak_bonus: 10, daily_cap: 200, hold_hours: 24, mult_floor: 1, demo: true };
   const BADGES = [[1, 'Intern'], [10, 'Staffer'], [50, 'Consultant'], [250, 'Lobbyist'], [1000, 'Fixer'], [5000, 'Kingmaker'], [25000, 'Shadow Cabinet']].map(([at, name]) => ({ at, name }));
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -218,7 +219,16 @@
     ['erin', [{ id: 1, author: 'ravi_k', body: 'Co-op tour Saturday? Bring the good snacks.', at: ago(30) }]],
     ['ravi_k', []],
   ]);
-  let wallNext = 10, wallSeen = false, followSeen = false;
+  // Your own charity is the demo's featured one: its new lobbyists count ×1.25, as on the server.
+  const featX = (c) => (c && c.id === (user.charity_id || 6) ? 1.25 : 1);
+  let wallNext = 10, wallSeen = false, followSeen = false, catSeen = false;
+  // Petting other players' cats: "owner:kind" for today, plus a few seeded strangers.
+  const catPats = new Set();
+  const catVisits = (owner, mine) => {
+    const seed = Math.floor(hash(`${owner}:${today}`) * 4);
+    const you = { pet: catPats.has(`${owner}:pet`), treat: catPats.has(`${owner}:treat`) };
+    return { pets: seed + 1 + (you.pet ? 1 : 0), treats: Math.max(0, seed - 1) + (you.treat ? 1 : 0), ...(mine ? {} : { you }) };
+  };
   // Who added you and is waiting on an add-back (ravi_k, in the demo).
   const waiting = () => [...addedYouSet].filter((n) => !friends.has(n)).map((n, i) => ({ username: n, at: ago(3 + i * 20) }));
   const addedYouSet = new Set(['erin', 'ravi_k']);
@@ -248,13 +258,13 @@
         top_charity: 'Feeding America', last_seen: 'today',
         achievements: { earned: achView().list.filter((a) => a.earned_at).map((a) => ({ key: a.key, title: a.title, how: a.how, at: a.earned_at })), total: ACH.length },
         town: tv ? { happiness: tv.happiness, income: tv.income, hire_cost: tv.hire_cost, motto: tv.motto, sides: { ...(town.sides || { preston: 0, dolores: 0 }) },
-          pet: town.cat && town.cat.name ? { name: town.cat.name, pronoun: town.cat.pronoun, coat: town.cat.coat, wearing: { ...town.cat.wearing }, owned: town.cat.owned.length, spent: town.cat.spent } : null,
-          buildings: tv.plots.map((pl) => (pl.building ? { slot: pl.slot, label: pl.label, key: pl.key, name: pl.building.name, tier: pl.building.tier, days: pl.days, upgrades: pl.building.upgrades.filter((x) => x.owned).map((x) => ({ name: x.name, tier: x.tier })) } : { slot: pl.slot, label: pl.label, key: null })) } : null,
+          pet: town.cat && town.cat.name ? { name: town.cat.name, pronoun: town.cat.pronoun, coat: town.cat.coat, wearing: { ...town.cat.wearing }, owned: town.cat.owned.length, spent: town.cat.spent, visits: catVisits(user.username, true) } : null,
+          buildings: tv.plots.map((pl) => (pl.building ? { slot: pl.slot, label: pl.label, key: pl.key, name: pl.building.name, tier: pl.building.tier, days: pl.days, upgrades: pl.building.upgrades.filter((x) => x.owned).map((x) => (x.take === 'alt' && x.alt ? { name: x.alt.name, tier: x.alt.tier } : { name: x.name, tier: x.tier })) } : { slot: pl.slot, label: pl.label, key: null })) } : null,
         is_friend: false, added_you: false, is_you: true, wall: { open: true, max: 280, posts: wallFor(user.username) } };
     }
     const p = findPlayer(name); if (!p) fail('No player by that name.', 404);
     const open = p.positions().map(shape);
-    const town2 = p.town ? { ...p.town, hire_cost: round2(Math.max(0.5, 1.4 - 0.9 * Math.pow(p.town.happiness / 100, 1.5))), sides: SEED_SIDES[p.username] || { preston: 3, dolores: 3 }, pet: SEED_PETS[p.username] || null,
+    const town2 = p.town ? { ...p.town, hire_cost: round2(Math.max(0.5, 1.4 - 0.9 * Math.pow(p.town.happiness / 100, 1.5))), sides: SEED_SIDES[p.username] || { preston: 3, dolores: 3 }, pet: SEED_PETS[p.username] ? { ...SEED_PETS[p.username], visits: catVisits(p.username, false) } : null,
       buildings: p.town.buildings.map((b) => ({ ...b, label: b.slot === 'housing' ? 'Housing' : 'Town square', days: b.key ? 6 : 0, upgrades: [] })) } : null;
     const share = [0.55, 0.3, 0.15];
     return { ...friendRow(p), is_guest: false, joined: addDay(today, -40) + 'T15:00:00Z', in_play: round2(p.cash + open.reduce((s2, x) => s2 + x.value, 0)), positions: open,
@@ -345,6 +355,7 @@
         vesting: null,
         achievements: achView(),
         new_followers: followSeen ? [] : waiting(),
+        cat_visits: catSeen || !(town.cat && town.cat.name) ? [] : (catSeen = true, [{ username: 'erin', pet: true, treat: true }, { username: 'ravi_k', pet: true, treat: false }]),
         wall_unread: wallSeen ? 0 : (walls.get(user.username) || []).filter((w) => w.author !== user.username).length,
         wall_unread_from: wallSeen ? [] : [...new Set((walls.get(user.username) || []).filter((w) => w.author !== user.username).map((w) => w.author))].slice(0, 3),
         wall_latest: wallSeen ? null : ((walls.get(user.username) || []).find((w) => w.author !== user.username) || {}).id || null,
@@ -400,7 +411,7 @@
     }
     // Past Lobbyfests: none yet (the first is January 1, 2027).
     if (path === '/lobbyfests') return { lobbyfests: [] };
-    // The weekly beat: your own charity is featured this week, ×1.25.
+    // The weekly beat: your own charity is featured this week, ×1.25 (featX).
     if (path === '/events/current' || path === '/admin/events') {
       const c = CHARITIES.find((x) => x.id === (user.charity_id || 6));
       const ev = { id: 1, kind: 'featured_charity', starts_on: isoDay(-2), ends_on: isoDay(4), charity_id: c.id, charity_name: c.name, multiplier: 1.25, title: 'Featured charity', blurb: '' };
@@ -608,7 +619,7 @@
       if (e.claimed_at) fail('Already in your pocket. Mommy and Daddy only pay once.');
       const amount = a.gift, profit = amount, tax = round2(profit * RULES.tax_rate), net = round2(amount - tax);
       const charity = CHARITIES.find((c) => c.id === user.charity_id) || CHARITIES.find((c) => c.id === Number(body.charity_id)) || CHARITIES[0];
-      const hireCost = TownRules.hireCost(town); const lobbyists = round2(tax / hireCost);
+      const hireCost = TownRules.hireCost(town); const lobbyists = round2(tax / hireCost * featX(charity));
       positions.push({ id: nextId++, symbol: 'GIFT', name: a.title, asset_type: 'stock', multiplier: 1, invested: 0, status: 'gift', proceeds: amount, profit, tax, lobbyists, tier: 'Gift', charity_id: charity.id, collected: true, gift: true, closed_day: today, closed_at: new Date().toISOString() });
       user.cash = round2(user.cash + net); user.total_donated = round2(user.total_donated + lobbyists); user.realized_pnl = round2(user.realized_pnl + profit); user.charity_id = user.charity_id || charity.id;
       donations.push({ charity_id: charity.id, amount: lobbyists, user: user.username });
@@ -636,7 +647,7 @@
     }
     if (path === '/town/upgrade') {
       if (!TownRules.isUnlocked(user.total_donated)) fail('TrickleTown opens when you hire your first full lobbyist.');
-      const r = TownRules.upgrade(town, String(body.slot || ''), String(body.key || ''), user.cash, townCtx());
+      const r = TownRules.upgrade(town, String(body.slot || ''), String(body.key || ''), user.cash, townCtx(), body.take === 'alt' ? 'alt' : 'main');
       if (r.error) fail(r.error);
       user.cash = round2(user.cash + r.cash);
       const dealt = TownRules.dealNewUnlocks(town, townCtx());
@@ -655,6 +666,13 @@
       user.cash = round2(user.cash + r.cash);
       const dealt = TownRules.dealNewUnlocks(town, townCtx());
       return { ok: true, user: publicUser(), town: townView(), fresh_cards: dealt.map((id) => (TownRules.ISSUES.find((i) => i.id === id) || {}).title) };
+    }
+    if (/^\/players\/[^/]+\/cat$/.test(path)) {
+      const kind = String(body.kind || ''); if (kind !== 'pet' && kind !== 'treat') fail('Pet or treat.');
+      const p = findPlayer(decodeURIComponent(path.split('/')[2]));
+      if (!p || !SEED_PETS[p.username]) fail('No cat here.', 404);
+      const k = `${p.username}:${kind}`, already = catPats.has(k); catPats.add(k);
+      return { ok: true, kind, already, visits: catVisits(p.username, false) };
     }
     if (/^\/players\/[^/]+\/wall$/.test(path)) {
       const owner = ownerName(decodeURIComponent(path.split('/')[2])); if (!owner) fail('No player by that name.', 404);
@@ -683,22 +701,22 @@
       if (!t) fail('No player by that name. Usernames are case-insensitive; check the spelling. (In the demo, try ravi_k or bagholder_ben.)', 404);
       friends.add(t.username); return { ok: true, username: t.username, friend_count: friends.size };
     }
-    if (path === '/friends/invite') return { ok: true, username: String(body.from || '') };
+    if (path === '/friends/invite') return { ok: true, username: String(body.from || ''), added: true };
     if (path === '/friends/remove') { const t = findPlayer(body.username); if (t) friends.delete(t.username); return { ok: true, friend_count: friends.size }; }
     if (path === '/ride') {
       const p = positions.find((x) => x.id === Number(body.position_id)); if (!p) fail('No such position.', 404); if (p.status !== 'open') fail('Already collected.');
       settleMatured();
       if (!p.matured_at) fail("It hasn't matured yet. You can only let a matured position ride.");
       if (!(p.matured_value >= 0.01)) fail("There's nothing left to ride.");
-      // Riding is taxed too, at half the rate: the profit so far is realized,
-      // the lobbyists get hired, and what's left rolls into a fresh 24 hours.
-      const rate = RULES.tax_rate * RULES.ride_tax_factor;
+      // Riding is collecting and reinvesting: full tax, the lobbyists get
+      // hired, and what's left rolls into a fresh 24 hours at a higher multiplier.
+      const rate = RULES.tax_rate;
       const q = priceOf(find(p.symbol)); const profit = round2(p.matured_value - p.invested);
       const tax = profit > 0 ? round2(profit * rate) : 0; const net = round2(p.matured_value - tax);
-      const deferred = profit > 0 ? round2(profit * RULES.tax_rate - tax) : 0;
+      const deferred = 0;
       const mults = rideMults(p);
       const charity = tax > 0 ? (CHARITIES.find((c) => c.id === user.charity_id) || CHARITIES.find((c) => c.id === Number(body.charity_id)) || CHARITIES[0]) : null;
-      const hireCost = TownRules.hireCost(town); const lobbyists = tax > 0 ? round2(tax / hireCost) : 0;
+      const hireCost = TownRules.hireCost(town); const lobbyists = tax > 0 ? round2(tax / hireCost * featX(charity)) : 0;
       Object.assign(p, { status: 'rolled', closed_day: today, closed_at: new Date().toISOString(), proceeds: p.matured_value, profit, tax, lobbyists, tier: tierFor(p.invested, p.matured_value), charity_id: charity ? charity.id : null, collected: true });
       user.total_donated = round2(user.total_donated + lobbyists); user.realized_pnl = round2(user.realized_pnl + profit); if (charity) user.charity_id = user.charity_id || charity.id;
       if (lobbyists > 0) donations.push({ charity_id: charity.id, amount: lobbyists, user: user.username });
@@ -719,7 +737,7 @@
         charity = CHARITIES.find((c) => c.id === user.charity_id) || CHARITIES.find((c) => c.id === Number(body.charity_id)) || CHARITIES[0];
       }
       const hireCost = TownRules.hireCost(town);
-      const lobbyists = s.tax > 0 ? round2(s.tax / hireCost) : 0;
+      const lobbyists = s.tax > 0 ? round2(s.tax / hireCost * featX(charity)) : 0;
       Object.assign(p, { status: 'closed', closed_day: today, closed_at: new Date().toISOString(), proceeds: live.value, profit: s.profit, tax: s.tax, lobbyists, tier: s.tier, charity_id: charity ? charity.id : null, collected: !!p.matured_at });
       user.cash = round2(user.cash + s.net); user.total_donated = round2(user.total_donated + lobbyists); user.realized_pnl = round2(user.realized_pnl + s.profit); if (charity) user.charity_id = user.charity_id || charity.id;
       if (lobbyists > 0) donations.push({ charity_id: charity.id, amount: lobbyists, user: user.username });

@@ -57,7 +57,7 @@ window.Explainer = (function () {
           <text x="46" y="122" text-anchor="middle" class="x-small">fake money</text>
           <text x="139" y="122" text-anchor="middle" class="x-small">lobbyists</text>
           <text x="230" y="122" text-anchor="middle" class="x-small">real charity</text>`),
-        body: `You get $${r.daily_base}K of fake money every day (more on a streak). Invest it in real stocks. Your wins send this site's real ad money to charity.`,
+        body: `You get $${r.daily_base}K of fake money every day (more on a streak). Invest it in real stocks and crypto. Your gains decide which charities get this site's real ad money.`,
         fine: 'Losing costs you nothing. Legal checked.',
         next: 'How do I win?',
       },
@@ -84,9 +84,9 @@ window.Explainer = (function () {
           ${suit(141, 34, '', 0.9)}
           ${arrow(196, 216, 70)}
           ${suit(224, 52, 'pop p1')}${suit(246, 52, 'pop p2')}`),
-        body: `Only your gains are taxed, at ${pct}%. Put in $50K, collect $60K: the gain is $10K, so $${fmtK(10 * pct / 100)}K is tax. Losses aren't taxed. The tax hires lobbyists for your charity. Every quarter at Lobbyfest, the charity with the most lobbyists gets the biggest share of the real money.`,
+        body: `Only gains are taxed, at ${pct}%: put in $50K, collect $60K, and $${fmtK(10 * pct / 100)}K of the $10K gain is tax. Losses aren't. The tax hires lobbyists for your charity, and each quarter at Lobbyfest the charities split the real money by lobbyist count.`,
         fine: r.demo ? 'The charities are real. In this demo, the money is not.' : 'Real charities, four stars on Charity Navigator. Receipts posted here within 60 days of each Lobbyfest.',
-        next: 'Got it',
+        next: 'Anything else?',
       },
       {
         title: 'Your first buy pays a bonus',
@@ -96,7 +96,7 @@ window.Explainer = (function () {
           <rect x="96" y="40" width="88" height="56" rx="6" fill="#fff" stroke="#0F2430" stroke-width="2" class="xs-card"/>
           <text x="140" y="76" text-anchor="middle" fill="#0F2430" font-size="22" font-weight="900" class="xs-card-text">$${r.vest_amount || 40}K</text>
           <text x="140" y="122" text-anchor="middle" class="x-tag">from Mommy &amp; Daddy</text>`),
-        body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K. It's all gain, so ${pct}% of it is tax. That tax hires your first lobbyists, and they need somewhere to live. That's TrickleTown, on the other side of your coin. We'll show you around when you get there.`,
+        body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K. It's all gain, so ${pct}% is tax, and that tax hires your first lobbyists. They live in TrickleTown, on the other side of your coin.`,
         fine: 'Nothing about this is normal. Everything about it is legal.',
         next: 'Start playing',
       },

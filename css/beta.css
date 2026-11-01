@@ -1,0 +1,252 @@
+/* Simple mode (beta). Account → Simple mode sets <html data-ui="beta">.
+   Everything here is scoped to that, so the classic layout never sees it.
+
+   The idea: a quiet, Apple-calm frame (system type, soft surfaces, grouped
+   lists, one action at a time) around one loud thing, the coin on a dusk
+   stage, Monument Valley colours. The satire stays in the words and the coin;
+   the calm makes the deadpan land. Explanations fold into ⓘ (tipify in
+   js/app.js); a tab bar replaces the hunt through the menu.
+
+   Palette
+     mist     #EEF0F7  the page
+     surface  #FFFFFF  grouped lists, sheets
+     ink      #26243F  text (indigo, not black)
+     sub      #6E6B8A  secondary text
+     cobalt   #3A6EA5  actions
+     gold     #E2A93B  money's glint
+     dusk     #F6D5C6 → #D9CCEF → #BCD8EC  the coin's stage */
+
+:root[data-ui="beta"] {
+  --porcelain: #EEF0F7;
+  --paper: #F6F7FB;
+  --card: #FFFFFF;
+  --ink: #26243F;
+  --mud: #6E6B8A;
+  --line: #E1E2EC;
+  --dim-line: #CFD0DE;
+  --faint: #A6A4BD;
+  --water: #3A6EA5;
+  --water-deep: #2C5786;
+  --water-rgb: 58 110 165;
+  --shallow: #E3EBF5;
+  --rise: #2F9E74;
+  --sink: #D3536A;
+  --rise-tint: #E1F3EB;
+  --sink-tint: #FBE5EA;
+  --edge: #D7D8E6;            /* rules are hairlines here, not ink */
+  --inverse: #26243F;
+  --tip: #26243F;
+  --gold: #E2A93B;
+  --gold-ink: #9A6C10;
+  --gold-wash: #FBF1DB;
+  --sh: 38 36 63;
+  --wash: 38 36 63;
+  --radius: 14px;
+  --b-radius-group: 18px;
+  --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+  --body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --dusk: linear-gradient(180deg, #F6D5C6 0%, #E7CDE6 38%, #D9CCEF 62%, #BCD8EC 100%);
+  --tabbar-bg: rgba(250, 250, 253, .82);
+  --coin: min(78vw, 320px);
+}
+:root[data-ui="beta"][data-theme="dark"] {
+  --porcelain: #16152B;
+  --paper: #1C1B34;
+  --card: #23223F;
+  --ink: #EEEDF7;
+  --mud: #A6A3C2;
+  --line: #34335A;
+  --dim-line: #403F68;
+  --faint: #6F6D93;
+  --water: #7FA7DA;
+  --water-deep: #9BBBE3;
+  --water-rgb: 127 167 218;
+  --shallow: #2A3352;
+  --rise: #5CC79C;
+  --sink: #F0798E;
+  --rise-tint: #1E3A33;
+  --sink-tint: #43263A;
+  --edge: #3A3960;
+  --inverse: #EEEDF7;
+  --gold: #F0C163;
+  --gold-ink: #F0C163;
+  --gold-wash: #3A3222;
+  --sh: 0 0 0;
+  --dusk: linear-gradient(180deg, #3E2D52 0%, #34315C 45%, #263A5E 100%);
+  --tabbar-bg: rgba(28, 27, 52, .82);
+}
+
+/* Type: one family, weight and size do the work. No shouting labels. */
+:root[data-ui="beta"] body { font-size: 16px; letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; background: var(--porcelain); }
+:root[data-ui="beta"] h1, :root[data-ui="beta"] h2, :root[data-ui="beta"] h3 { font-family: var(--display); font-weight: 700; letter-spacing: -0.025em; text-transform: none; }
+:root[data-ui="beta"] .screen h1 { font-size: 34px; line-height: 1.08; }
+:root[data-ui="beta"] .screen h2, :root[data-ui="beta"] .side-head h2, :root[data-ui="beta"] .legend h2 { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
+/* The classic layout's small caps labels, in sentence case. */
+:root[data-ui="beta"] :is(.site-k, .x-brand, .side-tab, .eb-tag, .rv-also > b, .training-tag, .mini-tag.headline, .vest-memo-head, .todo > b,
+  .ss-cap b, .ss > span:first-child, .badge-k, .default-tag, .ach-eyebrow, .ach-count, .ach-note-head, .prof-rank, .perf-eyebrow,
+  .perf-stats span, .prof-nums span, .cat-slot, .ch-top em, .promise-nojoke, .fest-table th, .lg-day, .rv-total small,
+  .review-sheet .sheet-head h2 small, .digest-sheet .sheet-head h2 small, .ach-peek-text span) {
+  text-transform: none; letter-spacing: 0; font-family: var(--body);
+}
+:root[data-ui="beta"] :is(.site-k, .ss > span:first-child, .perf-eyebrow, .perf-stats span, .prof-nums span, .lg-day, .fest-table th, .badge-k) { font-size: 13px; font-weight: 600; color: var(--mud); }
+:root[data-ui="beta"] .prof-rank { color: var(--gold-ink); font-weight: 700; }
+:root[data-ui="beta"] .ticker b, :root[data-ui="beta"] .value b, :root[data-ui="beta"] .coin-center b,
+:root[data-ui="beta"] .prof-nums b, :root[data-ui="beta"] .receipt b { font-family: var(--display); font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+/* The frame: no floating bills, a small wordmark, the tab bar does the rest. */
+:root[data-ui="beta"] body.landing .landing-bg { display: none; }
+:root[data-ui="beta"] .masthead { padding-top: 14px; align-items: center; }
+:root[data-ui="beta"] .wordmark { font-family: var(--display); font-size: 20px; font-weight: 800; letter-spacing: -0.03em; text-transform: none; padding-bottom: 0; }
+:root[data-ui="beta"] .wordmark-drip { display: none; }
+:root[data-ui="beta"] .masthead-right { align-items: center; padding-bottom: 0; }
+:root[data-ui="beta"] #masthead-day, :root[data-ui="beta"] #btn-trophies, :root[data-ui="beta"] #btn-menu { display: none !important; }
+
+/* Buttons: pills. One filled action per view; the rest are soft. */
+:root[data-ui="beta"] .btn { border: 0; border-radius: 999px; padding: 11px 18px; background: rgb(var(--water-rgb) / .1); color: var(--water); font-weight: 600; }
+:root[data-ui="beta"] .btn:hover { background: rgb(var(--water-rgb) / .16); }
+:root[data-ui="beta"] .btn.primary { background: var(--water); color: #fff; box-shadow: 0 6px 18px rgb(var(--water-rgb) / .28); }
+:root[data-ui="beta"][data-theme="dark"] .btn.primary { color: #16152B; }
+:root[data-ui="beta"] .btn.primary:hover { background: var(--water-deep); }
+:root[data-ui="beta"] .btn.small { padding: 7px 14px; }
+:root[data-ui="beta"] .btn:disabled { opacity: .45; box-shadow: none; }
+:root[data-ui="beta"] .linkish { color: var(--water); }
+:root[data-ui="beta"] input, :root[data-ui="beta"] select, :root[data-ui="beta"] textarea { border-radius: 12px; }
+
+/* --- Today ------------------------------------------------------------------- */
+
+/* The one loud thing: the coin on a dusk stage. */
+:root[data-ui="beta"] #screen-today .coin-stage { padding: 26px 0 8px; margin: 0 calc(-1 * var(--gutter)) 6px; isolation: isolate; }
+:root[data-ui="beta"] #screen-today .coin-stage::before {
+  content: ""; position: absolute; inset: 0 0 34px; z-index: -1;
+  background: var(--dusk); border-radius: 0 0 36px 36px;
+}
+/* A low sun and two far-off towers, flat and geometric. */
+:root[data-ui="beta"] #screen-today .coin-stage::after {
+  content: ""; position: absolute; z-index: -1; left: 50%; top: 18px; width: 120%; height: calc(100% - 52px); transform: translateX(-50%);
+  background:
+    radial-gradient(circle at 82% 22%, rgba(255, 255, 255, .55) 0 26px, transparent 27px),
+    linear-gradient(transparent 62%, rgba(91, 77, 140, .10) 62% 100%) 8% 100% / 34px 60% no-repeat,
+    linear-gradient(transparent 40%, rgba(91, 77, 140, .08) 40% 100%) 90% 100% / 26px 55% no-repeat;
+  pointer-events: none;
+}
+:root[data-ui="beta"] .coin { filter: drop-shadow(0 18px 24px rgb(var(--sh) / .22)); margin: 0 0 6px; }
+:root[data-ui="beta"] .coin-center b { color: var(--ink); }
+:root[data-ui="beta"] .coin-face.back .coin-center b { color: #fff; }
+/* The tab bar switches sides; the caption's own switch and hint go. */
+:root[data-ui="beta"] .side-switch { display: none; }
+:root[data-ui="beta"] .coin-caption { margin-bottom: 0; }
+
+/* Banners become one quiet line. */
+:root[data-ui="beta"] .event-banner { border: 0; background: var(--gold-wash); border-radius: 14px; padding: 10px 14px; margin: 0 0 10px; }
+:root[data-ui="beta"] .event-banner p { font-size: 14px; margin: 0; }
+:root[data-ui="beta"] .install-hint { border: 0; background: var(--card); border-radius: 14px; box-shadow: 0 1px 0 var(--line); font-size: 14px; }
+
+/* What's under the coin: grouped lists, not bordered boxes. */
+:root[data-ui="beta"] .under > .side-head { margin: 16px 0 6px; border-top: 0; padding-top: 0; }
+:root[data-ui="beta"] #screen-today .under > .side-head:not(:has(.motto)) h2 { display: none; }
+:root[data-ui="beta"] .side-hint { color: var(--ink); font-weight: 600; margin-top: 4px; }
+:root[data-ui="beta"] .event-banner .eb-tag { display: none; }
+:root[data-ui="beta"] .under > .side-head .muted { font-size: 14px; }
+:root[data-ui="beta"] .todo { border: 0; background: var(--card); border-radius: var(--b-radius-group); padding: 4px 16px; margin: 8px 0 18px; box-shadow: 0 1px 2px rgb(var(--sh) / .05); }
+:root[data-ui="beta"] .todo > b { display: block; padding: 10px 0 2px; font-size: 13px; font-weight: 600; color: var(--mud); }
+:root[data-ui="beta"] .todo li { padding-top: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); list-style: none; }
+:root[data-ui="beta"] .todo li:last-child { border-bottom: 0; }
+:root[data-ui="beta"] .todo li { padding-left: 0; }
+:root[data-ui="beta"] .todo li::before { content: none; }
+:root[data-ui="beta"] .todo ul { margin: 0; padding: 0; }
+
+:root[data-ui="beta"] .carve { border: 0; background: var(--card); border-radius: var(--b-radius-group); padding: 16px; margin: 0 0 22px; box-shadow: 0 1px 2px rgb(var(--sh) / .05); }
+:root[data-ui="beta"] .carve > h2 { display: none; }
+:root[data-ui="beta"] #carve-search { border: 0; background: var(--paper); border-radius: 14px; padding: 14px 16px; font-size: 17px; }
+:root[data-ui="beta"] #carve-search:focus { outline: 2px solid rgb(var(--water-rgb) / .5); outline-offset: 0; }
+:root[data-ui="beta"] .asset-list { border: 0; border-radius: 16px; box-shadow: 0 12px 32px rgb(var(--sh) / .16); background: var(--card); }
+:root[data-ui="beta"] .asset-list li { border-bottom-color: var(--line); }
+:root[data-ui="beta"] .asset-list b { font-family: var(--display); font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+:root[data-ui="beta"] .mkt-note { background: var(--paper); border: 0; border-radius: 14px; font-size: 14px; }
+:root[data-ui="beta"] .mkt-note b { display: inline; font-size: 14px; margin-right: 4px; }
+:root[data-ui="beta"] .first-steps { border: 0; box-shadow: none; background: var(--paper); border-radius: 14px; }
+:root[data-ui="beta"] #carve-buy { border-radius: 999px; padding: 14px 18px; font-size: 17px; }
+
+:root[data-ui="beta"] .legend h2 { margin: 0 0 10px; }
+:root[data-ui="beta"] .positions { border: 0; background: var(--card); border-radius: var(--b-radius-group); padding: 0 16px; box-shadow: 0 1px 2px rgb(var(--sh) / .05); }
+:root[data-ui="beta"] .position { border-bottom: 1px solid var(--line); padding: 14px 0; }
+:root[data-ui="beta"] .position:last-child { border-bottom: 0; }
+:root[data-ui="beta"] .position .swatch { border-radius: 50%; width: 10px; height: 10px; }
+:root[data-ui="beta"] .ticker b, :root[data-ui="beta"] .value b { font-size: 18px; }
+
+/* Said elsewhere, or nice-to-know: gone in simple mode. */
+:root[data-ui="beta"] #screen-today .crowd-line,
+:root[data-ui="beta"] #screen-today .crowd-friends,
+:root[data-ui="beta"] #screen-today .row-actions a.btn { display: none; }
+:root[data-ui="beta"] #screen-today .row-actions { justify-content: center; margin: 4px 0 18px; }
+
+/* --- Everywhere else: same calm. ------------------------------------------- */
+:root[data-ui="beta"] .prof-sec, :root[data-ui="beta"] .note, :root[data-ui="beta"] .ch-card, :root[data-ui="beta"] .lb-board,
+:root[data-ui="beta"] .ledger-day, :root[data-ui="beta"] .faq details {
+  border-color: transparent; border-radius: var(--b-radius-group); box-shadow: 0 1px 2px rgb(var(--sh) / .05);
+}
+:root[data-ui="beta"] .prof-sec { background: var(--card); }
+:root[data-ui="beta"] .lede { font-size: 17px; color: var(--mud); }
+:root[data-ui="beta"] .back-link { color: var(--water); font-weight: 600; }
+:root[data-ui="beta"] .foot { padding-bottom: 120px; }
+:root[data-ui="beta"] .ad-slot { border: 0; border-radius: 16px; background: var(--paper); }
+
+/* Sheets: rounded, lifted, no coloured top edge. */
+:root[data-ui="beta"] .sheet { border-radius: 26px 26px 0 0; box-shadow: 0 -10px 40px rgb(var(--sh) / .18); background: var(--card); }
+:root[data-ui="beta"] .sheet::backdrop { background: rgb(var(--sh) / .28); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+:root[data-ui="beta"] .receipt li { border-color: var(--line); }
+:root[data-ui="beta"] .ride-box { border: 0; background: var(--paper); border-radius: 16px; }
+:root[data-ui="beta"] .adv-pitch, :root[data-ui="beta"] .up-side { border: 0; border-radius: 16px; box-shadow: 0 1px 2px rgb(var(--sh) / .06); }
+:root[data-ui="beta"] .site-ups li { border: 0; border-radius: 18px; box-shadow: 0 1px 2px rgb(var(--sh) / .06); }
+:root[data-ui="beta"] .site-ups li.up-available { box-shadow: 0 0 0 1.5px var(--gold), 0 6px 18px rgb(var(--sh) / .08); }
+:root[data-ui="beta"] .menu-sheet { border-radius: 22px; }
+
+/* --- The tab bar ------------------------------------------------------------- */
+.tabbar { display: none; }
+:root[data-ui="beta"] .tabbar:not([hidden]) {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  padding: 6px max(10px, env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom));
+  background: var(--tabbar-bg); backdrop-filter: saturate(1.6) blur(18px); -webkit-backdrop-filter: saturate(1.6) blur(18px);
+  border-top: 1px solid var(--line);
+}
+:root[data-ui="beta"] .tabbar a, :root[data-ui="beta"] .tabbar button {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0 2px;
+  border: 0; background: none; color: var(--mud); font: inherit; font-size: 11px; font-weight: 600; letter-spacing: 0; text-decoration: none; cursor: pointer;
+}
+:root[data-ui="beta"] .tabbar svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+:root[data-ui="beta"] .tabbar [data-tab="more"] svg circle { fill: currentColor; stroke: none; }
+:root[data-ui="beta"] .tabbar [aria-current="page"] { color: var(--water); }
+:root[data-ui="beta"] .tabbar [aria-current="page"] svg { stroke-width: 2; }
+:root[data-ui="beta"] .tabbar a:focus-visible, :root[data-ui="beta"] .tabbar button:focus-visible { outline: 2px solid var(--water); outline-offset: -4px; border-radius: 12px; }
+/* Room for it, and the pinned visitor bar sits above it. */
+:root[data-ui="beta"] main { padding-bottom: 76px; }
+/* Pop-ups that sit at the bottom ride above the tab bar (signed in only: no tab bar signed out). */
+:root[data-ui="beta"] body:has(.tabbar:not([hidden])) :is(.toast) { bottom: calc(84px + env(safe-area-inset-bottom)); }
+:root[data-ui="beta"] body:has(.tabbar:not([hidden])) :is(.ach-peek, .stale-server) { bottom: calc(80px + env(safe-area-inset-bottom)); }
+:root[data-ui="beta"] .ach-peek { border-radius: 18px; }
+
+/* --- ⓘ: explanations, one tap away ------------------------------------------- */
+details.tip { display: block; }
+:root[data-ui="beta"] details.tip { margin: 2px 0 8px; }
+:root[data-ui="beta"] details.tip > summary {
+  list-style: none; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  width: 22px; height: 22px; border-radius: 50%; background: rgb(var(--water-rgb) / .12); color: var(--water);
+  font: italic 700 13px/1 Georgia, "Times New Roman", serif;
+}
+:root[data-ui="beta"] details.tip > summary::-webkit-details-marker { display: none; }
+:root[data-ui="beta"] details.tip > summary:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+:root[data-ui="beta"] details.tip[open] > summary { background: var(--water); color: #fff; }
+:root[data-ui="beta"] details.tip > :not(summary) {
+  margin: 8px 0 0; padding: 10px 14px; border-radius: 14px; background: var(--paper); color: var(--mud);
+  font-size: 14px; line-height: 1.45; animation: tip-in 160ms ease-out;
+}
+@keyframes tip-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { :root[data-ui="beta"] details.tip > :not(summary) { animation: none; } }
+
+/* --- The toggle in Account (shown in both layouts) ---------------------------- */
+.beta-toggle { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 14px; padding: 12px 14px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line); cursor: pointer; }
+.beta-toggle input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--water); flex: none; }
+.beta-toggle > span { display: flex; flex-direction: column; gap: 2px; }
+.beta-toggle small { font-size: 13px; line-height: 1.4; }
+.beta-pill { align-self: flex-start; display: inline-block; margin: 2px 0 2px; padding: 0 7px; border-radius: 999px; background: var(--gold-wash); color: var(--gold-ink); font-size: 11px; font-weight: 700; vertical-align: 2px; }

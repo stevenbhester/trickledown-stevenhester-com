@@ -9,7 +9,8 @@ No build step. Plain HTML, CSS, and JS.
 index.html        the shell: masthead (with the ☰ menu), screens, bottom sheets
 config.js         API_BASE and SITE_URL — the only thing you must edit
 css/style.css     the whole look; design tokens at the top
-js/theme.js       light / dark / auto, decided in <head> before anything paints
+css/beta.css      Simple mode (beta): everything scoped to html[data-ui="beta"]; the classic look never sees it
+js/theme.js       light / dark / auto, and classic / simple mode, decided in <head> before anything paints
 js/coin.js        draws the coin (SVG): wedges, bills, the village, the advocates
 js/town.js        TrickleTown rules + the card deck (byte-identical to the backend's src/town.js)
 js/market.js      US stock market hours + NYSE holidays (for the quiet-market notice on Buy)
@@ -280,3 +281,22 @@ when you tap it. Pinch zoom still works.
   `apple-touch-icon.png` is the home-screen icon.
 - Ranks: Intern, Staffer, Consultant, Lobbyist, Fixer, Kingmaker, Shadow Cabinet.
 - The ad slot in the footer is a labelled placeholder until there's an ad network.
+
+## Simple mode (beta)
+
+Account → **Simple mode** (per device, `localStorage['trickledown.ui'] = 'beta'`)
+sets `<html data-ui="beta">` before first paint. The screens render exactly as
+in the classic layout; three things change:
+
+- `css/beta.css` restyles: system type, a dusk-gradient stage behind the coin,
+  grouped lists instead of bordered boxes, pill buttons, sentence-case labels,
+  softer rules. Things said elsewhere (the crowd lines, the coin's own
+  Portfolio/TrickleTown switch, the menu button, the day and trophy chips) are
+  hidden.
+- A tab bar (`#tabbar` in index.html): Today, Town (flips the coin), Lobbyfest,
+  More (the menu). `paintTabbar()` in app.js keeps the current one lit.
+- `tipify()` in app.js folds explanatory lines (`TIP_SEL`) into ⓘ disclosures as
+  they render. It never folds anything with an id, a link, a button or a field.
+
+Untick it and nothing of this is left: no attribute, no tab bar, no tips.
+

@@ -20,6 +20,7 @@
   const EARLY = new Set(['2026-11-27', '2026-12-24', '2027-11-26', '2028-07-03', '2028-11-24']);
   const TZ = 'America/New_York';
   const HOUR = 3600e3;
+  const QUIET_HOURS = 6.5 * 0.6;
 
   let fmt = null;
   // Eastern wall-clock parts of an instant.
@@ -67,8 +68,9 @@
   //   closes_at   when today's session ends (if open)
   //   next_open   when the next session starts (after today's, if open)
   //   open_hours  hours of trading inside the hold
-  //   quiet       closed now, or the hold catches under half a normal day of
-  //               trading (a Friday afternoon, the eve of a holiday)
+  //   quiet       closed now, or the hold misses at least 40% of a normal
+  //               trading day (catches under 3.9 of its 6.5 hours: a Friday
+  //               afternoon, the eve of a holiday)
   function status(now = Date.now(), holdHours = 24) {
     const end = now + holdHours * HOUR;
     const within = sessions(now, end);
@@ -82,7 +84,7 @@
       closes_at: cur ? cur.close : null,
       next_open: next ? next.open : null,
       open_hours: openHours,
-      quiet: !cur || openHours < 3.25,
+      quiet: !cur || openHours < QUIET_HOURS,
     };
   }
 

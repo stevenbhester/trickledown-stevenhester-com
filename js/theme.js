@@ -1,4 +1,5 @@
-// The colour theme: Auto (follow the device), Light or Dark.
+// The colour theme: Auto (follow the device), Light or Dark. And the layout:
+// classic, or the beta "simple mode" (Theme.ui / Theme.setUi).
 //
 // Loaded in <head>, before the stylesheet, so the page paints in the right
 // theme from the first frame (no white flash in dark mode). The choice is
@@ -43,12 +44,20 @@
   }
   apply();
 
+  // The layout: 'classic', or the simpler 'beta' one (Account → Simple mode).
+  // Also per device, also set before anything paints: <html data-ui="beta">.
+  var UI_KEY = 'trickledown.ui';
+  function storedUi() { try { return localStorage.getItem(UI_KEY) === 'beta' ? 'beta' : 'classic'; } catch (e) { return 'classic'; } }
+  var ui = storedUi();
+  function applyUi() { if (ui === 'beta') document.documentElement.setAttribute('data-ui', 'beta'); else document.documentElement.removeAttribute('data-ui'); }
+  applyUi();
+
   if (mq) {
     var follow = function () { if (choice === 'auto') apply(); };
     if (mq.addEventListener) mq.addEventListener('change', follow); else if (mq.addListener) mq.addListener(follow);
   }
   // Changed in another tab.
-  window.addEventListener('storage', function (e) { if (e.key === KEY) { choice = stored(); apply(); } });
+  window.addEventListener('storage', function (e) { if (e.key === KEY) { choice = stored(); apply(); } if (e.key === UI_KEY) { ui = storedUi(); applyUi(); } });
 
   window.Theme = {
     choice: function () { return choice; },
@@ -60,5 +69,11 @@
       apply();
     },
     onChange: function (f) { listeners.push(f); },
+    ui: function () { return ui; },
+    setUi: function (v) {
+      ui = v === 'beta' ? 'beta' : 'classic';
+      try { if (ui === 'beta') localStorage.setItem(UI_KEY, 'beta'); else localStorage.removeItem(UI_KEY); } catch (e) { /* this visit only */ }
+      applyUi();
+    },
   };
 })();

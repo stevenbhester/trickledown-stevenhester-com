@@ -319,7 +319,13 @@ window.Coin = (function () {
   const coatOf = (cat) => COATS[(cat && cat.coat) || 'tabby'] || COATS.tabby;
   const GOLD = '#E2B32C', GOLD_D = '#A27E13';
 
-  // A head-and-shoulders portrait, outfit and all. size: rendered px.
+  // A small stable number from a name, so two cats on one page don't blink in step.
+  const beat = (cat) => { let h = 0; for (const ch of String((cat && (cat.name || cat.coat)) || 'cat')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 4; };
+
+  // A chibi head-and-shoulders portrait, outfit and all, resting: it breathes,
+  // blinks, flicks an ear and swishes its tail (CSS, off for reduced motion).
+  // size: rendered px. Outfit art is drawn for the older, smaller head and
+  // placed onto this one with a transform per slot.
   function catPortrait(cat, size = 96) {
     const c = coatOf(cat), w = (cat && cat.wearing) || {};
     const id = `cp${Math.random().toString(36).slice(2, 8)}`;
@@ -342,32 +348,48 @@ window.Coin = (function () {
       tiara: `<path d="M38 37 L45 26 L52 34 L60 19 L68 34 L75 26 L82 37 Z" fill="#E4E8EE" stroke="#AEB6BF" stroke-width="1"/><circle cx="60" cy="25" r="2.6" fill="#8FD3F4"/><circle cx="45" cy="29" r="1.8" fill="#8FD3F4"/><circle cx="75" cy="29" r="1.8" fill="#8FD3F4"/>`,
       crown: `<path d="M37 35 L39 11 L50 24 L60 5 L70 24 L81 11 L83 35 Z" fill="${GOLD}" stroke="${GOLD_D}" stroke-width="1.2"/><rect x="37" y="29" width="46" height="7" fill="${GOLD}" stroke="${GOLD_D}" stroke-width="1"/><circle cx="48" cy="32.5" r="2.2" fill="#C0392B"/><circle cx="60" cy="32.5" r="2.4" fill="#2E86C1"/><circle cx="72" cy="32.5" r="2.2" fill="#27AE60"/>`,
     }[w.head] || '';
-    const stripes = cat && cat.coat === 'tabby' ? `<path d="M60 34 v8 M53 36 l2 7 M67 36 l-2 7" stroke="${c.dark}" stroke-width="2.4" stroke-linecap="round"/><path d="M31 60 l7 1 M30 66 l7 -1 M89 60 l-7 1 M90 66 l-7 -1" stroke="${c.dark}" stroke-width="2" stroke-linecap="round"/>` : '';
-    const patches = cat && cat.coat === 'calico' ? `<path d="M31 52 C32 38 44 32 54 35 C50 44 43 52 31 58 Z" fill="${c.patch}"/><path d="M68 33 C78 30 89 37 89 49 C80 46 73 41 68 33 Z" fill="${c.dark}"/>` : '';
-    return `<svg class="cat-portrait" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true">
+    const tabby = cat && cat.coat === 'tabby';
+    const stripes = tabby ? `<path d="M60 35 v7 M52 37 l1.6 6 M68 37 l-1.6 6" stroke="${c.dark}" stroke-width="2.6" stroke-linecap="round"/><path d="M24 62 l6 1 M23.5 68 l6 -.5 M96 62 l-6 1 M96.5 68 l-6 -.5" stroke="${c.dark}" stroke-width="2" stroke-linecap="round"/>` : '';
+    const patches = cat && cat.coat === 'calico' ? `<path d="M24 58 C23 42 36 32 52 33 C48 44 38 54 24 64 Z" fill="${c.patch}"/><path d="M70 33 C84 32 96 42 96 56 C86 52 76 44 70 33 Z" fill="${c.dark}"/>` : '';
+    // One big shiny eye at (x, y). The blink squashes it.
+    const eye = (x) => `<g class="cp-eye" transform="translate(${x} 66)"><g class="cp-lid"><circle r="8.8" fill="${c.eye}"/><circle r="6.6" cy=".6" fill="#16161B"/><circle cx="-2.7" cy="-2.6" r="2.7" fill="#fff"/><circle cx="2.6" cy="2.9" r="1.2" fill="#fff"/></g></g>`;
+    const ear = (side) => {
+      const m = (x) => (side < 0 ? x : 120 - x);
+      return `<g class="cp-ear cp-ear-${side < 0 ? 'l' : 'r'}"><path d="M${m(25)} 54 Q${m(21)} 20 ${m(30)} 15 Q${m(39)} 13 ${m(54)} 36 Z" fill="${c.base}"/><path d="M${m(30)} 46 Q${m(28)} 25 ${m(32.5)} 22 Q${m(38)} 22 ${m(46)} 36 Z" fill="${c.ear}"/></g>`;
+    };
+    return `<svg class="cat-portrait cp-d${beat(cat)}" width="${size}" height="${size}" viewBox="0 0 120 120" aria-hidden="true">
       <defs><clipPath id="${id}"><circle cx="60" cy="60" r="60"/></clipPath></defs>
       <g clip-path="url(#${id})">
         <rect width="120" height="120" fill="#E7EEF1" class="pt-bg"/>
-        <path d="M18 122 C18 93 36 83 60 83 C84 83 102 93 102 122 Z" fill="${c.base}"/>
-        <path d="M45 122 C47 99 52 91 60 91 C68 91 73 99 75 122 Z" fill="${c.light}"/>
-        ${body}
-        <path d="M33 46 L37 17 L55 35 Z" fill="${c.base}"/><path d="M37 41 L39.5 24 L49.5 35 Z" fill="${c.ear}"/>
-        <path d="M87 46 L83 17 L65 35 Z" fill="${c.base}"/><path d="M83 41 L80.5 24 L70.5 35 Z" fill="${c.ear}"/>
-        <ellipse cx="60" cy="58" rx="30" ry="26" fill="${c.base}"/>
-        ${patches}${stripes}
-        <ellipse cx="60" cy="69" rx="13.5" ry="9" fill="${c.light}"/>
-        <ellipse cx="48" cy="56" rx="6.2" ry="5" fill="${c.eye}"/><ellipse cx="48" cy="56" rx="1.7" ry="4.3" fill="#151515"/><circle cx="49.6" cy="54.2" r="1.1" fill="#fff"/>
-        <ellipse cx="72" cy="56" rx="6.2" ry="5" fill="${c.eye}"/><ellipse cx="72" cy="56" rx="1.7" ry="4.3" fill="#151515"/><circle cx="73.6" cy="54.2" r="1.1" fill="#fff"/>
-        <path d="M56.5 64 L63.5 64 L60 68 Z" fill="#E58C9A"/>
-        <path d="M60 68 Q57 72 54 70.5 M60 68 Q63 72 66 70.5" stroke="#5A3A30" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        <path d="M49 68 L29 64 M49 70.5 L29 72 M71 68 L91 64 M71 70.5 L91 72" stroke="${c.whisker}" stroke-width="1" stroke-linecap="round"/>
-        ${neck}${eyes}${head}
+        <path class="cp-tail" d="M84 118 C99 116 106 104 101 92 C98 85 91 86 92 92" fill="none" stroke="${c.base}" stroke-width="8" stroke-linecap="round"/>
+        <g class="cp-breathe">
+          <ellipse cx="60" cy="118" rx="31" ry="24" fill="${c.base}"/>
+          <ellipse cx="60" cy="114" rx="14" ry="15" fill="${c.light}"/>
+          <g class="cp-fit" transform="translate(0 14)">${body}</g>
+          <ellipse cx="47" cy="117" rx="7.5" ry="5.5" fill="${c.light}"/><ellipse cx="73" cy="117" rx="7.5" ry="5.5" fill="${c.light}"/>
+          <path d="M44.5 115.5 v3 M49.5 115.5 v3 M70.5 115.5 v3 M75.5 115.5 v3" stroke="${c.dark}" stroke-width=".9" stroke-linecap="round" opacity=".5"/>
+          <g class="cp-head">
+            ${ear(-1)}${ear(1)}
+            <ellipse cx="60" cy="64" rx="38" ry="32" fill="${c.base}"/>
+            <path d="M22.5 70 l-4 3 l5 1 M97.5 70 l4 3 l-5 1" fill="${c.base}"/>
+            ${patches}${stripes}
+            <ellipse cx="60" cy="80" rx="12" ry="7.5" fill="${c.light}"/>
+            ${eye(45)}${eye(75)}
+            <ellipse cx="35" cy="78" rx="6" ry="3.4" fill="#F49AAE" opacity=".55"/><ellipse cx="85" cy="78" rx="6" ry="3.4" fill="#F49AAE" opacity=".55"/>
+            <path d="M57.4 75.2 Q60 74.4 62.6 75.2 L60 77.8 Z" fill="#E58C9A"/>
+            <path d="M54.6 79 Q57.3 82.2 60 79 Q62.7 82.2 65.4 79" stroke="#5A3A30" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+            <path d="M30 76 L16 73 M30.5 80 L17 81 M90 76 L104 73 M89.5 80 L103 81" stroke="${c.whisker}" stroke-width="1" stroke-linecap="round"/>
+            <g class="cp-fit" transform="translate(60 66) scale(1.2 1.15) translate(-60 -55.5)">${eyes}</g>
+            <g class="cp-fit" transform="translate(60 37) scale(1.12) translate(-60 -34)">${head}</g>
+          </g>
+          <g class="cp-fit" transform="translate(0 12)">${neck}</g>
+        </g>
       </g>
     </svg>`;
   }
 
-  // The cat in the village: a small sitting figure, base at (x, y), with the
-  // outfit hinted. A "?" until it has a name.
+  // The cat in the village: a small chibi sitting figure, base at (x, y), with
+  // the outfit hinted. It breathes and swishes its tail. A "?" until it has a name.
   function catSprite(cat, x, y, k = 1) {
     const c = coatOf(cat), w = (cat && cat.wearing) || {};
     const headTop = {
@@ -376,23 +398,31 @@ window.Coin = (function () {
       top_hat: `<rect x="-3.6" y="-33" width="7.2" height="7" fill="#1B1B1B"/><rect x="-6" y="-26.5" width="12" height="1.6" rx=".8" fill="#1B1B1B"/>`,
       beret: `<ellipse cx="-1" cy="-26.5" rx="6" ry="2.2" fill="#B03A48" transform="rotate(-12 -1 -26.5)"/>`,
     }[w.head] || '';
-    const neck = { bow_tie: `<path d="M0 -13 L-3 -14.8 L-3 -11.2 Z M0 -13 L3 -14.8 L3 -11.2 Z" fill="#C0392B"/>`, pearls: `<path d="M-4 -14 Q0 -11 4 -14" fill="none" stroke="#FBF8F0" stroke-width="1.6" stroke-dasharray="1 .6"/>`, gold_chain: `<path d="M-4 -14 Q0 -10.5 4 -14" fill="none" stroke="${GOLD}" stroke-width="1.4"/>` }[w.neck] || '';
-    const eyes = { sunglasses: `<rect x="-4.5" y="-21.5" width="3.6" height="2.4" rx="1" fill="#141414"/><rect x=".9" y="-21.5" width="3.6" height="2.4" rx="1" fill="#141414"/>`, monocle: `<circle cx="2.7" cy="-20.3" r="1.9" fill="none" stroke="${GOLD}" stroke-width=".6"/>` }[w.eyes] || '';
-    const cape = w.body === 'cape' ? `<path d="M-7.5 -12 Q-11 -3 -9 0 L9 0 Q11 -3 7.5 -12 Z" fill="#8E1F2D"/>` : '';
-    const blazer = w.body === 'blazer' ? `<path d="M-6.5 -11 Q-8.5 -4 -7.5 0 L7.5 0 Q8.5 -4 6.5 -11 Z" fill="#1B2F4A"/><path d="M-1.5 -11 L0 -6 L1.5 -11 Z" fill="#fff"/>` : '';
-    const ask = cat && !cat.name ? `<g transform="translate(9 -36)"><rect width="13" height="12" rx="3" class="v-bubble"/><text x="6.5" y="9.5" text-anchor="middle" class="v-bubble-text">?</text></g>` : '';
+    const neck = { bow_tie: `<path d="M0 -11.5 L-3 -13.3 L-3 -9.7 Z M0 -11.5 L3 -13.3 L3 -9.7 Z" fill="#C0392B"/>`, pearls: `<path d="M-4 -12.5 Q0 -9.5 4 -12.5" fill="none" stroke="#FBF8F0" stroke-width="1.6" stroke-dasharray="1 .6"/>`, gold_chain: `<path d="M-4 -12.5 Q0 -9 4 -12.5" fill="none" stroke="${GOLD}" stroke-width="1.4"/>` }[w.neck] || '';
+    const eyes = { sunglasses: `<rect x="-5.4" y="-20.8" width="4.4" height="2.8" rx="1.1" fill="#141414"/><rect x="1" y="-20.8" width="4.4" height="2.8" rx="1.1" fill="#141414"/>`, monocle: `<circle cx="3.2" cy="-19.4" r="2.3" fill="none" stroke="${GOLD}" stroke-width=".6"/>` }[w.eyes] || '';
+    const cape = w.body === 'cape' ? `<path d="M-6.5 -10 Q-9.5 -3 -8 0 L8 0 Q9.5 -3 6.5 -10 Z" fill="#8E1F2D"/>` : '';
+    const blazer = w.body === 'blazer' ? `<path d="M-5.5 -9.5 Q-7.5 -4 -6.5 0 L6.5 0 Q7.5 -4 5.5 -9.5 Z" fill="#1B2F4A"/><path d="M-1.4 -9.5 L0 -5.5 L1.4 -9.5 Z" fill="#fff"/>` : '';
+    const ask = cat && !cat.name ? `<g transform="translate(9 -38)"><rect width="13" height="12" rx="3" class="v-bubble"/><text x="6.5" y="9.5" text-anchor="middle" class="v-bubble-text">?</text></g>` : '';
     return `<g class="v-cat" transform="translate(${x} ${y}) scale(${k})">
-      <path d="M6 -3 Q15 -4 13 -13 Q12 -17 9 -15" fill="none" stroke="${c.base}" stroke-width="2.6" stroke-linecap="round"/>
-      ${cape}
-      <ellipse cx="0" cy="-6.5" rx="7.5" ry="7" fill="${c.base}"/>
-      <ellipse cx="0" cy="-5" rx="3.6" ry="4.6" fill="${c.light}"/>
-      ${blazer}
-      <path d="M-5.6 -22.5 L-4.6 -28.5 L-1.5 -24.5 Z M5.6 -22.5 L4.6 -28.5 L1.5 -24.5 Z" fill="${c.base}"/>
-      <circle cx="0" cy="-19.5" r="6" fill="${c.base}"/>
-      ${cat && cat.coat === 'calico' ? `<path d="M-6 -21 Q-5 -26 -1 -25 Q-2 -20 -6 -18 Z" fill="${c.patch}"/>` : ''}
-      <circle cx="-2.3" cy="-20.3" r=".95" fill="#151515"/><circle cx="2.3" cy="-20.3" r=".95" fill="#151515"/>
-      <path d="M-.9 -17.6 L.9 -17.6 L0 -16.6 Z" fill="#E58C9A"/>
-      ${neck}${eyes}${headTop}${ask}
+      <path class="v-cat-tail" d="M5 -2.5 Q13 -3 12 -10 Q11.5 -14 8.5 -12.5" fill="none" stroke="${c.base}" stroke-width="2.8" stroke-linecap="round"/>
+      <g class="v-cat-breathe">
+        ${cape}
+        <ellipse cx="0" cy="-5" rx="6.5" ry="5.6" fill="${c.base}"/>
+        <ellipse cx="0" cy="-4" rx="3.2" ry="3.8" fill="${c.light}"/>
+        ${blazer}
+        <ellipse cx="-2.6" cy="-.6" rx="2" ry="1.3" fill="${c.light}"/><ellipse cx="2.6" cy="-.6" rx="2" ry="1.3" fill="${c.light}"/>
+        <path d="M-7.2 -21.5 Q-7.6 -28.5 -5.6 -29.2 Q-3.6 -28.8 -1.6 -25.6 Z M7.2 -21.5 Q7.6 -28.5 5.6 -29.2 Q3.6 -28.8 1.6 -25.6 Z" fill="${c.base}"/>
+        <path d="M-6 -22.6 Q-6.2 -26.8 -5.2 -27.2 Q-4.2 -26.6 -3 -25 Z M6 -22.6 Q6.2 -26.8 5.2 -27.2 Q4.2 -26.6 3 -25 Z" fill="${c.ear}"/>
+        <ellipse cx="0" cy="-19" rx="8.6" ry="7.6" fill="${c.base}"/>
+        ${cat && cat.coat === 'calico' ? `<path d="M-8 -19 Q-8 -25.5 -2 -26 Q-3 -21 -8 -16 Z" fill="${c.patch}"/>` : ''}
+        ${cat && cat.coat === 'tabby' ? `<path d="M0 -26 v1.8 M-2 -25.6 l.5 1.6 M2 -25.6 l-.5 1.6" stroke="${c.dark}" stroke-width=".7" stroke-linecap="round"/>` : ''}
+        <g class="v-cat-eyes"><circle cx="-3.2" cy="-19.2" r="1.7" fill="#16161B"/><circle cx="3.2" cy="-19.2" r="1.7" fill="#16161B"/><circle cx="-3.7" cy="-19.8" r=".6" fill="#fff"/><circle cx="2.7" cy="-19.8" r=".6" fill="#fff"/></g>
+        <ellipse cx="-5.6" cy="-16.4" rx="1.4" ry=".8" fill="#F49AAE" opacity=".6"/><ellipse cx="5.6" cy="-16.4" rx="1.4" ry=".8" fill="#F49AAE" opacity=".6"/>
+        <path d="M-.7 -17 L.7 -17 L0 -16.3 Z" fill="#E58C9A"/>
+        <path d="M-1.4 -15.6 Q-.7 -14.8 0 -15.6 Q.7 -14.8 1.4 -15.6" stroke="#5A3A30" stroke-width=".4" fill="none" stroke-linecap="round"/>
+        ${neck}${eyes}${headTop}
+      </g>
+      ${ask}
     </g>`;
   }
 
