@@ -102,11 +102,19 @@
   // Friends are one-directional: the names you've added. Seeded with two so the
   // Friends board has something on it; add ravi_k or bagholder_ben to try it.
   const friends = new Set(['erin', 'moonshot_mia']);
-  const townCtx = (extra = {}) => ({ day: today, uid: 1, cash: user.cash, lobbyists: user.total_donated, streak: user.streak, friends: friends.size, unlocked: TownRules.isUnlocked(user.total_donated), ...extra });
+  // What the cat's way checks (the server works these out from the player's book).
+  const catExtras = () => {
+    const open = positions.filter((p) => p.status === 'open');
+    return { holding: [...new Set(open.map((p) => p.symbol))], holding_crypto: open.some((p) => p.asset_type === 'crypto'),
+      lost_total: round2(positions.reduce((a, p) => a + (p.status === 'closed' && p.profit < 0 ? -p.profit : 0), 0)), in_play: round2(open.reduce((a, p) => a + p.invested, 0)) };
+  };
+  const townCtx = (extra = {}) => ({ day: today, uid: 1, cash: user.cash, lobbyists: user.total_donated, streak: user.streak, friends: friends.size, unlocked: TownRules.isUnlocked(user.total_donated), ...catExtras(), ...extra });
   const townView = () => ({ ...TownRules.view(town, townCtx()), unlocked: TownRules.isUnlocked(user.total_donated) });
   TownRules.tick(town, townCtx({ cash: 120 }));
 
   // Achievements, as src/achievements.js has them (same keys, gifts, notes).
+  // Lobbyists a gift hires, as on the server (src/achievements.js).
+  const HIRES = { first_buy: 1, first_win: 1, first_bust: 1, networking: 1, streak_7: 2, landlord: 2, let_it_ride: 2, legend: 2, power_broker: 3, streak_30: 3, seven_figures: 3 };
   const ACH = [
     ['first_buy', 'Skin in the Game', 'Make your first investment.', 'Daddy', 40, "Proud of you, champ. Here's a little something so you never have to touch the principal."],
     ['first_win', 'Realized Gains', 'Cash out a profit.', 'Mommy', 20, 'Your first real money! Daddy got misty. Buy yourself something with a crest on it.'],
@@ -119,7 +127,7 @@
     ['power_broker', 'Power Broker', 'Hire 500 lobbyists, career.', 'Mommy', 60, 'Five hundred! Your father had four hundred and they named an interchange after him.'],
     ['streak_30', 'Clocked In', 'Play 30 days in a row.', 'Daddy', 100, 'Thirty days without missing one. Nobody in this family has ever done that. Not even at the office.'],
     ['seven_figures', 'Seven Figures', 'Have $1M on the coin at once.', 'Daddy', 100, "A million! They say the first one is the hardest. I wouldn't know."],
-  ].map(([key, title, how, from, gift, note]) => ({ key, title, how, from, gift, note }));
+  ].map(([key, title, how, from, gift, note]) => ({ key, title, how, from, gift, note, hires: HIRES[key] || 1 }));
   // The demo player is a few days in: the first three already earned and taken.
   const earned = new Map(['first_buy', 'first_win', 'first_bust'].map((k) => [k, { earned_at: new Date(Date.now() - 2 * 86400e3).toISOString(), claimed_at: new Date(Date.now() - 2 * 86400e3).toISOString(), lobbyists: k === 'first_buy' ? 10 : null }]));
   function achView() {
@@ -221,7 +229,10 @@
   ]);
   // Your own charity is the demo's featured one: its new lobbyists count ×1.25, as on the server.
   const featX = (c) => (c && c.id === (user.charity_id || 6) ? 1.25 : 1);
-  let wallNext = 10, wallSeen = false, followSeen = false, catSeen = false;
+  let wallNext = 10, wallSeen = false, followSeen = false, catSeen = false, pokeSeen = false;
+  // Pokes you sent today, by friend; the server keeps one a day per pair.
+  const pokesSent = new Map();
+  const POKE_KINDS = ['nice_trades', 'lol_sorry', 'miss_you'];
   // Petting other players' cats: "owner:kind" for today, plus a few seeded strangers.
   const catPats = new Set();
   const catVisits = (owner, mine) => {
@@ -273,6 +284,7 @@
       top_charity: p.top_charity, town: town2,
       achievements: { earned: (SEED_EARNED[p.username] || ['first_buy']).map((k) => { const a = ACH.find((x) => x.key === k); return { key: k, title: a.title, how: a.how, at: ago(200) }; }), total: ACH.length },
       is_friend: friends.has(p.username), added_you: addedYouSet.has(p.username), is_you: false,
+      ...(friends.has(p.username) ? { poked_today: pokesSent.get(p.username) || null } : {}),
       wall: wallOpenTo(p.username) ? { open: true, max: 280, posts: wallFor(p.username) } : { open: false } };
   }
 
@@ -355,6 +367,7 @@
         vesting: null,
         achievements: achView(),
         new_followers: followSeen ? [] : waiting(),
+        pokes: pokeSeen ? [] : (pokeSeen = true, [{ username: 'erin', kind: 'nice_trades' }]),
         cat_visits: catSeen || !(town.cat && town.cat.name) ? [] : (catSeen = true, [{ username: 'erin', pet: true, treat: true }, { username: 'ravi_k', pet: true, treat: false }]),
         wall_unread: wallSeen ? 0 : (walls.get(user.username) || []).filter((w) => w.author !== user.username).length,
         wall_unread_from: wallSeen ? [] : [...new Set((walls.get(user.username) || []).filter((w) => w.author !== user.username).map((w) => w.author))].slice(0, 3),
@@ -617,9 +630,12 @@
       achView(); const e = earned.get(key);
       if (!e) fail(`Not yet: ${a.how}`);
       if (e.claimed_at) fail('Already in your pocket. Mommy and Daddy only pay once.');
-      const amount = a.gift, profit = amount, tax = round2(profit * RULES.tax_rate), net = round2(amount - tax);
       const charity = CHARITIES.find((c) => c.id === user.charity_id) || CHARITIES.find((c) => c.id === Number(body.charity_id)) || CHARITIES[0];
-      const hireCost = TownRules.hireCost(town); const lobbyists = round2(tax / hireCost * featX(charity));
+      // A gift hires a fixed 1 to 3 lobbyists; the tax is what they cost, the rest is cash.
+      const hireCost = TownRules.hireCost(town);
+      const amount = a.gift, profit = amount, capped = amount * RULES.tax_rate >= a.hires * hireCost;
+      const tax = round2(capped ? a.hires * hireCost : amount * RULES.tax_rate), net = round2(amount - tax);
+      const lobbyists = capped ? a.hires : round2(tax / hireCost);
       positions.push({ id: nextId++, symbol: 'GIFT', name: a.title, asset_type: 'stock', multiplier: 1, invested: 0, status: 'gift', proceeds: amount, profit, tax, lobbyists, tier: 'Gift', charity_id: charity.id, collected: true, gift: true, closed_day: today, closed_at: new Date().toISOString() });
       user.cash = round2(user.cash + net); user.total_donated = round2(user.total_donated + lobbyists); user.realized_pnl = round2(user.realized_pnl + profit); user.charity_id = user.charity_id || charity.id;
       donations.push({ charity_id: charity.id, amount: lobbyists, user: user.username });
@@ -637,12 +653,12 @@
     }
     if (path === '/town/decide') {
       if (!TownRules.isUnlocked(user.total_donated)) fail('TrickleTown opens when you hire your first full lobbyist.');
-      const r = TownRules.decide(town, String(body.issue_id || ''), body.side, user.cash);
+      const r = TownRules.decide(town, String(body.issue_id || ''), body.side, user.cash, townCtx());
       if (r.error) fail(r.error);
       user.cash = round2(Math.max(0, user.cash + r.cash));
       // How the other landlords answered today: invented, but stable per card.
       const n = 5 + Math.floor(hash(String(body.issue_id) + today) * 40); const pPreston = Math.round(n * (0.35 + hash(String(body.issue_id)) * 0.4));
-      const crowd = { preston: pPreston + (body.side === 'preston' ? 1 : 0), dolores: n - pPreston + (body.side === 'dolores' ? 1 : 0) };
+      const crowd = { preston: pPreston + (body.side === 'preston' ? 1 : 0), dolores: n - pPreston + (body.side === 'dolores' ? 1 : 0), cat: body.side === 'cat' ? 1 : 0 };
       return { ok: true, cash_change: r.cash, fx: r.fx, noted: r.noted, side: r.side, crowd, user: publicUser(), town: townView() };
     }
     if (path === '/town/upgrade') {
@@ -673,6 +689,14 @@
       if (!p || !SEED_PETS[p.username]) fail('No cat here.', 404);
       const k = `${p.username}:${kind}`, already = catPats.has(k); catPats.add(k);
       return { ok: true, kind, already, visits: catVisits(p.username, false) };
+    }
+    if (/^\/players\/[^/]+\/poke$/.test(path)) {
+      const kind = String(body.kind || ''); if (!POKE_KINDS.includes(kind)) fail('Pick one of the three.');
+      const p = findPlayer(decodeURIComponent(path.split('/')[2]));
+      if (!p) fail('No player by that name.', 404);
+      if (!friends.has(p.username)) fail('Add them as a friend first.', 403);
+      const already = pokesSent.has(p.username); if (!already) pokesSent.set(p.username, kind);
+      return { ok: true, already, poked: pokesSent.get(p.username) };
     }
     if (/^\/players\/[^/]+\/wall$/.test(path)) {
       const owner = ownerName(decodeURIComponent(path.split('/')[2])); if (!owner) fail('No player by that name.', 404);

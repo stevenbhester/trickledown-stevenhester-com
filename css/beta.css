@@ -197,6 +197,7 @@
 :root[data-ui="beta"] .receipt li { border-color: var(--line); }
 :root[data-ui="beta"] .ride-box { border: 0; background: var(--paper); border-radius: 16px; }
 :root[data-ui="beta"] .adv-pitch, :root[data-ui="beta"] .up-side { border: 0; border-radius: 16px; box-shadow: 0 1px 2px rgb(var(--sh) / .06); }
+:root[data-ui="beta"] .adv-pitch.cat { box-shadow: inset 0 0 0 1.5px var(--mixed), 0 1px 2px rgb(var(--sh) / .06); }
 :root[data-ui="beta"] .site-ups li { border: 0; border-radius: 18px; box-shadow: 0 1px 2px rgb(var(--sh) / .06); }
 :root[data-ui="beta"] .site-ups li.up-available { box-shadow: 0 0 0 1.5px var(--gold), 0 6px 18px rgb(var(--sh) / .08); }
 :root[data-ui="beta"] .menu-sheet { border-radius: 22px; }
@@ -250,3 +251,15 @@ details.tip { display: block; }
 .beta-toggle > span { display: flex; flex-direction: column; gap: 2px; }
 .beta-toggle small { font-size: 13px; line-height: 1.4; }
 .beta-pill { align-self: flex-start; display: inline-block; margin: 2px 0 2px; padding: 0 7px; border-radius: 999px; background: var(--gold-wash); color: var(--gold-ink); font-size: 11px; font-weight: 700; vertical-align: 2px; }
+
+/* The same switch in the ☰ menu (both layouts), under Appearance. */
+.menu-beta { display: flex; align-items: center; gap: 12px; padding: 10px 8px 10px 12px; cursor: pointer; }
+.menu-beta > span { flex: 1; font: 500 16px/1.2 var(--body); color: var(--ink); }
+.menu-beta .beta-pill { margin-left: 6px; vertical-align: 1px; }
+.menu-beta input { width: 20px; height: 20px; margin: 0; accent-color: var(--water); flex: none; }
+
+/* Payday in simple mode: a soft card, the number in the system face. */
+:root[data-ui="beta"] .payday { border: 0; border-radius: 18px; background: var(--card); box-shadow: 0 1px 2px rgb(var(--sh) / .05), inset 0 0 0 1.5px rgb(226 169 59 / .55); }
+:root[data-ui="beta"] .payday-k { color: var(--gold-ink); }
+:root[data-ui="beta"] .payday-amt b { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em; font-size: 32px; }
+:root[data-ui="beta"] .payday-parts { border-top-color: var(--line); }

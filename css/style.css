@@ -126,10 +126,12 @@ p { margin: 0 0 0.75em; }
   text-transform: uppercase;
   padding-bottom: 10px;
 }
+/* The drip hangs off the last letter, wherever the name wraps. */
+.wm-last { position: relative; display: inline-block; }
 .wordmark-drip {
   position: absolute;
   right: -2px;
-  bottom: -4px;
+  top: calc(100% + 1px);
   width: 9px;
   height: 13px;
   fill: var(--water);
@@ -890,6 +892,18 @@ input:focus { border-color: var(--water); }
 .adv-card.fly-dolores { animation: fly-r 420ms ease-in forwards; }
 @keyframes fly-l { to { transform: translateX(-130%) rotate(-18deg); opacity: 0; } }
 @keyframes fly-r { to { transform: translateX(130%) rotate(18deg); opacity: 0; } }
+.adv-card.fly-cat { animation: fly-d 420ms ease-in forwards; }
+@keyframes fly-d { to { transform: translateY(40%) rotate(4deg) scale(.9); opacity: 0; } }
+/* The cat's way: a third answer only some players see. Quiet, a little odd. */
+.adv-catway { margin: -2px 0 10px; animation: catway-in 520ms ease-out 260ms both; }
+@keyframes catway-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.adv-pitch.cat { width: 100%; background: var(--mixed-tint); border-style: dashed; border-color: var(--mixed); }
+.adv-pitch.cat .adv-who small { font-style: italic; }
+.adv-pitch.cat .cat-portrait { flex: none; border-radius: 50%; }
+.adv-pitch.cat::after { content: '🐾 not everyone gets this option'; align-self: flex-end; font-size: 11px; color: var(--mixed); opacity: .8; }
+.adv-card.result.cat { border-color: var(--mixed); }
+.adv-pitch .cat-act { font-style: italic; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .adv-catway { animation: none; } }
 .adv-band {
   display: inline-block; margin: 0 0 10px -16px; padding: 5px 12px; border-radius: 12px 0 10px 0;
   font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--on-inverse); background: var(--inverse);
@@ -1755,6 +1769,20 @@ html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
 .prof-id h1 { font-family: var(--display); font-weight: 900; font-size: clamp(26px, 8vw, 36px); line-height: 1; overflow-wrap: anywhere; }
 .prof-actions { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .prof-add-note { font-size: 12px; }
+/* Poke: three canned notes to a friend, one a day. */
+.poke { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.poke-lbl { font-size: 13px; font-weight: 700; color: var(--mud); margin-right: 2px; }
+.poke-btn { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); background: var(--card); border: 1.5px solid var(--line); border-radius: 999px; padding: 4px 11px; cursor: pointer; transition: transform 120ms ease-out, border-color 120ms, background 120ms; }
+.poke-btn:not(:disabled):hover { transform: translateY(-1px); border-color: var(--edge); }
+.poke-btn:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+.poke-btn:disabled { cursor: default; }
+.poke.sent .poke-btn:not(.chosen) { opacity: .45; }
+.poke-btn.chosen { border-color: var(--water); background: rgb(var(--water-rgb) / .12); }
+.poke-btn.chosen { animation: poke-boop 360ms ease-out; }
+@keyframes poke-boop { 40% { transform: scale(1.08); } }
+.poke-note { flex-basis: 100%; font-size: 12px; }
+.poke-note:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .poke-btn.chosen { animation: none; } }
 .prof-id h1 .you { font: 500 15px var(--body); }
 .prof-meta { margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--mud); }
 .prof-rank { font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--water); }
@@ -2266,9 +2294,14 @@ html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
 .rv-lab-t { fill: var(--ink); font-weight: 700; }
 .rv-lab-v { fill: var(--mud); }
 .rv-ctl { display: flex; justify-content: flex-end; padding: 0 6px 6px; font-size: 13px; }
+/* $ / %: one big position flattens the rest in dollars. */
+.rv-unit { order: -1; margin-right: auto; display: inline-flex; padding: 2px; border-radius: 8px; background: var(--porcelain); border: 1px solid var(--line); }
+.rv-unit button { font: 700 12px/1 var(--body); color: var(--mud); background: none; border: 0; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+.rv-unit button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgb(var(--sh) / .15); }
+.rv-unit button:focus-visible { outline: 2px solid var(--water); outline-offset: 1px; }
 .rv-rows { list-style: none; margin: 12px 0 0; padding: 0; }
 .rv-row {
-  display: grid; grid-template-columns: 14px 1fr auto; grid-template-areas: "key sym val" "key state pct";
+  display: grid; grid-template-columns: 14px 1fr auto; grid-template-areas: "key sym val" "key state pct" ". act act";
   column-gap: 8px; row-gap: 1px; align-items: baseline;
   padding: 8px 2px; border-bottom: 1px solid var(--line);
 }
@@ -2281,6 +2314,12 @@ html.has-peek .toast { bottom: calc(var(--peek-h, 72px) + 26px); }
 .rv-val small { color: var(--mud); font-size: 12.5px; }
 .rv-val b { font-size: 15px; }
 .rv-state { grid-area: state; color: var(--mud); font-size: 12.5px; }
+/* Settle it right here: Collect / Ride, then what it did. */
+.rv-act { grid-area: act; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.rv-done { font-size: 13px; font-weight: 600; color: var(--rise); }
+.rv-bulk { display: flex; justify-content: flex-end; margin: 10px 0 2px; }
+.rv-tally { margin: 10px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--rise-tint); color: var(--ink); font-size: 14px; }
+.rv-tally b { color: var(--rise); }
 .rv-final { grid-area: pct; text-align: right; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .rv-pct.up { color: var(--rise); }
 .rv-pct.down { color: var(--sink); }
@@ -2536,3 +2575,19 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
 .pet-said { min-height: 1em; font-style: italic; }
 .pet-today { color: var(--ink) !important; }
 @media (prefers-reduced-motion: reduce) { .pet-art.patted .cat-portrait, .pet-pop { animation: none; } .pet-pop { display: none; } }
+
+/* Payday: the day's money at the top of Today, styled like a pay stub. */
+.payday { position: relative; margin: 0 0 12px; padding: 12px 40px 12px 14px; border: 1.5px dashed var(--gold); border-radius: var(--radius); background: var(--gold-wash); color: var(--ink); }
+.payday.fresh { animation: payday-in 520ms cubic-bezier(.2, .8, .3, 1.2) both; }
+@keyframes payday-in { from { opacity: 0; transform: translateY(-10px) scale(.98); } to { opacity: 1; transform: none; } }
+.payday-x { position: absolute; top: 6px; right: 6px; }
+.payday-k { margin: 0; font-size: 13px; font-weight: 600; color: var(--gold-wash-ink); }
+.payday-amt { margin: 2px 0 6px; font-size: 15px; }
+.payday-amt b { font-family: var(--display); font-weight: 900; font-size: 30px; line-height: 1; color: var(--rise); margin-right: 4px; font-variant-numeric: tabular-nums; }
+.payday-parts { list-style: none; margin: 0 0 6px; padding: 6px 0 0; border-top: 1px solid rgb(var(--gold-rgb) / .45); display: grid; gap: 2px; font-size: 14px; }
+.payday-parts li { display: flex; justify-content: space-between; gap: 12px; }
+.payday-parts li b { font-variant-numeric: tabular-nums; }
+.payday-parts li.up b { color: var(--rise); }
+.payday-parts li.down b { color: var(--sink); }
+.payday-next { margin: 0; font-size: 12.5px; color: var(--mud); }
+@media (prefers-reduced-motion: reduce) { .payday.fresh { animation: none; } }

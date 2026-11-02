@@ -96,7 +96,7 @@ window.Explainer = (function () {
           <rect x="96" y="40" width="88" height="56" rx="6" fill="#fff" stroke="#0F2430" stroke-width="2" class="xs-card"/>
           <text x="140" y="76" text-anchor="middle" fill="#0F2430" font-size="22" font-weight="900" class="xs-card-text">$${r.vest_amount || 40}K</text>
           <text x="140" y="122" text-anchor="middle" class="x-tag">from Mommy &amp; Daddy</text>`),
-        body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K. It's all gain, so ${pct}% is tax, and that tax hires your first lobbyists. They live in TrickleTown, on the other side of your coin.`,
+        body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K. A little of it hires your first lobbyist, who lives in TrickleTown, on the other side of your coin. The rest is yours.`,
         fine: 'Nothing about this is normal. Everything about it is legal.',
         next: 'Start playing',
       },

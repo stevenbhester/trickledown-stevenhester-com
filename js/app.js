@@ -510,6 +510,7 @@
       // its life, so a guest who keeps showing up is never signed out.
       if (me.token && !API.demo) API.setToken(me.token);
       setSignedIn(true);
+      if (me.allowance) savePayday(me);
       renderToday();
       renderTrophyCount();
       updateMenuDot();
@@ -523,6 +524,7 @@
       const after = (name, fn) => { if (reviewing) state.afterReview.set(name, fn); else fn(); };
       after('wall', () => maybeWallToast(state.me));
       after('followers', () => maybeFollowerPeek(state.me));
+      after('pokes', () => maybePokeToast(me));
       after('charity', () => maybeCharityChooser(state.me));
       // The review lists new cards itself.
       if (me.fresh_cards && me.fresh_cards.length && !reviewing) setTimeout(() => announceCards(me.fresh_cards), me.allowance ? 5400 : 800);
@@ -535,12 +537,8 @@
         // The review says what landed; the coin still lands when it closes.
         after('toss', () => tossCoin());
       } else if (me.allowance) {
+        // The Payday card at the top of Today says what landed, and stays all day.
         tossCoin();
-        const a = me.allowance;
-        const ti = a.town_income || 0;
-        const village = ti ? ` (${money(a.base != null ? a.base : a.amount - ti, { whole: true })} stipend ${ti > 0 ? '+' : '−'} ${money(Math.abs(ti), { whole: true })} ${ti > 0 ? 'from' : 'upkeep for'} TrickleTown)` : '';
-        const quit = '';
-        setTimeout(() => toast(`${me.user.streak > 1 ? `Day ${me.user.streak} of your streak: ` : ''}${money(a.amount, { whole: true })} landed on the coin${village}.${quit}`, 4200), REDUCED ? 0 : 1100);
       }
     } catch (e) {
       if (e.status === 401) { API.setToken(null); route(); return; }
@@ -746,6 +744,58 @@
 
   // --- today: layout ----------------------------------------------------------------------
 
+  // --- Payday: the day's money, said plainly at the top of Today ---------------------
+  //
+  // The allowance arrives with the first visit of the day (/me's `allowance`).
+  // It's remembered for the rest of that day on this device, so the card is
+  // there on every visit until dismissed: total, then where it came from
+  // (stipend, streak bonus, TrickleTown's profit or upkeep), then tomorrow's.
+  const PAYDAY_KEY = 'trickledown.payday';
+  function savePayday(me) {
+    const a = me.allowance;
+    try {
+      // Already shown (or dismissed) today: leave it be.
+      const was = JSON.parse(localStorage.getItem(PAYDAY_KEY) || 'null');
+      if (was && was.day === me.day.key) return;
+      localStorage.setItem(PAYDAY_KEY, JSON.stringify({ day: me.day.key, amount: a.amount, base: a.base != null ? a.base : a.amount - (a.town_income || 0), town: a.town_income || 0, streak: a.streak || me.user.streak, fresh: true }));
+    } catch (e) { /* the card just won't come back on reload */ }
+  }
+  function payday(me) {
+    try { const p = JSON.parse(localStorage.getItem(PAYDAY_KEY) || 'null'); return p && me && p.day === me.day.key && !p.dismissed ? p : null; } catch (e) { return null; }
+  }
+  function paydayMarkup(me) {
+    const p = payday(me); if (!p) return '';
+    const r = me.rules, town = me.town && me.town.unlocked;
+    const stipend = Math.min(r.daily_base, p.base), bonus = round2(p.base - stipend);
+    const parts = [
+      `<li><span>Allowance</span><b>${money(stipend, { whole: true })}</b></li>`,
+      bonus > 0 ? `<li><span>Streak bonus, day ${p.streak}</span><b>+${money(bonus, { whole: true })}</b></li>` : '',
+      town ? `<li class="${p.town > 0 ? 'up' : p.town < 0 ? 'down' : ''}"><span>${p.town >= 0 ? 'TrickleTown profit' : 'TrickleTown upkeep'}</span><b>${p.town > 0 ? '+' : p.town < 0 ? '−' : ''}${money(Math.abs(p.town), { whole: true })}</b></li>` : '',
+    ].join('');
+    const tomorrow = Math.min(r.daily_cap, r.daily_base + r.streak_bonus * me.user.streak) + (town ? me.town.income || 0 : 0);
+    return `<section class="payday ${p.fresh && !REDUCED ? 'fresh' : ''}" id="payday" aria-label="Today's money">
+      <button type="button" class="close payday-x" id="payday-x" aria-label="Dismiss">×</button>
+      <p class="payday-k">💵 Payday${p.streak > 1 ? ` · day ${p.streak} of your streak` : ''}</p>
+      <p class="payday-amt"><b data-to="${p.amount}">+${money(p.amount, { whole: true })}</b> landed on the coin</p>
+      <ul class="payday-parts">${parts}</ul>
+      <p class="payday-next">Tomorrow: ${money(tomorrow, { whole: true })}${town && me.town.income ? `, with TrickleTown's ${me.town.income > 0 ? '+' : '−'}${money(Math.abs(me.town.income), { whole: true })}` : ''}. Miss a day and the streak resets.</p>
+    </section>`;
+  }
+  function wirePayday() {
+    const card = $('#payday'); if (!card) return;
+    $('#payday-x').onclick = () => {
+      try { const p = JSON.parse(localStorage.getItem(PAYDAY_KEY) || 'null'); if (p) { p.dismissed = true; localStorage.setItem(PAYDAY_KEY, JSON.stringify(p)); } } catch (e) { /* gone for this view only */ }
+      card.remove();
+    };
+    // The first showing counts up; after that it just sits there.
+    if (card.classList.contains('fresh')) {
+      try { const p = JSON.parse(localStorage.getItem(PAYDAY_KEY)); p.fresh = false; localStorage.setItem(PAYDAY_KEY, JSON.stringify(p)); } catch (e) { /* counts up again next time */ }
+      const b = $('.payday-amt b', card), to = Number(b.dataset.to) || 0, t0 = performance.now();
+      const step = (now) => { const k = Math.min(1, (now - t0) / 900); b.textContent = `+${money(to * (1 - Math.pow(1 - k, 3)), { whole: true })}`; if (k < 1 && b.isConnected) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    }
+  }
+
   function renderToday() {
     tickerStart(state.justBought); state.justBought = false;
     sceneryCrowd();
@@ -756,6 +806,7 @@
 
     $('#screen-today').innerHTML = `
       <div id="event-banner" hidden></div>
+      ${paydayMarkup(me)}
       <div class="coin-stage">
         <div class="coin ${state.flipped ? 'flipped' : ''}" id="coin">
           <div class="coin-inner">
@@ -771,6 +822,7 @@
     wireCaption();
     renderUnder();
     wireInstallHint();
+    wirePayday();
     paintEventBanner();
   }
 
@@ -1304,6 +1356,11 @@
   const CLUE_LABEL = { allowance: 'Profit', cash: 'Cash now', happiness: 'Happiness' };
   const TIER_LABEL = { bad: 'Extractive', compromise: 'Compromise', good: 'Decent' };
   const WHO = { preston: { name: 'Preston Yield', role: 'Value Extraction Partner' }, dolores: { name: 'Dolores Pike', role: 'Lobbyist for Lobbyists' } };
+  // The cat can take a side too (its secret way on some cards): its own name,
+  // its own face, a job title nobody gave it.
+  const whoOf = (who) => (who === 'cat' ? { name: (state.me && state.me.town && state.me.town.cat && state.me.town.cat.name) || 'The cat', role: 'Cat' } : WHO[who]);
+  const faceOf = (who, size) => (who === 'cat' ? Coin.catPortrait(state.me && state.me.town && state.me.town.cat, size) : Coin[who](size));
+  const firstName = (who) => (who === 'cat' ? whoOf('cat').name : WHO[who].name.split(' ')[0]);
 
   // ▲▼ hints, never exact numbers. Green means good for you.
   function clueChips(clues, cls = '') {
@@ -1463,9 +1520,9 @@
     const later = c && window.TownRules.laterShown ? window.TownRules.laterShown(i, c.side) : null;
     const say = (x) => (window.TownRules.catWords ? window.TownRules.catWords(state.me.town.cat, x) : x);
     const pitch = (k) => {
-      const w = WHO[k], p = i[k], mine = !!c && c.side === k;
+      const w = whoOf(k), p = i[k], mine = !!c && c.side === k;
       return `<div class="adv-pitch ${k} story-pitch ${mine ? 'chosen' : c ? 'passed' : ''}">
-        <span class="adv-who">${Coin[k](40)}<span><b>${esc(w.name)}</b><small>${esc(w.role)}</small></span>${mine ? '<span class="story-pick">Your pick</span>' : ''}</span>
+        <span class="adv-who">${faceOf(k, 40)}<span><b>${esc(w.name)}</b><small>${esc(k === 'cat' ? 'Cat' : w.role)}</small></span>${mine ? '<span class="story-pick">Your pick</span>' : ''}</span>
         <q>${quoted(say(p.line))}</q>
         ${window.TownRules.clues ? clueChips(window.TownRules.clues(p.fx || {})) : ''}
         <span class="adv-label">${mine ? '✓ ' : ''}${esc(say(p.label))}</span>
@@ -1479,8 +1536,8 @@
         <p>${esc(say(i.setup))}</p>
         ${i.ask ? `<p><b>${esc(say(i.ask))}</b></p>` : ''}
       </div>
-      <p class="story-verdict">${c ? `You went with <b>${c.side === 'preston' ? 'Preston' : 'Dolores'}</b>: ${esc(say(i[c.side].label))}.` : `You played this${when ? ` on ${esc(dayLabel(when))}` : ''}, before the deck kept track of which side you took. Here's what each of them offered.`}</p>
-      ${pitch('preston')}${pitch('dolores')}
+      <p class="story-verdict">${c ? `You went with <b>${esc(firstName(c.side))}</b>: ${esc(say(i[c.side].label))}.` : `You played this${when ? ` on ${esc(dayLabel(when))}` : ''}, before the deck kept track of which side you took. Here's what each of them offered.`}</p>
+      ${pitch('preston')}${pitch('dolores')}${c && c.side === 'cat' && i.cat ? pitch('cat') : ''}
       ${later ? `<p class="later later-${later}">${{ good: '✨ That choice could pay off later.', bad: '⚠️ That choice could come back to bite.', mixed: '🔮 Something comes of that choice later.' }[later]}</p>` : ''}
       <p class="muted small">The arrows show which way each choice pushes. ${d.status === 'played' ? 'You played it today.' : 'It may come around again.'}</p>`;
   }
@@ -1611,7 +1668,14 @@
     preston: ['Preston is delighted. He is already drafting the press release.', 'Preston gives you a thumbs-up and a business card. You already have six.', 'Preston nods. Somewhere, a number went up.', 'Preston says "love that for us." He means him.'],
     dolores: ['Dolores nods once. From her, that is a standing ovation.', 'Dolores writes something on her clipboard. It might be your name. It might be "fine."', 'Dolores says "huh." It is the warmest thing she has said all week.', 'Dolores does not smile, but she does not not smile.'],
   };
+  REACTIONS.cat = [
+    '{Cat} blinks at you, slowly. You decide that was approval.',
+    '{Cat} purrs, then walks off mid-purr. Meeting adjourned.',
+    '{Cat} knocks a pen off the desk. Possibly applause.',
+    '{Cat} is already asleep. It worked anyway. Probably a coincidence.',
+  ];
   const reaction = (who) => REACTIONS[who][Math.floor(Math.random() * REACTIONS[who].length)];
+  const catSay = (text) => (window.TownRules && window.TownRules.catWords && state.me && state.me.town ? window.TownRules.catWords(state.me.town.cat, text) : text);
 
   async function townPost(path, body, btn) {
     if (state.busy) return null;
@@ -1895,13 +1959,13 @@
   }
 
   function advisorPitch(i, who, played) {
-    const p = i[who], w = WHO[who];
+    const p = i[who], w = whoOf(who);
     const mine = i.chosen === who, other = i.chosen && !mine;
     const cash = state.me.user.cash, short = !played && p.cost > 0 && !affords(cash, p.cost);
     const tag = p.cost > 0 ? `<span class="price-tag cost ${short ? 'short' : ''}">Costs ${money(p.cost, { whole: true })}</span>` : '<span class="price-tag free">Free</span>';
     return `<button type="button" class="adv-pitch ${who} ${mine ? 'chosen' : ''} ${other ? 'passed' : ''} ${short ? 'short' : ''}" data-pick="${who}" ${played || short ? 'disabled' : ''}>
-      <span class="adv-who">${Coin[who](44)}<span><b>${esc(w.name)}</b><small>${esc(w.role)}</small></span>${tag}</span>
-      <q>${quoted(p.line)}</q>
+      <span class="adv-who">${faceOf(who, 44)}<span><b>${esc(w.name)}</b><small>${esc(who === 'cat' ? 'seems to have an opinion' : w.role)}</small></span>${tag}</span>
+      ${who === 'cat' ? `<span class="cat-act">${esc(p.line)}</span>` : `<q>${quoted(p.line)}</q>`}
       ${clueChips(p.clues)}
       ${p.later ? `<span class="later later-${p.later}">${{ good: '✨ Could pay off later', bad: '⚠️ Could come back to bite', mixed: '🔮 Something comes of this later' }[p.later]}</span>` : ''}
       <span class="adv-label">${mine ? '✓ ' : ''}${esc(p.label)}${short ? `<small class="need">Need ${money(p.cost - cash)} more</small>` : ''}</span>
@@ -1916,11 +1980,11 @@
     const c = adv.cards[adv.i];
     const played = !!c.chosen;
     if (adv.result && adv.result.id === c.id) {
-      const r = adv.result, w = WHO[r.side];
+      const r = adv.result;
       stage.innerHTML = `
         <div class="adv-card result ${r.side}">
           <div class="adv-band">${esc(c.title)}</div>
-          <div class="adv-result-who">${Coin[r.side](56)}<div><b>You went with ${esc(w.name.split(' ')[0])}.</b><span>${esc(c[r.side].label)}</span></div></div>
+          <div class="adv-result-who">${faceOf(r.side, 56)}<div><b>You went with ${esc(firstName(r.side))}.</b><span>${esc(c[r.side].label)}</span></div></div>
           <p>${esc(r.line)}</p>
           ${fxChips(r.fx)}
           ${Object.keys(r.fx).length === 0 ? '<p class="muted small">Nothing measurable happened. That is its own kind of outcome.</p>' : ''}
@@ -1937,9 +2001,10 @@
         <h3>${esc(c.title)}</h3>
         <p>${esc(c.setup)}</p>
         ${c.ask ? `<p class="adv-ask">${esc(c.ask)} <span class="muted"></span></p>` : ''}
-        ${played ? `<div class="adv-played">Played. You went with ${esc(WHO[c.chosen].name.split(' ')[0])}: ${esc(c[c.chosen].label)}.</div>` : ''}
+        ${played ? `<div class="adv-played">Played. You went with ${esc(firstName(c.chosen))}: ${esc(c[c.chosen].label)}.</div>` : ''}
       </div>
       <div class="adv-pitches">${advisorPitch(c, 'preston', played)}${advisorPitch(c, 'dolores', played)}</div>
+      ${c.cat ? `<div class="adv-catway">${advisorPitch(c, 'cat', played)}</div>` : ''}
       <div class="adv-foot">
         <button type="button" class="linkish" data-adv="prev" ${adv.i === 0 ? 'disabled' : ''}>Previous</button>
         <span class="adv-dots">${adv.cards.map((x, k) => `<i class="${k === adv.i ? 'on' : ''} ${x.chosen ? 'done' : ''}"></i>`).join('')}</span>
@@ -1972,12 +2037,12 @@
         if (!r) { $$('[data-pick]', dlg).forEach((x) => { x.disabled = false; }); return; }
         // Fly the card off toward the chosen side, then show the result.
         if (card && !REDUCED) {
-          card.classList.remove('lean-preston', 'lean-dolores');
+          card.classList.remove('lean-preston', 'lean-dolores', 'lean-cat');
           card.classList.add(`fly-${who}`);
           await new Promise((res) => setTimeout(res, 420));
         }
         c.chosen = who;
-        adv.result = { id: c.id, side: who, fx: r.fx || {}, noted: !!(r.noted), crowd: r.crowd || null, line: reaction(who) };
+        adv.result = { id: c.id, side: who, fx: r.fx || {}, noted: !!(r.noted), crowd: r.crowd || null, line: catSay(reaction(who)) };
         state.statPrev = before;
         refreshVillage(r.town, r.user);
         adv.cards = state.me.town.issues.slice();
@@ -1989,10 +2054,11 @@
   // "61% of players sided with Preston today." Only once a few have answered.
   function crowdLine(crowd, side) {
     if (!crowd) return '';
-    const total = (crowd.preston || 0) + (crowd.dolores || 0);
+    const total = (crowd.preston || 0) + (crowd.dolores || 0) + (crowd.cat || 0);
     if (total < 3) return '';
     const mine = crowd[side] || 0;
     const pctMine = Math.round(mine / total * 100);
+    if (side === 'cat') return `<p class="muted small adv-crowd">${mine <= 1 ? 'Nobody else' : `${pctMine}% of the ${total} landlords`} who answered this today followed a cat. ${mine <= 1 ? 'Most people never notice.' : 'You are not alone, or not entirely.'}</p>`;
     const who = side === 'preston' ? 'Preston' : 'Dolores';
     return `<p class="muted small adv-crowd">${pctMine}% of the ${total} landlords who've answered this today went with ${who}${pctMine >= 50 ? '. Company.' : '. You and the brave few.'}</p>`;
   }
@@ -2373,6 +2439,72 @@
     finally { state.busy = false; }
   }
 
+  // --- Settling matured positions from the welcome-back review ------------------
+  //
+  // Collect or ride each one in place (the server picks the default charity),
+  // then one line adds up what it hired. Without a default charity yet (or a
+  // town that isn't open, where the first hire gets its ceremony), the button
+  // opens the usual sheet instead.
+  function wireReviewActions(dlg, list) {
+    const me = state.me;
+    const inline = !!(me.user.charity_id && !me.needs_charity && me.town && me.town.unlocked);
+    const tally = { n: 0, hired: 0, cash: 0, rode: 0, charity: null };
+    const paint = () => {
+      const el = $('#rv-tally', dlg); if (!el || !tally.n) return;
+      el.hidden = false;
+      el.innerHTML = `${tally.hired > 0 ? `<b>+${esc(lobby(tally.hired))}</b> hired${tally.charity ? ` for ${esc(tally.charity)}` : ''}. ` : 'Nobody hired. '}${tally.cash > 0 ? `${money(tally.cash)} back on the coin` : ''}${tally.cash > 0 && tally.rode > 0 ? ', ' : ''}${tally.rode > 0 ? `${money(tally.rode)} riding again` : ''}.`;
+    };
+    const done = (id, html, state2) => {
+      const box = $(`[data-rv-act="${id}"]`, dlg); if (!box) return;
+      box.innerHTML = `<span class="rv-done">${html}</span>`;
+      const st = $('.rv-state', box.closest('li')); if (st) st.textContent = state2;
+      // Nothing left to settle: the bulk button goes.
+      if (!$('[data-rv-collect]', dlg)) { const bulk = $('.rv-bulk', dlg); if (bulk) bulk.remove(); }
+    };
+    const act = async (id, ride) => {
+      const p = me.positions.find((x) => x.id === id); if (!p) return false;
+      if (!inline) { openSell(id, ride ? { ride: true } : {}); return false; }
+      const box = $(`[data-rv-act="${id}"]`, dlg); if (box) $$('button', box).forEach((b) => { b.disabled = true; });
+      try {
+        if (ride) {
+          const r = await API.post('/ride', { position_id: id });
+          const ro = r.rolled;
+          tally.hired = round2(tally.hired + (ro.lobbyists || 0)); tally.rode = round2(tally.rode + ro.net); tally.n += 1;
+          if (ro.charity) tally.charity = ro.charity.name;
+          done(id, `✓ Riding ${money(ro.net)}, ${mult(ro.mult_floor)}→${mult(ro.multiplier)}${ro.lobbyists ? ` · +${esc(lobby(ro.lobbyists))}` : ''}`, 'Riding again');
+        } else {
+          const r = await API.post('/sell', { position_id: id });
+          const rc = r.receipt;
+          tally.hired = round2(tally.hired + (rc.lobbyists || 0)); tally.cash = round2(tally.cash + rc.net); tally.n += 1;
+          if (rc.charity) tally.charity = rc.charity.name;
+          done(id, rc.busted ? '✓ Buried' : `✓ Collected ${money(rc.net)}${rc.lobbyists ? ` · +${esc(lobby(rc.lobbyists))}` : ''}`, rc.busted ? 'Buried' : 'Collected');
+        }
+        state.reviewActed = true;
+        paint();
+        return true;
+      } catch (e) {
+        if (box) $$('button', box).forEach((b) => { b.disabled = false; });
+        toast(e.message, 4000);
+        return false;
+      }
+    };
+    $$('[data-rv-collect]', dlg).forEach((b) => { b.onclick = () => act(Number(b.dataset.rvCollect), false); });
+    $$('[data-rv-ride]', dlg).forEach((b) => { b.onclick = () => act(Number(b.dataset.rvRide), true); });
+    const all = $('[data-rv-all]', dlg);
+    if (all) all.onclick = async () => {
+      if (!inline) { const first = $('[data-rv-collect]', dlg); if (first) first.click(); return; }
+      all.disabled = true; all.textContent = 'Collecting…';
+      for (const b of $$('[data-rv-collect]', dlg)) {
+        const id = Number(b.dataset.rvCollect);
+        const p = list.find((x) => x.id === id);
+        if (p && p.final_value > 0) await act(id, false); // eslint-disable-line no-await-in-loop
+      }
+      const bulk = all.closest('.rv-bulk'); if (bulk) bulk.remove();
+    };
+    // Whatever was settled here, the coin catches up when the review closes.
+    dlg.addEventListener('close', () => { if (state.reviewActed) { state.reviewActed = false; loadMe(); } }, { once: true });
+  }
+
   async function submitSell(ev) {
     ev.preventDefault();
     if (state.busy || !state.sell) return;
@@ -2396,10 +2528,9 @@
           // coin" before the tour, so nobody mistakes the tour for orientation.
           openHireCeremony(rc, hiredNow, how);
         } else {
-          toast(`${rc.tier}. ${how}: tax ${minus(rc.tax)} hired ${lobby(hiredNow)} for ${rc.charity.name}.${rc.featured ? ` Featured charity this week: ${multStr(rc.featured.multiplier)}.` : ''} They're moving into TrickleTown.`, 4200);
-          // Watch them arrive, then stay: the switch under the coin goes back.
-          flip(true);
-          await hireAnimation(hiredNow);
+          // Say it and stay put: flipping to TrickleTown after every collect got
+          // old fast with several to collect.
+          toast(`${rc.tier}. ${how}: tax ${minus(rc.tax)} hired ${lobby(hiredNow)} for ${rc.charity.name}.${rc.featured ? ` Featured charity this week: ${multStr(rc.featured.multiplier)}.` : ''}`, 4200);
         }
       } else {
         toast(rc.busted ? `${rc.tier}. ${p.symbol} is in the ground.` : `${rc.tier}. ${how} for ${money(rc.net)}, back on the coin.`);
@@ -2412,8 +2543,8 @@
 
   // --- Achievements --------------------------------------------------------------------------
   //
-  // Rare milestones. Each comes with a gift from Mommy & Daddy, taxed like any
-  // win (so it hires lobbyists). The server records them as they're earned;
+  // Rare milestones. Each comes with a gift from Mommy & Daddy that hires 1
+  // to 3 lobbyists (the tax is what they cost); the rest is cash. The server records them as they're earned;
   // the popup is where the player takes the money.
   // A server from before achievements sends `vesting` instead: { available,
   // amount } until the day-one windfall is taken, then null. Read it as the
@@ -2437,7 +2568,7 @@
   // The page and the server ship separately. If the server is older than this
   // page expects, say so to admins, loudly, instead of letting it look like
   // missing features. Players just get the fallbacks.
-  const API_WANTS = 17;
+  const API_WANTS = 18;
   function checkServer(me) {
     if (API.demo || state.serverWarned || (me.api || 0) >= API_WANTS) return;
     state.serverWarned = true;
@@ -2629,6 +2760,10 @@
     if (me.wall_unread) add('💬', `${wallWho(me)} on your wall.`);
     const nf = me.new_followers || [];
     if (nf.length) add('👋', `<b>${esc(nf[0].username)}</b>${nf.length > 1 ? ` and ${nf.length - 1} other${nf.length > 2 ? 's' : ''}` : ''} added you.`);
+    // Friends who poked you.
+    const pk = (me.pokes || []).filter((x) => POKES[x.kind]);
+    // Both callers show every news line, so this one counts as told.
+    if (pk.length && !pokeTold(me)) { add('👉', pokeText(pk, true)); markPokeTold(me); }
     // Who stopped by the cat.
     const cv = me.cat_visits || [], myCat = me.town && me.town.cat;
     if (cv.length && myCat && myCat.name) {
@@ -2696,17 +2831,25 @@
         <span class="rv-val"><small>${money(p.invested)} →</small> <b class="rv-now">${money(p.invested)}</b></span>
         <span class="rv-state">${esc(status)}</span>
         <span class="rv-pct rv-final ${dir(ch)}">${pct(ch)}</span>
+        ${p.matured && pos && pos.status === 'open' ? `<span class="rv-act" data-rv-act="${p.id}">${p.final_value > 0
+          ? `<button type="button" class="btn small primary" data-rv-collect="${p.id}">Collect</button><button type="button" class="btn small" data-rv-ride="${p.id}">Ride ${mult(rideMults(pos).floor)}→${mult(rideMults(pos).ceiling)}</button>`
+          : `<button type="button" class="btn small quiet" data-rv-collect="${p.id}">Bury it</button>`}</span>` : ''}
       </li>`;
     }).join('');
+    // Matured ones can be settled right here, one by one or all at once.
+    const actionable = list.filter((p) => p.matured && p.final_value > 0 && (me.positions.find((x) => x.id === p.id) || {}).status === 'open');
 
     $('#review-body').innerHTML = `
       <p class="rv-sub">${esc(clockAt(data.start))} to ${esc(clockAt(data.end))}, replayed at a more convenient speed.</p>
       <div class="rv-card">
         <div class="rv-readout"><span class="rv-clock" aria-hidden="true">${esc(clockAt(data.start))}</span><span class="rv-total"><small>Total</small> <b>${money(0)}</b></span></div>
         <div class="rv-chart" id="rv-chart"></div>
-        <div class="rv-ctl"><button type="button" class="linkish" data-rv="skip">Skip to the end</button><button type="button" class="linkish" data-rv="replay" hidden>↺ Replay</button></div>
+        <div class="rv-ctl"><button type="button" class="linkish" data-rv="skip">Skip to the end</button><button type="button" class="linkish" data-rv="replay" hidden>↺ Replay</button>
+          <span class="rv-unit" role="group" aria-label="Chart in dollars or percent"><button type="button" data-rv-unit="usd">$</button><button type="button" data-rv-unit="pct">%</button></span></div>
       </div>
+      ${actionable.length > 1 ? `<div class="rv-bulk"><button type="button" class="btn small primary" data-rv-all>Collect all ${actionable.length}</button></div>` : ''}
       <ul class="rv-rows">${rows}</ul>
+      <p class="rv-tally" id="rv-tally" hidden></p>
       <div class="rv-after">
         ${reviewVerdict(matured)}
         ${reviewAlso(me, matured)}
@@ -2722,29 +2865,53 @@
 
     const rowEls = $$('[data-rv-row]', dlg).map((r) => $('.rv-now', r));
     const clock = $('.rv-clock', dlg), total = $('.rv-total b', dlg);
-    const chart = Review.chart($('#rv-chart'), {
-      start: data.start,
-      end: data.end,
-      series: list.map((p, i) => ({ label: p.symbol, color: colorOf(p, i), points: p.points, ended: p.matured, quiet: i >= MAXC })),
-    }, {
-      money: (v) => money(v),
-      reduced: REDUCED,
-      label: `${list.length} positions from ${clockAt(data.start)} to ${clockAt(data.end)}. The list below has each one's numbers.`,
-      onTick: (t, values) => {
-        clock.textContent = clockAt(t);
-        total.textContent = money(values.reduce((a, v) => a + (v || 0), 0));
-        values.forEach((v, i) => { if (rowEls[i]) rowEls[i].textContent = v == null ? '—' : money(v); });
-      },
-      onDone: () => {
-        dlg.classList.add('landed');
-        $('[data-rv="skip"]', dlg).hidden = true;
-        $('[data-rv="replay"]', dlg).hidden = false;
-      },
-    });
-    state.reviewChart = chart;
+    // One big position flattens the rest in dollars, so when the sizes are
+    // 4× or more apart the chart starts in % change (same scale for every
+    // line). The rows and the total stay in dollars either way.
+    const starts = list.map((p) => (p.points.length ? p.points[0][1] : p.invested) || 0);
+    const canPct = starts.every((v) => v > 0);
+    const spread = canPct ? Math.max(...starts) / Math.min(...starts) : 1;
+    const pctFmt = (v) => `${v > 0.05 ? '+' : v < -0.05 ? '−' : ''}${Math.abs(v) >= 10 || Number.isInteger(Math.round(v * 10) / 10) ? Math.round(Math.abs(v)) : (Math.round(Math.abs(v) * 10) / 10)}%`;
+    let unit = canPct && spread >= 4 ? 'pct' : 'usd';
+    let chart = null;
+    const draw = (then) => {
+      if (chart) chart.destroy();
+      $('#rv-chart').innerHTML = '';
+      const asPct = unit === 'pct';
+      chart = Review.chart($('#rv-chart'), {
+        start: data.start,
+        end: data.end,
+        series: list.map((p, i) => ({ label: p.symbol, color: colorOf(p, i), ended: p.matured, quiet: i >= MAXC,
+          points: asPct ? p.points.map(([t, v]) => [t, (v / starts[i] - 1) * 100]) : p.points })),
+      }, {
+        money: asPct ? pctFmt : (v) => money(v),
+        reduced: REDUCED,
+        label: `${list.length} positions from ${clockAt(data.start)} to ${clockAt(data.end)}${asPct ? ', in % change' : ''}. The list below has each one's numbers.`,
+        onTick: (t, values) => {
+          // Back to dollars for the rows and the total.
+          const usd = asPct ? values.map((v, i) => (v == null ? null : starts[i] * (1 + v / 100))) : values;
+          clock.textContent = clockAt(t);
+          total.textContent = money(usd.reduce((a, v) => a + (v || 0), 0));
+          usd.forEach((v, i) => { if (rowEls[i]) rowEls[i].textContent = v == null ? '—' : money(v); });
+        },
+        onDone: () => {
+          dlg.classList.add('landed');
+          $('[data-rv="skip"]', dlg).hidden = true;
+          $('[data-rv="replay"]', dlg).hidden = false;
+        },
+      });
+      state.reviewChart = chart;
+      $$('[data-rv-unit]', dlg).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.rvUnit === unit)));
+      if (then === 'finish') chart.finish();
+    };
+    draw(null);
+    const unitBox = $('.rv-unit', dlg);
+    if (!canPct) unitBox.hidden = true;
+    $$('[data-rv-unit]', dlg).forEach((b) => { b.onclick = () => { if (unit === b.dataset.rvUnit) return; unit = b.dataset.rvUnit; draw('finish'); }; });
     $('[data-rv="skip"]', dlg).onclick = () => chart.finish();
     $('[data-rv="replay"]', dlg).onclick = () => { $('[data-rv="replay"]', dlg).hidden = true; $('[data-rv="skip"]', dlg).hidden = false; chart.play(); };
     $('[data-rv="done"]', dlg).onclick = () => softClose(dlg);
+    wireReviewActions(dlg, list);
     const hall = $('[data-rv="hall"]', dlg);
     if (hall) hall.onclick = async () => { await softClose(dlg); flip(true); if (Explainer.seen('town')) setTimeout(() => openAdvisors(), REDUCED ? 50 : 700); };
     // Let the sheet slide up before the clock starts.
@@ -2758,8 +2925,10 @@
     state.achShown.add(key);
     try { await ensureCharities(); } catch (e) { /* the picker comes up empty; the server picks */ }
     const rate = state.me.rules.tax_rate, rateNow = state.me.town ? state.me.town.hire_cost : 1;
-    const featG = featuredNow(state.events && state.events.list), defG = defaultCharity();
-    const tax = round2(a.gift * rate), net = round2(a.gift - tax), hired = round2(tax / rateNow * (featG && defG && featG.charity_id === defG.id ? Number(featG.multiplier) || 1.25 : 1));
+    // A gift hires a fixed 1 to 3 lobbyists (a.hires); the tax is what they
+    // cost at today's price, the rest is cash. Same rule as the server.
+    const hires = a.hires || 1, capped = a.gift * rate >= hires * rateNow;
+    const tax = round2(capped ? hires * rateNow : a.gift * rate), net = round2(a.gift - tax), hired = capped ? hires : round2(tax / rateNow);
     const n = state.me.achievements.earned;
     $('#ach-body').innerHTML = `
       <div class="ach-burst">
@@ -2778,7 +2947,7 @@
       </div>
       <ul class="receipt ach-receipt">
         <li><span>The gift. A bonus, pure profit.</span><b class="up">+${money(a.gift)}</b></li>
-        <li><span>Tax, ${Math.round(rate * 100)}% of the gain (all of it is gain). Hires ${esc(lobby(hired))}</span><b>${minus(tax)}</b></li>
+        <li><span>Tax: hires ${esc(lobby(hired))} at ${money(rateNow)} each</span><b>${minus(tax)}</b></li>
         <li class="total"><span>Onto your coin as bills</span><b>${money(net)}</b></li>
       </ul>
       ${assignBox({ hired, selectId: 'ach-charity' })}
@@ -2838,13 +3007,13 @@
           <span class="tro-how">${esc(a.how)}</span>
           ${status === 'claimed' ? `<span class="tro-meta">Earned ${date(a.earned_at)} · ${money(a.gift, { whole: true })} from ${esc(a.from)}${a.lobbyists ? ` · hired ${esc(lobby(a.lobbyists))}` : ''}</span>`
             : status === 'waiting' ? `<button type="button" class="btn small primary" data-open-gift="${esc(a.key)}">Open ${esc(a.from)}'s gift: ${money(a.gift, { whole: true })}</button>`
-            : `<span class="tro-meta">Gift if earned today: ${money(a.gift, { whole: true })} from ${esc(a.from)}</span>${pr ? `<span class="tro-prog"><i style="--w:${Math.round((pr.have / pr.need) * 100)}%"></i></span><span class="tro-meta">${pr.money ? `${money(pr.have)} of ${money(pr.need)}` : `${pr.have} of ${pr.need}`}</span>` : ''}`}
+            : `<span class="tro-meta">Gift if earned today: ${money(a.gift, { whole: true })} from ${esc(a.from)}, hires ${a.hires || 1}</span>${pr ? `<span class="tro-prog"><i style="--w:${Math.round((pr.have / pr.need) * 100)}%"></i></span><span class="tro-meta">${pr.money ? `${money(pr.have)} of ${money(pr.need)}` : `${pr.have} of ${pr.need}`}</span>` : ''}`}
         </div>
       </li>`;
     };
     const order = [...A.list].sort((x, y) => (x.claimed_at ? 1 : x.earned_at ? 0 : 2) - (y.claimed_at ? 1 : y.earned_at ? 0 : 2));
     $('#trophies-body').innerHTML = `
-      <p class="tro-lede"><b>${A.earned} of ${A.total}.</b> Each comes with a gift from Mommy &amp; Daddy. Gifts are all gain, so they're taxed and hire lobbyists. Past the first few, the richer you are, the bigger the gift. Naturally.</p>
+      <p class="tro-lede"><b>${A.earned} of ${A.total}.</b> Each comes with a gift from Mommy &amp; Daddy. A gift hires 1 to 3 lobbyists, harder ones more, and the rest is yours. Past the first few, the richer you are, the bigger the gift. Naturally.</p>
       <ul class="tro-list">${order.map(row).join('')}</ul>`;
     $$('[data-open-gift]', $('#trophies-body')).forEach((b) => { b.onclick = () => { $('#dlg-trophies').close(); openAchievement(b.dataset.openGift); }; });
     $('#dlg-trophies').showModal();
@@ -3582,7 +3751,7 @@
       <div class="prof-sides">
         <div class="ps-head"><span>${Coin.preston(28)} Preston <b>${sides.preston || 0}</b></span><span><b>${sides.dolores || 0}</b> Dolores ${Coin.dolores(28)}</span></div>
         <div class="ps-bar ${played ? '' : 'none'}" aria-hidden="true"><i class="ps-p" style="--w:${played ? pp : 50}%"></i><i class="ps-d"></i></div>
-        <small class="muted">${played ? `${played} card${played === 1 ? '' : 's'} played. ` : ''}${esc(lean)}</small>
+        <small class="muted">${played ? `${played} card${played === 1 ? '' : 's'} played. ` : ''}${esc(lean)}${sides.cat ? ` ${sides.cat === 1 ? 'Once' : `${sides.cat} times`}, the cat seemed to have a better idea.` : ''}</small>
       </div>
     </section>`;
   }
@@ -3719,7 +3888,7 @@
             ${p.added_you && !p.is_you ? '<span class="prof-chip">Added you</span>' : ''}
           </p>
           ${p.is_you || !signedIn ? '' : `<div class="prof-actions">${p.is_friend
-            ? `<button type="button" class="btn small quiet" id="prof-unfriend">Remove friend</button>${prof.invited === p.username.toLowerCase() ? `<small class="muted prof-add-note" id="prof-invited">Added from ${esc(p.username)}'s invite. They can read and write on your wall now.</small>` : ''}`
+            ? `${pokeMarkup(p)}<button type="button" class="btn small quiet" id="prof-unfriend">Remove friend</button>${prof.invited === p.username.toLowerCase() ? `<small class="muted prof-add-note" id="prof-invited">Added from ${esc(p.username)}'s invite. They can read and write on your wall now.</small>` : ''}`
             : `<button type="button" class="btn small primary" id="prof-add">Add friend</button><small class="muted prof-add-note">Adding ${esc(p.username)} also lets them read and write on your wall.</small>`}</div>`}
         </div>
       </header>
@@ -3750,6 +3919,59 @@
     };
     wireWall(p);
     wirePet(p);
+    wirePoke(p);
+  }
+
+  // --- Pokes ------------------------------------------------------------------------------------
+  //
+  // On a friend's profile: three canned notes, one a day. They see it the next
+  // time they open the game.
+  const POKES = {
+    nice_trades: { ico: '👏', label: 'Nice trades' },
+    lol_sorry: { ico: '😬', label: 'LOL sorry about that' },
+    miss_you: { ico: '💔', label: 'I miss you </3' },
+  };
+  function pokeMarkup(p) {
+    const sent = p.poked_today && POKES[p.poked_today] ? p.poked_today : null;
+    return `<div class="poke ${sent ? 'sent' : ''}" role="group" aria-label="Poke ${esc(p.username)}">
+      <span class="poke-lbl">👉 Poke</span>
+      ${Object.entries(POKES).map(([k, v]) => `<button type="button" class="poke-btn ${sent === k ? 'chosen' : ''}" data-poke="${k}" ${sent ? 'disabled' : ''}>${v.ico} ${esc(v.label)}</button>`).join('')}
+      <small class="muted poke-note" id="poke-note">${sent ? 'Poked today. One a day.' : ''}</small>
+    </div>`;
+  }
+  function wirePoke(p) {
+    $$('#screen-profile [data-poke]').forEach((b) => {
+      b.onclick = async () => {
+        const kind = b.dataset.poke, all = $$('#screen-profile [data-poke]');
+        all.forEach((x) => { x.disabled = true; });
+        try {
+          const r = await API.post(`/players/${encodeURIComponent(p.username)}/poke`, { kind });
+          const sent = r.poked || kind;
+          all.forEach((x) => x.classList.toggle('chosen', x.dataset.poke === sent));
+          b.closest('.poke').classList.add('sent');
+          $('#poke-note').textContent = r.already ? 'Already poked today. One a day.' : `Sent. ${p.username} sees it next time they open the game.`;
+          p.poked_today = sent;
+        } catch (e) { all.forEach((x) => { x.disabled = false; }); toast(e.message, 3600); }
+      };
+    });
+  }
+  // Pokes you got since last time: a line in the welcome back, or a toast.
+  // Remembered per browser, so a reload doesn't repeat them.
+  const pokeKey = (me) => (me.pokes || []).map((x) => `${x.username}:${x.kind}`).join('|') + `@${me.day ? me.day.key : ''}`;
+  function pokeText(list, html) {
+    const b = (t) => (html ? `<b>${esc(t)}</b>` : t);
+    const f = list[0], v = POKES[f.kind] || POKES.nice_trades;
+    if (list.length === 1) return `${b(f.username)} poked you: “${html ? esc(v.label) : v.label}”`;
+    return `${b(f.username)} and ${list.length - 1} other${list.length > 2 ? 's' : ''} poked you. ${b(f.username)} says “${html ? esc(v.label) : v.label}”`;
+  }
+  function pokeTold(me) { try { return localStorage.getItem('trickledown.poke-told') === pokeKey(me); } catch (e) { return false; } }
+  function markPokeTold(me) { try { localStorage.setItem('trickledown.poke-told', pokeKey(me)); } catch (e) { /* private mode */ } }
+  function maybePokeToast(me) {
+    const list = (me.pokes || []).filter((x) => POKES[x.kind]);
+    if (!list.length || pokeTold(me)) return;
+    markPokeTold(me);
+    const delay = REDUCED ? 700 : me.wall_unread ? 8000 : me.allowance ? 5800 : 2400;
+    setTimeout(() => toast(`👉 ${pokeText(list, false)}`, 5200), delay);
   }
 
   function wireWall(p) {
@@ -3793,6 +4015,7 @@
     bug: '<path d="M9 7.5a3 3 0 0 1 6 0"/><rect x="7" y="7.5" width="10" height="11" rx="5"/><path d="M12 11v7.5M3.5 13H7M17 13h3.5M4.5 8.5 7 10M19.5 8.5 17 10M4.5 18.5 7 16.5M19.5 18.5 17 16.5"/>',
     admin: '<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8 7.5 9.5 4.3-1.5 7.5-4.9 7.5-9.5V6L12 3z"/><path d="M9 12l2 2 4-4"/>',
     ledger: '<rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/>',
+    simple: '<rect x="4" y="4" width="16" height="16" rx="5"/><path d="M8 15.5h8M8 11.5h5"/>',
   };
   // Appearance: Auto (follow the device), Light, Dark. js/theme.js does the work.
   const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
@@ -3912,10 +4135,13 @@
       ${u.is_admin ? `<a href="#admin"${cur('admin')}>${mIcon('admin')}<span>Admin</span></a>` : ''}
       <hr>
       ${themePickMarkup()}
+      <label class="menu-beta">${mIcon('simple')}<span>Simple mode <span class="beta-pill">Beta</span></span><input type="checkbox" id="menu-beta" role="switch" ${BETA() ? 'checked' : ''}></label>
       <button type="button" data-menu-act="account">${mIcon('account')}<span>Account</span></button>
       <button type="button" data-menu-act="signout">${mIcon('out')}<span>Sign out</span></button>`;
     const dlg = $('#dlg-menu');
     wireThemePick($('#menu-body'));
+    const mb = $('#menu-beta');
+    if (mb) mb.onchange = () => { setBeta(mb.checked); toast(mb.checked ? 'Simple mode is on. Untick it here to go back.' : 'Back to the classic layout.', 3200); };
     $$('#menu-body a').forEach((l) => { l.onclick = () => softClose(dlg); });
     $$('#menu-body [data-menu-act]').forEach((b) => {
       b.onclick = async () => {
@@ -4541,7 +4767,7 @@
       ['What is TrickleTown?', `The other side of your coin, where your lobbyists live. It opens with your first lobbyist. It has two scores. <b>Profit</b>: what the town adds to (or takes from) your daily money. <b>Happiness</b>: what each new lobbyist costs you, from $1.4K in a miserable town to $500 in a happy one. Two lots to build on: extractive buildings (a casino, tenements) make profit and unhappiness; decent ones (a clinic, a co-op) cost profit and make people happy. Each building has an upgrade shop; more go on sale as the town grows.`],
       ['What are the cards?', `Each day Preston (wants profit) and Dolores (wants happiness) bring a few decisions to Town Hall: a headline everyone gets, plus cards your own town has unlocked. Pick a side on each. The arrows show which way a choice pushes; a tag says if it comes back around later. Unplayed cards expire at midnight, and once you've built something, skipping them costs a little happiness. The deck shows every card and what unlocks it.`],
       ['Can I move my lobbyists?', `Yes. TrickleTown → Assign lobbyists moves this quarter's lobbyists between charities and changes where new ones go. Past quarters already marched.`],
-      ['What are achievements?', `Rare milestones (your first buy, your first win, a week-long streak, building out the town, a million on the coin). Each comes with a one-time gift from Mommy &amp; Daddy. A gift is all gain, so it's taxed like one and hires lobbyists. After the first week's milestones, a gift is a share of the money you have in play, so it still matters when you're rich. The 🏆 at the top shows how close you are.`],
+      ['What are achievements?', `Rare milestones (your first buy, your first win, a week-long streak, building out the town, a million on the coin). Each comes with a one-time gift from Mommy &amp; Daddy. A gift hires 1 to 3 lobbyists (the tax on it is what they cost, so harder milestones hire more) and the rest goes on your coin. After the first week's milestones, a gift is a share of the money you have in play, so it still matters when you're rich. The 🏆 at the top shows how close you are.`],
       ['Profiles, friends and leaderboards?', `Everything besides today's game is in the ☰ menu. Your <b>profile</b> charts how your trading has gone (positions only: gifts and town spending don't count), plus what you're holding, your town, your lobbyists and your trophies. Tap any name on the <b>leaderboards</b> to see theirs. Add <b>friends</b> by username for a board of just them; they get a note with an Add back button. It's one-way until they do. Only people you've added can read and write on your <b>wall</b>.`],
       ['Ranks?', `Ranks count every lobbyist you ever hire, across every Lobbyfest. <span class="badges-inline">${badgeList.map((b) => `<span class="${earned.includes(b.name) ? 'earned' : ''}"><b>${esc(b.name)}</b> ${b.at}</span>`).join('')}</span>`],
       ['Fine print', `<span class="muted">Trickle Down Holdings is a fictional company and a wholly owned subsidiary of Trickle Down Holdings. Prices come from Finnhub and CoinGecko and can be a minute or so behind. Stocks only move while the US market is open (9:30am to 4pm Eastern on weekdays, closed on market holidays); crypto never stops. A guest account lives in one browser until you keep it with a password, Google, or a device code. Trickle Down is for players 18 and up. None of the money you play with is real, which is also why nothing here is financial advice.</span>`],

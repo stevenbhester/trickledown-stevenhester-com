@@ -98,7 +98,9 @@ Removing someone is silent. You get a friends-only board, a
 "erin bought NVDA" line under the crowd strip on Today, and adding someone
 lets them read and write on your wall. Nobody else can. You can delete
 anything on your wall; they can delete their own posts. A red dot on ☰ means
-someone wrote on yours. Guests can add friends but can't be added, since a
+someone wrote on yours. On a friend's profile, 👉 Poke sends one of three
+notes (Nice trades, LOL sorry about that, I miss you </3), once a day; they
+see it the next time they open the game. Guests can add friends but can't be added, since a
 guest's name isn't shareable. In demo mode, `ravi_k` and `bagholder_ben` are
 addable, and erin's and ravi_k's walls are open to you.
 
@@ -273,6 +275,15 @@ when you tap it. Pinch zoom still works.
   village (tap it), has a row on the town panel, shows on your profile, and
   has a wardrobe from a $15K bow tie to a $1M crown. Portrait and village
   sprite are `Coin.catPortrait` and `Coin.catSprite` in `js/coin.js`.
+- The cat's way: on ten cards, a player who qualifies (holds a big-name stock,
+  has two friends, a five-day streak, two outfits on the cat…) sees a third,
+  dashed pitch from the cat under Preston's and Dolores's. It only meows and
+  does cat things; whether it means anything is up to you. It's always a bit
+  better than both. The rules are `CAT_PATHS` / `catOk` in `js/town.js`; the
+  server decides who sees it. In demo mode the rent card shows it (you hold
+  NVDA).
+- The logo's drip is inside the last word (`.wm-last`), so it hangs off the
+  "N" whether the name sits on one line or wraps to two.
 - Link previews: `og.jpg` (1200×630) and the Open Graph / Twitter tags in
   `index.html` are what Slack, iMessage, Discord and X show when someone
   pastes the link. Crawlers don't run JavaScript, so the URLs there are
@@ -297,6 +308,8 @@ in the classic layout; three things change:
   More (the menu). `paintTabbar()` in app.js keeps the current one lit.
 - `tipify()` in app.js folds explanatory lines (`TIP_SEL`) into ⓘ disclosures as
   they render. It never folds anything with an id, a link, a button or a field.
+
+The same switch is in the ☰ menu, under Appearance, and in Account.
 
 Untick it and nothing of this is left: no attribute, no tab bar, no tips.
 
