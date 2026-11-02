@@ -41,7 +41,7 @@
     ['World Central Kitchen', 'Disaster relief', 'https://wck.org', 'Cooks and serves fresh meals on the front lines of disasters and crises.'],
   ].map(([name, category, url, blurb], i) => ({ id: i + 1, slug: name.toLowerCase().replace(/[^a-z]+/g, '-'), name, category, blurb, url, donate: `${url}/donate`, rating: '4 stars' }));
 
-  const RULES = { tax_rate: 0.25, ride_tax_factor: 1, ride_max_steps: 1, daily_base: 100, streak_bonus: 10, daily_cap: 200, hold_hours: 24, mult_floor: 1, demo: true };
+  const RULES = { tax_rate: 0.25, ride_tax_factor: 1, ride_ladder: [1, 2, 2.8, 3.4, 4, 4.4, 4.6], ride_after: 1, daily_base: 100, streak_bonus: 10, daily_cap: 200, hold_hours: 24, mult_floor: 1, demo: true };
   const BADGES = [[1, 'Intern'], [10, 'Staffer'], [50, 'Consultant'], [250, 'Lobbyist'], [1000, 'Fixer'], [5000, 'Kingmaker'], [25000, 'Shadow Cabinet']].map(([at, name]) => ({ at, name }));
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -298,7 +298,7 @@
     return floor + (p.multiplier - floor) * k;
   };
   // A ride's multipliers: the new day starts at the old ceiling and climbs by the base again, up to a cap.
-  const rideMults = (p) => { const base = p.asset_type === 'crypto' ? 5 : 10; const cap = base * (1 + RULES.ride_max_steps); const floor = Math.min(p.multiplier, cap); return { floor, ceiling: Math.min(floor + base, cap) }; };
+  const rideMults = (p) => { const base = p.asset_type === 'crypto' ? 5 : 10; const floor = Math.max(base, p.multiplier); const rung = RULES.ride_ladder.map((k) => Math.round(k * base * 100) / 100).find((m) => m > floor + 1e-9); return { floor, ceiling: rung != null ? rung : Math.round((floor + RULES.ride_after) * 100) / 100 }; };
   const valueOf = (p, price, at = Date.now()) => {
     const mult = multAt(p, at);
     const real = (price - p.entry_price) / p.entry_price; const swing = mult * real; const raw = p.invested * (1 + swing);

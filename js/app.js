@@ -96,13 +96,16 @@
   const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
   const mult = (m) => `×${Number.isInteger(m) ? m : m.toFixed(1)}`;
   // The multipliers a ride off position p would run at: the new day starts
-  // where this one ended and climbs by the asset's base multiplier, up to a cap.
+  // where this one ended and climbs to the next rung (the server's
+  // RIDE_LADDER, sent in rules), then ×1 a ride for good.
   function rideMults(p) {
     const base = p.asset_type === 'crypto' ? 5 : 10;
-    const steps = state.me && state.me.rules.ride_max_steps != null ? state.me.rules.ride_max_steps : 1;
-    const cap = base * (1 + steps);
-    const floor = Math.min(p.multiplier, cap);
-    return { floor, ceiling: Math.min(floor + base, cap), capped: floor >= cap };
+    const r = (state.me && state.me.rules) || {};
+    const ladder = Array.isArray(r.ride_ladder) ? r.ride_ladder : [1, 2, 2.8, 3.4, 4, 4.4, 4.6];
+    const after = r.ride_after != null ? r.ride_after : 1;
+    const floor = Math.max(base, Number(p.multiplier) || base);
+    const rung = ladder.map((k) => Math.round(k * base * 100) / 100).find((m) => m > floor + 1e-9);
+    return { floor, ceiling: rung != null ? rung : Math.round((floor + after) * 100) / 100 };
   }
   const shortDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
@@ -992,7 +995,9 @@
       action = `<button class="btn small primary" data-sell="${p.id}">Collect</button> <button class="btn small" data-ride="${p.id}">Ride</button>`;
     } else {
       value = `${money(p.invested)} → <b>${money(p.value)}</b> <span class="yours ${dir(p.swing_pct)}">${pct(p.swing_pct, 0)}</span>`;
-      move = `${riding}Price ${pct(p.real_pct, Math.abs(p.real_pct) < 0.01 ? 2 : 1)} since you bought, at ${mult(p.multiplier_now)} now. <span class="time">${mult(p.multiplier)} in <span data-left="${esc(p.matures_at)}">${left(p.matures_at)}</span>.</span>${p.deferred_tax > 0 ? ` <span class="muted">Selling early owes ride tax: ${minus(p.deferred_tax)}.</span>` : ''}`;
+      move = `${riding}Price ${pct(p.real_pct, Math.abs(p.real_pct) < 0.01 ? 2 : 1)} since you bought, ${(p.mult_floor || 1) >= p.multiplier
+        ? `at ${mult(p.multiplier)} all day. <span class="time">Matures in <span data-left="${esc(p.matures_at)}">${left(p.matures_at)}</span>; the next ride climbs.</span>`
+        : `at ${mult(p.multiplier_now)} now. <span class="time">${mult(p.multiplier)} in <span data-left="${esc(p.matures_at)}">${left(p.matures_at)}</span>.</span>`}${p.deferred_tax > 0 ? ` <span class="muted">Selling early owes ride tax: ${minus(p.deferred_tax)}.</span>` : ''}`;
       action = `<button class="btn small" data-sell="${p.id}">Sell early</button>`;
     }
     return `
@@ -2405,7 +2410,7 @@
         <b>Or let it ride.</b>
         <div class="ride-lines">
           <p class="small">${win ? 'Same tax, same lobbyists as collecting. Then' : 'No profit, no tax.'} ${money(s.net)} goes straight back on ${esc(p.name)} for ${state.me.rules.hold_hours} more hours.</p>
-          <p class="small">${rm.capped ? `The multiplier stays at ${mult(rm.ceiling)}, the most a ride gets.` : `The multiplier starts at ${mult(rm.floor)}, not ×1, and climbs to ${mult(rm.ceiling)}.`} It can hit zero faster.</p>
+          <p class="small">The multiplier starts at ${mult(rm.floor)}, not ×1, and climbs to ${mult(rm.ceiling)}. It can hit zero faster.</p>
         </div>
         <button type="button" class="btn small" id="sell-ride">Ride with ${money(s.net)}</button>
       </div>` : ''}
@@ -2568,7 +2573,7 @@
   // The page and the server ship separately. If the server is older than this
   // page expects, say so to admins, loudly, instead of letting it look like
   // missing features. Players just get the fallbacks.
-  const API_WANTS = 18;
+  const API_WANTS = 19;
   function checkServer(me) {
     if (API.demo || state.serverWarned || (me.api || 0) >= API_WANTS) return;
     state.serverWarned = true;
@@ -4758,7 +4763,7 @@
       ['What do I do each day?', `Three things, in about two minutes: <b>collect</b> anything that matured, <b>buy</b> something with the day's money, and <b>play the cards</b> in TrickleTown. The to-do list under your coin keeps track.`],
       ['How much money do I get?', `${money(rules.daily_base, { whole: true })} a day. Each day of your streak adds ${money(rules.streak_bonus, { whole: true })}, up to ${money(rules.daily_cap, { whole: true })}. Miss a day and it drops back to ${money(rules.daily_base, { whole: true })}. Your town's daily profit (or loss) is added on top. Bills you don't spend stay on the coin.`],
       [`What's the ×10?`, `Every buy rides the real market for ${h} hours, and the move is multiplied. It starts at ${mult(rules.mult_floor)} the moment you buy and climbs to ×10 at the ${h}-hour mark (×5 for crypto). The multiplier works on the move, not the money: the stock goes up 1% over the day, you're up 10%; down 1%, down 10%. At ${h} hours it matures and the value freezes. A position can fall to $0; it can't go below.`],
-      ['Collect, sell early, or ride?', `<b>Collect</b> a matured position and the money comes back to the coin. <b>Sell early</b> any time at the current, smaller multiplier. <b>Ride</b> a matured position instead: it's taxed exactly like collecting (${pct}% of the profit), and everything left goes straight back on the same thing for another ${h} hours. The difference is the multiplier: a ride starts where the last day ended instead of at ×1, so a stock runs ×10 to ×20 and crypto ×5 to ×10. Ride again and it stays at the top. Bigger swings both ways.`],
+      ['Collect, sell early, or ride?', `<b>Collect</b> a matured position and the money comes back to the coin. <b>Sell early</b> any time at the current, smaller multiplier. <b>Ride</b> a matured position instead: it's taxed exactly like collecting (${pct}% of the profit), and everything left goes straight back on the same thing for another ${h} hours. The difference is the multiplier: a ride starts where the last day ended instead of at ×1, and climbs again, a little less each time: crypto ×5 → ×10 → ×14 → ×17 → ×20 → ×22 → ×23, stocks ×10 → ×20 → ×28 → ×34 → ×40 → ×44 → ×46, then ×1 more every ride after that. Bigger swings both ways: at ×20, a 5% dip is zero.`],
       ['What happens when I win?', `Only the gain is taxed, at ${pct}%, never what you put in. Put in $50K, collect $60K: the gain is $10K, so ${money(10 * pct / 100)} is tax and ${money(60 - 10 * pct / 100)} comes back to you. The tax hires <b>lobbyists</b> (about $1K a head; the exact price is set by your town's happiness) for your <b>charity</b>, which you choose when you hire your first lobbyist. Losses aren't taxed.`],
       ['Where does the money go, exactly?', `To the charities, every quarter, with receipts posted here within 60 days. The exact rules, including what (if anything) can come out first, are on <a href="#promises">Mission &amp; promises</a>. It's the one page on the site with no jokes.`],
       ['Which charities?', `Real ones: well-known charities across hunger, health, kids, disaster relief, poverty, water, the environment, animals, housing, education, justice, veterans and mental health, each rated four stars (out of four) by Charity Navigator when we added it. The more lobbyists a charity has at Lobbyfest, the bigger its share of this site's ad money. Don't see yours? <button type="button" class="linkish" data-request-charity>Request a charity</button>; a person checks every request.`],
