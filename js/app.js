@@ -298,6 +298,7 @@
     $('#foot').hidden = !on;
     $('#masthead-day').hidden = !on;
     $('#btn-trophies').hidden = !on;
+    if (on) renderTrophyCount(); // which hides it again until there's a first trophy
     $('#tabbar').hidden = !on;
     if (!on) hidePeek(true);
     scenery(on ? 'game' : 'landing');
@@ -381,16 +382,19 @@
     bg.setAttribute('aria-hidden', 'true');
     bg.innerHTML = `${rainSvg()}
       <div class="bg-coin bg-heads"><div class="bg-face">${heads}</div><div class="bg-cap">heads: the portfolio</div></div>
-      <div class="bg-coin bg-tails"><div class="bg-face">${tails}</div><div class="bg-cap">tails: your lobbyists</div></div>
+      <div class="bg-coin bg-tails"><div class="bg-face">${tails}</div><div class="bg-cap">tails: your town</div></div>
       <div class="bg-ground"><div class="bg-crowd">${lobbyists(9, { max: 9 })}</div></div>`;
     document.body.appendChild(bg);
   }
 
-  // The game in three lines: the landing page and a visitor's profile.
+  // The game in three lines: the landing page and a visitor's profile. Written
+  // for someone who has never heard of it: what you do, why it's a thrill, why
+  // it matters. The mechanics behind the third line (tax, lobbyists,
+  // Lobbyfest) are taught when the player's first win makes them real.
   const PITCH = `
-          <li><b>$100K a day</b> of fake money. Put it on real stocks, hold 24 hours, and the move is multiplied ×10.</li>
-          <li><b>Your gains are taxed</b>, never what you put in. The tax hires lobbyists for the charity you pick.</li>
-          <li><b>Every quarter</b> this site's real ad money goes to charity (at least $100, every time), split by how many lobbyists each charity has.</li>`;
+          <li><b>$100K of fake money</b>, every day. Bet it on any real stock or crypto. It's free, and losing costs you nothing.</li>
+          <li><b>×10 the thrill.</b> Hold 24 hours and the move is multiplied: the stock goes up 3%, you go up 30%. Down 3%, down 30%.</li>
+          <li><b>Your wins help real charities.</b> Every quarter this site's ad money (at least $100, every time) goes to the charities players win for.</li>`;
   // The landing page's training, ending in the ways in.
   const startTraining = () => Explainer.open({ deck: 'main', finale: true, onFinale: welcomeFinale, rules: { demo: !!API.demo } });
 
@@ -403,15 +407,16 @@
     const AGE = "<b>18+ only.</b> By creating an account or playing as a guest, you confirm you're 18 or older.";
     $('#screen-welcome').innerHTML = `
       <div class="welcome">
+        <p class="hero-kicker"><span>A free daily stock game</span> · <span>two minutes a day</span></p>
         <h1 class="hero">Fake money. Real market. Real charity.</h1>
         <div class="hero-coins" aria-hidden="true">
-          <figure class="hc hc-heads"><div class="hc-face">${own(heads)}</div><figcaption>heads: your money</figcaption></figure>
-          <figure class="hc hc-tails"><div class="hc-face">${own(tails)}</div><figcaption>tails: your lobbyists</figcaption></figure>
+          <figure class="hc hc-heads"><div class="hc-face">${own(heads)}</div><figcaption>heads: your bets</figcaption></figure>
+          <figure class="hc hc-tails"><div class="hc-face">${own(tails)}</div><figcaption>tails: your town</figcaption></figure>
         </div>
         <div class="phone-ways">
-          <button class="btn primary wide" id="btn-guest-m" type="button">Play as a guest · no account</button>
+          <button class="btn primary wide" id="btn-guest-m" type="button">Play now · no account needed</button>
           <button class="btn quiet wide" id="btn-register-m" type="button">Create an account</button>
-          <button class="linkish center" id="btn-orient-m" type="button">60-second training first</button>
+          <button class="linkish center" id="btn-orient-m" type="button">How it works, in 30 seconds</button>
           <p class="age-note">${AGE}</p>
         </div>
         <ul class="pitch">${PITCH}</ul>
@@ -420,7 +425,7 @@
         <button class="training" id="btn-orient" type="button">
           <span class="training-tag">Step one</span>
           <span class="training-title">Take the employee training</span>
-          <span class="training-sub">Four slides. Mandatory. Compensated in knowledge.</span>
+          <span class="training-sub">Three slides. Mandatory. Compensated in knowledge.</span>
         </button>
         <div class="ways-in">
           <button class="btn primary" id="btn-register">Create an account</button>
@@ -596,6 +601,21 @@
   function pendingIssues() {
     const t = state.me && state.me.town;
     return t && t.unlocked ? t.issues.filter((i) => !i.chosen).length : 0;
+  }
+
+  // TrickleTown arrives in two beats, so the first day isn't the whole game
+  // at once. The town opens with the first lobbyist (day one, right after the
+  // first buy), and what's on offer is Town Hall: two cards, two advisors,
+  // pick a side. The construction zone (buildings, upgrades, profit against
+  // happiness) opens once those cards are played, or from day two, whichever
+  // comes first. Anyone who already built is open, of course. The server
+  // doesn't gate this; the page just doesn't offer it yet.
+  function buildOpen(me = state.me) {
+    const t = me && me.town;
+    if (!t || !t.unlocked) return false;
+    if (t.plots.some((p) => p.building)) return true;
+    if ((me.user.account_day || 2) >= 2) return true;
+    return !t.issues.length || t.issues.every((i) => i.chosen);
   }
 
   // The TrickleTown tour, once, the first time the town is open and nobody's
@@ -781,7 +801,10 @@
       <p class="payday-k">💵 Payday${p.streak > 1 ? ` · day ${p.streak} of your streak` : ''}</p>
       <p class="payday-amt"><b data-to="${p.amount}">+${money(p.amount, { whole: true })}</b> landed on the coin</p>
       <ul class="payday-parts">${parts}</ul>
-      <p class="payday-next">Tomorrow: ${money(tomorrow, { whole: true })}${town && me.town.income ? `, with TrickleTown's ${me.town.income > 0 ? '+' : '−'}${money(Math.abs(me.town.income), { whole: true })}` : ''}. Miss a day and the streak resets.</p>
+      <p class="payday-next">${(me.user.account_day || 0) <= 1 && p.streak <= 1
+        // Day one: a reason to come back, not a rule about missing days.
+        ? `Come back tomorrow and it's ${money(tomorrow, { whole: true })}. Every day in a row adds more.`
+        : `Tomorrow: ${money(tomorrow, { whole: true })}${town && me.town.income ? `, with TrickleTown's ${me.town.income > 0 ? '+' : '−'}${money(Math.abs(me.town.income), { whole: true })}` : ''}. Miss a day and the streak resets.`}</p>
     </section>`;
   }
   function wirePayday() {
@@ -879,12 +902,14 @@
     const canCarve = user.cash >= 0.01;
     const ready = positions.filter((p) => p.matured && !p.quote_error).length;
     const nextMoney = money(Math.min(rules.daily_cap, rules.daily_base + rules.streak_bonus * user.streak), { whole: true });
+    const firstTime = isFirstTime(me);
+    // Before the first buy there's nothing in the ledger and nothing to share:
+    // the guide below is the whole screen's job.
     const head = `
       <div class="side-head">
         <h2>Portfolio</h2>
-        <span class="muted">${money(user.cash)} free · ${nextMoney} tomorrow${user.streak > 1 ? ` · ${user.streak}-day streak` : ''} · <a href="#ledger" class="ledger-link">Ledger ›</a></span>
+        <span class="muted">${money(user.cash)} free · ${nextMoney} tomorrow${user.streak > 1 ? ` · ${user.streak}-day streak` : ''}${firstTime ? '' : ' · <a href="#ledger" class="ledger-link">Ledger ›</a>'}</span>
       </div>`;
-    const firstTime = isFirstTime(me);
     const fb = achOf(me, 'first_buy');
     const guide = firstTime ? `
       <div class="first-steps" id="first-steps">
@@ -930,10 +955,10 @@
       </section>` : '';
 
     return `${head}${todoStrip()}${carve}${legend}${crowdStrip(me.crowd)}
-      <div class="row-actions">
+      ${firstTime ? '' : `<div class="row-actions">
         <button class="btn quiet small" id="btn-share">Share my day</button>
         <a class="btn quiet small" href="#profile">My profile &amp; trading history</a>
-      </div>`;
+      </div>`}`;
   }
 
   // What's worth doing right now, in one glance: collect, play cards, invest,
@@ -957,7 +982,7 @@
     const cards = pendingIssues();
     if (town && town.unlocked && cards) items.push({ k: 'cards', text: `Play <b>${cards} card${cards === 1 ? '' : 's'}</b> at Town Hall` });
     if (me.user.cash >= 1 && !isFirstTime(me)) items.push({ k: 'invest', text: `Invest the <b>${money(me.user.cash)}</b> sitting on the coin` });
-    if (town && town.unlocked) {
+    if (town && town.unlocked && buildOpen(me)) {
       const empty = town.plots.find((pl) => !pl.building);
       if (empty) { const cheapest = Math.min(...empty.options.map((o) => o.cost)); items.push({ k: 'site', slot: empty.slot, text: affords(me.user.cash, cheapest) ? `Build on the empty <b>${esc(empty.label.toLowerCase())}</b> lot, from ${money(cheapest, { whole: true })}` : `Save up for the empty <b>${esc(empty.label.toLowerCase())}</b> lot (from ${money(cheapest, { whole: true })})` }); }
       const prop = town.plots.find((pl) => pl.building && pl.proposals);
@@ -1120,7 +1145,7 @@
         else if (k === 'site') { flip(true); if (Explainer.seen('town')) setTimeout(() => openSite(b.dataset.slot), REDUCED ? 50 : 700); }
       };
     });
-    $('#btn-share').onclick = share;
+    const sh = $('#btn-share'); if (sh) sh.onclick = share;
     const search = $('#carve-search');
     if (!search) return;
     const list = $('#asset-list'), usd = $('#carve-usd');
@@ -1215,13 +1240,25 @@
 
   const moodChip = (a) => (a.mood ? `<span class="mood ${esc(a.mood)}">${esc(a.mood)} ${mult(a.multiplier)}</span>` : `<span class="mood plain">${a.kind === 'etf' ? 'ETF ' : a.type === 'crypto' ? 'Crypto ' : ''}${mult(a.multiplier)}</span>`);
 
+  // The first buy's menu: six names anyone has heard of, one of each mood, so
+  // the first choice is "how wild do I feel?" rather than a list of 64.
+  // Typing still searches everything.
+  const STARTERS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'BTC', 'DOGE'];
+  function starterList() {
+    if (!state.me || !isFirstTime(state.me)) return null;
+    const list = STARTERS.map((s) => state.assets.find((a) => a.symbol === s)).filter(Boolean);
+    return list.length >= 3 ? list : null;
+  }
+
   // results: a server search's answer, or null to filter the featured list locally.
   function renderAssetList(q, results = null) {
     const el = $('#asset-list');
     if (!el) return;
     const needle = q.trim().toLowerCase();
+    const starters = !results && !needle ? starterList() : null;
     let list;
     if (results) list = results;
+    else if (starters) list = starters;
     else if (!needle) list = state.assets;
     else list = state.assets.filter((a) => a.symbol.toLowerCase().includes(needle) || a.name.toLowerCase().includes(needle));
     if (!list.length) {
@@ -1237,7 +1274,9 @@
     // A stock row while the market's quiet: the same mark, with when in its title.
     const zzTitle = !zz ? '' : m.open ? `Market closes ${whenLocal(m.closes_at)}` : `Market closed until ${m.next_open ? whenLocal(m.next_open) : 'it opens'}`;
     const rowZz = (a) => (zz && a.type !== 'crypto' ? `<span class="mkt-zz" title="${esc(zzTitle)}" aria-label="${esc(zzTitle)}">${zz}</span>` : '');
-    const head = !needle && state.assetSearch ? `<li class="nothing">Featured. Type any US ticker or company name; ${state.assetCount.toLocaleString('en-US')} are in the game.${quietLine}</li>`
+    el.classList.toggle('starters', !!starters);
+    const head = starters ? `<li class="nothing starter-head"><b>Not sure? Try one.</b> Calm barely moves; Unhinged swings hard. Or type any name.${quietLine}</li>`
+      : !needle && state.assetSearch ? `<li class="nothing">Featured. Type any US ticker or company name; ${state.assetCount.toLocaleString('en-US')} are in the game.${quietLine}</li>`
       : quietLine ? `<li class="nothing">${quietLine.trim()}</li>` : '';
     el.innerHTML = head + list.slice(0, 60).map((a) => `
       <li role="option" data-symbol="${esc(a.symbol)}">
@@ -1459,6 +1498,24 @@
     </button>`;
   }
 
+  // The construction zone on the town panel. Closed (day one, cards still to
+  // play): a one-line promise. Just opened, nothing built yet: the same three
+  // sentences the tour used to give, here where the lots are.
+  function zoneMarkup(town) {
+    const built = town.plots.filter((p) => p.building).length;
+    if (!buildOpen()) {
+      return `<section class="t-section t-panel t-zone zone zone-closed">
+        ${tHead('zone', 'Construction zone', `${town.plots.length} empty lots`)}
+        <p class="zone-soon">🚧 Opens once you've played today's cards. Town Hall first; then you build.</p>
+      </section>`;
+    }
+    return `<section class="t-section t-panel t-zone zone ${built ? '' : 'zone-new'}" id="zone">
+        ${tHead('zone', 'Construction zone', `${built} of ${town.plots.length} lots built`)}
+        ${built ? '' : `<p class="zone-intro"><b>Money, or people.</b> Each lot offers three buildings: one makes profit and unhappy residents, one makes them happy and costs you, and one in between. Once something's up, the residents notice the days you skip Town Hall.</p>`}
+        <div class="zone-grid">${town.plots.map(zoneTile).join('')}</div>
+      </section>`;
+  }
+
   function lockedMarkup() {
     const me = state.me;
     const have = Math.max(0, me.user.total_donated || 0);
@@ -1469,7 +1526,7 @@
         <p><b>Your lobbyists will live here.</b> It opens when you hire the first one.</p>
         <div class="lobby-row"><b>${esc(lobbyN(have))} / ${need}</b>${have > 0 ? lobbyists(have) : ''}</div>
         <div class="rank-bar"><i style="--w:${Math.min(100, (have / need) * 100).toFixed(0)}%"></i></div>
-        <p class="muted small">Win a trade or claim a gift: the ${Math.round(me.rules.tax_rate * 100)}% tax on the gain hires them.</p>
+        <p class="muted small">${isFirstTime(me) ? 'Make your first buy. Something good happens.' : `Win a trade or claim a gift: the ${Math.round(me.rules.tax_rate * 100)}% tax on the gain hires them.`}</p>
       </section>`;
   }
 
@@ -1623,10 +1680,7 @@
         <button type="button" class="linkish t-deck-link" id="btn-deck">${deckLine(town.deck)} ›</button>
       </section>
 
-      <section class="t-section t-panel t-zone zone">
-        ${tHead('zone', 'Construction zone', `${town.plots.filter((p) => p.building).length} of ${town.plots.length} lots built`)}
-        <div class="zone-grid">${town.plots.map(zoneTile).join('')}</div>
-      </section>
+      ${zoneMarkup(town)}
 
       <section class="t-section t-panel t-payroll records">
         ${tHead('payroll', 'Payroll', `marches to Lobbyfest on ${esc(festDate(day.quarter_ends_at))}`)}
@@ -1634,7 +1688,7 @@
           <li><span><span class="sw" style="background:var(--ch${i % 6})"></span>${esc(c.name)}${c.id === user.charity_id && c.active !== false ? ' <em class="default-tag">default</em>' : ''}</span><span>${lobbyists(c.amount, { mini: true, max: 12 })} <b>${esc(lobbyN(c.amount))}</b></span></li>`).join('')}</ul>` : '<p class="muted small">Nobody on the payroll this quarter yet.</p>'}
         <p class="small payroll-default">${defaultName ? `New lobbyists go to <b>${esc(defaultName)}</b>. ` : ''}The charity with the most lobbyists at Lobbyfest gets the biggest share of the real money.</p>
         <div id="payroll-team" hidden></div>
-        <button type="button" class="btn primary wide" id="btn-assign">Assign lobbyists</button>
+        <button type="button" class="btn ${q >= 2 || given.length > 1 ? 'primary' : 'quiet'} wide" id="btn-assign">Assign lobbyists</button>
         <div class="rank-row">
           <span><b>${have ? esc(have.name) : 'Unranked'}</b> <span class="muted">${next ? `· ${esc(next.name)} at ${next.at} lobbyists (${lobbyN(Math.max(0, next.at - user.total_donated))} to go)` : '· top rank'}</span></span>
           ${me.achievements ? `<button type="button" class="linkish" id="btn-badge-trophies">🏆 ${me.achievements.earned} of ${me.achievements.total}</button>` : ''}
@@ -1709,6 +1763,10 @@
     if (!state.flipped) flip(true);
     const p = plotOf(slot);
     if (!p) return;
+    if (!buildOpen()) {
+      toast(pendingIssues() ? "The lots open once today's cards are played. Town Hall first." : 'The lots open tomorrow.', 3600);
+      return;
+    }
     site.slot = slot; site.result = null; site.i = 0; state.statPrev = null;
     site.mode = mode || (p.building ? 'office' : 'build');
     renderSite();
@@ -1935,6 +1993,7 @@
     adv.cards = t.issues.slice();
     adv.i = Math.max(0, Math.min(adv.cards.length, startAt));
     adv.result = null;
+    adv.zoneOpened = false;
     state.statPrev = null;
     // Start on the first unplayed card, if any.
     const firstOpen = adv.cards.findIndex((c) => !c.chosen);
@@ -1958,8 +2017,10 @@
       <h3>Agenda closed</h3>
       <p>${esc(verdict)}</p>
       <div class="adv-tally"><span>${Coin.preston(32)} ${p}</span><span>${Coin.dolores(32)} ${d}</span></div>
-      <p class="muted small">${locked} card${locked === 1 ? '' : 's'} still locked. Build, hire, and spend to meet them.</p>
-      <div class="adv-actions"><button type="button" class="btn quiet" data-adv="deck">See the deck</button><button type="button" class="btn primary" data-adv="close">Back to town</button></div>
+      ${adv.zoneOpened ? `<p class="adv-unlock"><b>🏗️ Your construction zone just opened.</b> Two empty lots, three buildings each. Money, or people.</p>` : `<p class="muted small">${locked} card${locked === 1 ? '' : 's'} still locked. Build, hire, and spend to meet them.</p>`}
+      <div class="adv-actions"><button type="button" class="btn quiet" data-adv="deck">See the deck</button>${adv.zoneOpened
+        ? '<button type="button" class="btn primary" data-adv="zone">See the lots</button>'
+        : '<button type="button" class="btn primary" data-adv="close">Back to town</button>'}</div>
     </div>`;
   }
 
@@ -2024,6 +2085,10 @@
       b.onclick = () => {
         const a = b.dataset.adv;
         if (a === 'close') dlg.close();
+        else if (a === 'zone') {
+          dlg.close();
+          setTimeout(() => { const z = $('#zone'); if (z) z.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' }); }, 80);
+        }
         else if (a === 'deck') { dlg.close(); openDeck(); }
         else if (a === 'next') { adv.result = null; state.statPrev = null; adv.i += 1; renderAdvisors(); }
         else if (a === 'prev') { adv.result = null; state.statPrev = null; adv.i = Math.max(0, adv.i - 1); renderAdvisors(); }
@@ -2038,6 +2103,7 @@
         const c = adv.cards[adv.i];
         $$('[data-pick]', dlg).forEach((x) => { x.disabled = true; });
         const before = statSnapshot();
+        const zoneWas = buildOpen();
         const r = await townPost('/town/decide', { issue_id: c.id, side: who }, b);
         if (!r) { $$('[data-pick]', dlg).forEach((x) => { x.disabled = false; }); return; }
         // Fly the card off toward the chosen side, then show the result.
@@ -2050,6 +2116,7 @@
         adv.result = { id: c.id, side: who, fx: r.fx || {}, noted: !!(r.noted), crowd: r.crowd || null, line: catSay(reaction(who)) };
         state.statPrev = before;
         refreshVillage(r.town, r.user);
+        if (!zoneWas && buildOpen()) adv.zoneOpened = true; // said on the summary card
         adv.cards = state.me.town.issues.slice();
         renderAdvisors();
       };
@@ -2595,7 +2662,11 @@
   function renderTrophyCount() {
     const a = state.me && state.me.achievements;
     const btn = $('#btn-trophies');
-    if (!btn || !a) return;
+    if (!btn) return;
+    if (!a) { btn.hidden = true; return; }
+    // A "0/11" chip is a to-do list for a game you haven't started. It
+    // appears with the first trophy (the first buy), which explains it.
+    btn.hidden = !a.earned && !a.unclaimed.length;
     $('#trophy-count').textContent = `${a.earned}/${a.total}`;
     btn.classList.toggle('waiting', a.unclaimed.length > 0);
     btn.setAttribute('aria-label', `Achievements: ${a.earned} of ${a.total}${a.unclaimed.length ? `, ${a.unclaimed.length} gift waiting` : ''}`);

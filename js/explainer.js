@@ -40,13 +40,14 @@ window.Explainer = (function () {
       <div class="x-bubble">${esc(quote)}</div>
     </div>`;
 
+  // Three slides, and only what you need before the first buy: what it is,
+  // how you win, why it matters. The rest (the tax rate, the gift, the town,
+  // the cat) is introduced when it happens, by the thing that happens.
   function mainDeck(r) {
-    const pct = Math.round(r.tax_rate * 100);
-    const fmtK = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
     return [
       {
         kicker: 'Welcome to Trickle Down',
-        title: 'Fake money. Real charity.',
+        title: 'Play the stock market with fake money',
         art: svg(`
           ${coin(46, 70, 28)}<text x="46" y="82" text-anchor="middle" class="x-big">$</text>
           ${arrow(84, 104, 70)}
@@ -57,8 +58,8 @@ window.Explainer = (function () {
           <text x="46" y="122" text-anchor="middle" class="x-small">fake money</text>
           <text x="139" y="122" text-anchor="middle" class="x-small">lobbyists</text>
           <text x="230" y="122" text-anchor="middle" class="x-small">real charity</text>`),
-        body: `You get $${r.daily_base}K of fake money every day (more on a streak). Invest it in real stocks and crypto. Your gains decide which charities get this site's real ad money.`,
-        fine: 'Losing costs you nothing. Legal checked.',
+        body: `Every day you get $${r.daily_base}K of fake money to bet on real stocks and crypto: Nvidia, Tesla, Bitcoin, the whole S&P. Win, and real charities get real money.`,
+        fine: 'Free. Losing costs you nothing. Legal checked.',
         next: 'How do I win?',
       },
       {
@@ -70,12 +71,12 @@ window.Explainer = (function () {
           <text x="20" y="136" class="x-small">buy: ×1</text><text x="256" y="136" text-anchor="end" class="x-small">${r.hold_hours}h: ×10</text>
           <circle cx="256" cy="26" r="9" class="x-gold"/>
           <text x="256" y="16" text-anchor="end" class="x-small">stock +1% → you +10%</text>`),
-        body: `Pick a stock, crypto or fund and say how much. It rides the real market for ${r.hold_hours} hours, and the move is multiplied: the stock goes up 1%, you go up 10%. Down 1%, down 10%. Then it matures and you collect.`,
+        body: `Pick something and say how much. For ${r.hold_hours} hours it rides the real market, and you move ten times as much: the stock goes up 1%, you go up 10%. Down 1%, down 10%. Then it matures and you collect.`,
         fine: 'Sell early any time at a smaller multiplier. Crypto tops out at ×5.',
         next: 'And the charity part?',
       },
       {
-        title: 'Your gains hire lobbyists',
+        title: 'Your wins hire lobbyists for charity',
         art: svg(`
           ${bill(32, 70, 'hop h1')}${bill(56, 70, 'hop h2')}
           ${arrow(78, 102, 70)}
@@ -84,20 +85,8 @@ window.Explainer = (function () {
           ${suit(141, 34, '', 0.9)}
           ${arrow(196, 216, 70)}
           ${suit(224, 52, 'pop p1')}${suit(246, 52, 'pop p2')}`),
-        body: `Only gains are taxed, at ${pct}%: put in $50K, collect $60K, and $${fmtK(10 * pct / 100)}K of the $10K gain is tax. Losses aren't. The tax hires lobbyists for your charity, and each quarter at Lobbyfest the charities split the real money by lobbyist count.`,
+        body: 'A slice of every gain is taxed, and the tax hires lobbyists for a real charity you pick. Losses cost nothing. Every quarter, this site\'s real ad money goes to the charities, split by how many lobbyists each one has.',
         fine: r.demo ? 'The charities are real. In this demo, the money is not.' : 'Real charities, four stars on Charity Navigator. Receipts posted here within 60 days of each Lobbyfest.',
-        next: 'Anything else?',
-      },
-      {
-        title: 'Your first buy pays a bonus',
-        art: svg(`
-          ${miniTown()}
-          <rect x="0" y="0" width="280" height="150" fill="#EDF1F2" opacity=".82" class="xs-veil"/>
-          <rect x="96" y="40" width="88" height="56" rx="6" fill="#fff" stroke="#0F2430" stroke-width="2" class="xs-card"/>
-          <text x="140" y="76" text-anchor="middle" fill="#0F2430" font-size="22" font-weight="900" class="xs-card-text">$${r.vest_amount || 40}K</text>
-          <text x="140" y="122" text-anchor="middle" class="x-tag">from Mommy &amp; Daddy</text>`),
-        body: `Make your first investment and Mommy & Daddy send $${r.vest_amount || 40}K. A little of it hires your first lobbyist, who lives in TrickleTown, on the other side of your coin. The rest is yours.`,
-        fine: 'Nothing about this is normal. Everything about it is legal.',
         next: 'Start playing',
       },
     ];
@@ -109,22 +98,11 @@ window.Explainer = (function () {
         kicker: 'Your first lobbyists moved in',
         title: 'Welcome to TrickleTown',
         art: svg(miniTown(`${suit(120, 72, '', 0.9)}<text x="140" y="140" text-anchor="middle" class="x-tag">the other side of your coin</text>`)),
-        body: 'Your lobbyists live here, and you own the place. It has two scores. Profit: what the town adds to your allowance every day. Happiness: what each new lobbyist costs you, since happy towns hire cheap.',
+        body: 'Your lobbyists live here, and you own the place. Keep an eye on two scores. Profit: what the town adds to your allowance every day. Happiness: happy towns hire new lobbyists cheaper.',
         fine: 'Congratulations on becoming a landlord. It happens to the best of us.',
       },
-      {
-        title: 'Money, or people',
-        art: svg(`
-          <rect x="0" y="104" width="280" height="46" fill="#9BC48F" class="xs-grass"/>
-          <rect x="34" y="56" width="80" height="48" fill="#8E2232"/><rect x="34" y="50" width="80" height="8" fill="#D4A72C"/>
-          <text x="74" y="86" text-anchor="middle" fill="#F2D06B" font-size="20" font-weight="900">$ $ $</text>
-          <text x="74" y="130" text-anchor="middle" class="x-tag up">+ profit</text>
-          <rect x="168" y="58" width="76" height="46" fill="#fff" stroke="#8EA3AC" class="xs-white"/>
-          <rect x="200" y="62" width="12" height="26" fill="#2E9C72"/><rect x="193" y="69" width="26" height="12" fill="#2E9C72"/>
-          <text x="206" y="130" text-anchor="middle" class="x-tag up">+ happiness</text>`),
-        body: 'Two empty lots. Each offers three buildings: a casino or tenement makes profit and unhappy lobbyists; a clinic or co-op costs profit and makes them happy; one in the middle. Tap a lot to build.',
-        fine: 'Every lot offers an extractive option, a compromise, and a decent one. We put them in that order for a reason.',
-      },
+      // Buildings aren't on the tour: the construction zone introduces itself
+      // once it opens (after the first day's cards), on the town panel.
       {
         title: 'Cards every day',
         art: `<div class="x-art x-duo">
@@ -132,7 +110,7 @@ window.Explainer = (function () {
           <div class="x-half dolores">${window.Coin ? window.Coin.dolores(64) : ''}<div class="x-bubble">They would like a park.</div></div>
         </div>`,
         body: 'Preston and Dolores bring a few cards a day. Preston\'s side pays; Dolores\'s side makes people happier. Pick one per card. Some choices come back around later; the card will say so.',
-        fine: 'Unplayed cards expire at midnight. Built something? The residents notice when you skip a day.',
+        fine: 'Unplayed cards expire at midnight. Buildings come later: your two empty lots open once today\'s cards are played.',
         next: 'Visit TrickleTown',
       },
     ];
