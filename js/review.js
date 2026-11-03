@@ -63,6 +63,46 @@
     return out;
   }
 
+  // Price samples at ×10 and up zigzag a lot at this size. Average them into
+  // buckets about 4px wide, then a light [1,2,1] pass; the first and last
+  // points stay exact so the line starts at the buy and ends at the real value.
+  function smooth(pts, bucketMs) {
+    if (pts.length < 4) return pts;
+    const out = [pts[0]];
+    let bt = 0, bv = 0, n = 0, edge = pts[0][0] + bucketMs;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const [t, v] = pts[i];
+      if (t >= edge && n) { out.push([bt / n, bv / n]); bt = 0; bv = 0; n = 0; while (edge <= t) edge += bucketMs; }
+      bt += t; bv += v; n++;
+    }
+    if (n) out.push([bt / n, bv / n]);
+    out.push(pts[pts.length - 1]);
+    if (out.length < 4) return out;
+    return out.map((p, i) => (i === 0 || i === out.length - 1 ? p : [p[0], (out[i - 1][1] + 2 * p[1] + out[i + 1][1]) / 4]));
+  }
+
+  // A smooth path through the points that never overshoots them (monotone
+  // cubic, Fritsch–Carlson), so a curve doesn't invent highs or lows.
+  function curve(P) {
+    const n = P.length;
+    if (n < 3) return P.map(([x, y], k) => `${k ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join('');
+    const dx = [], m = [], tan = new Array(n);
+    for (let i = 0; i < n - 1; i++) { dx[i] = P[i + 1][0] - P[i][0]; m[i] = dx[i] ? (P[i + 1][1] - P[i][1]) / dx[i] : 0; }
+    tan[0] = m[0]; tan[n - 1] = m[n - 2];
+    for (let i = 1; i < n - 1; i++) tan[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (!m[i]) { tan[i] = 0; tan[i + 1] = 0; continue; }
+      const a = tan[i] / m[i], b = tan[i + 1] / m[i], h = a * a + b * b;
+      if (h > 9) { const k = 3 / Math.sqrt(h); tan[i] = k * a * m[i]; tan[i + 1] = k * b * m[i]; }
+    }
+    let d = `M${P[0][0].toFixed(1)},${P[0][1].toFixed(1)}`;
+    for (let i = 0; i < n - 1; i++) {
+      const h = dx[i] / 3;
+      d += `C${(P[i][0] + h).toFixed(1)},${(P[i][1] + tan[i] * h).toFixed(1)} ${(P[i + 1][0] - h).toFixed(1)},${(P[i + 1][1] - tan[i + 1] * h).toFixed(1)} ${P[i + 1][0].toFixed(1)},${P[i + 1][1].toFixed(1)}`;
+    }
+    return d;
+  }
+
   const ease = (k) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
   // Rough label widths at 11px, so labels can dodge each other without a
   // layout pass every frame.
@@ -73,10 +113,9 @@
     const money = opts.money || ((v) => `$${Math.round(v)}`);
     const { start, end } = data;
     const span = Math.max(1, end - start);
-    const series = data.series.map((s, i) => ({ ...s, i, pts: s.points.filter((p) => p[0] <= end) }));
-
     const W = Math.max(280, Math.round(host.clientWidth || 340));
     const H = Math.round(Math.max(210, Math.min(280, W * 0.62)));
+    const series = data.series.map((s, i) => ({ ...s, i, pts: smooth(s.points.filter((p) => p[0] <= end), span / W * 4) }));
 
     // Y: every value any line touches, on round ticks.
     let lo = Infinity, hi = -Infinity;
@@ -84,7 +123,9 @@
     if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
     if (hi - lo < Math.max(0.05, hi * 0.04)) { const pad = Math.max(0.05, hi * 0.04); lo -= pad; hi += pad; }
     const step = niceStep((hi - lo) / 4);
-    lo = Math.max(0, Math.floor(lo / step) * step);
+    // Dollars stop at $0; a % chart (opts.signed) goes below zero.
+    lo = Math.floor(lo / step) * step;
+    if (!opts.signed) lo = Math.max(0, lo);
     hi = Math.ceil(hi / step) * step;
     const yTicks = [];
     for (let v = lo; v <= hi + step / 2; v += step) yTicks.push(Math.round(v * 1000) / 1000);
@@ -117,7 +158,7 @@
     // Recessive grid and axes: hairlines and muted labels.
     const grid = el('g', { class: 'rv-grid' }, svg);
     for (const v of yTicks) {
-      el('line', { x1: M.l, x2: M.l + pw, y1: Y(v), y2: Y(v) }, grid);
+      el('line', { x1: M.l, x2: M.l + pw, y1: Y(v), y2: Y(v), ...(opts.signed && v === 0 ? { class: 'rv-zero' } : {}) }, grid);
       el('text', { x: M.l - 6, y: Y(v) + 3.5, 'text-anchor': 'end', class: 'rv-axis' }, grid).textContent = money(v);
     }
     for (const tk of timeTicks(start, end, Math.max(2, Math.floor(pw / 58)))) {
@@ -134,7 +175,7 @@
     // Quiet lines (past the eight colours) underneath, the coloured ones on top.
     for (const s of [...series.filter((x) => x.quiet), ...series.filter((x) => !x.quiet)]) {
       if (!s.pts.length) continue;
-      const d = s.pts.map(([t, v], k) => `${k ? 'L' : 'M'}${X(t).toFixed(1)},${Y(v).toFixed(1)}`).join('');
+      const d = curve(s.pts.map(([t, v]) => [X(t), Y(v)]));
       el('path', { d, class: s.quiet ? 'rv-line quiet' : 'rv-line', style: `stroke:${s.color}` }, lines);
       // Where it was bought: a small open ring.
       if (!s.quiet) el('circle', { cx: X(s.pts[0][0]), cy: Y(s.pts[0][1]), r: 3, class: 'rv-buy', style: `stroke:${s.color}` }, lines);
@@ -187,6 +228,7 @@
         for (let n = 0; n < 24 && (hit = clash(L, down)); n++) down = hit.y + LH;
         for (let n = 0; n < 24 && (hit = clash(L, up)); n++) up = hit.y - LH;
         L.y = (up >= M.t && L.hy - up < down - L.hy) || down > M.t + ph + 6 ? up : down;
+        L.y = Math.max(M.t + 6, Math.min(M.t + ph - 2, L.y)); // never off the chart
         placed.push(L);
       }
       for (const L of placed) {

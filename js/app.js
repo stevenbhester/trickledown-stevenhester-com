@@ -2890,6 +2890,7 @@
           points: asPct ? p.points.map(([t, v]) => [t, (v / starts[i] - 1) * 100]) : p.points })),
       }, {
         money: asPct ? pctFmt : (v) => money(v),
+        signed: asPct,
         reduced: REDUCED,
         label: `${list.length} positions from ${clockAt(data.start)} to ${clockAt(data.end)}${asPct ? ', in % change' : ''}. The list below has each one's numbers.`,
         onTick: (t, values) => {
