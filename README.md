@@ -42,12 +42,18 @@ link to the demo) rather than quietly running the fake game.
 
 ## The landing page
 
-At phone width (under 1000px): the headline, both faces of a sample coin
-("heads: your money", "tails: your lobbyists"), "Play as a guest · no
-account", "Create an account", "60-second training first", the 18+ line, the
-three pitches, and a live line from `/trickle` ("$100 to charity on January
-1 · N players lobbying", the count only from 25 up). Wider than that, as
-below.
+At phone width (under 1000px): a kicker that says what this is ("A free
+daily stock game · two minutes a day"), the headline, both faces of a sample
+coin ("heads: your bets", "tails: your town"), "Play now · no account
+needed", "Create an account", "How it works, in 30 seconds", the 18+ line,
+the three pitches, and a live line from `/trickle` ("$100 to charity on
+January 1 · N players lobbying", the count only from 25 up). Wider than
+that, as below.
+
+The pitches are written for someone who arrived from a bare link and has
+never heard of the game: what you do (fake money, real stocks), why it's a
+thrill (×10), why it matters (real charities). No tax rates, lobbyists or
+Lobbyfest yet; the first win teaches those.
 
 Hero, three one-line pitches, then "Take the employee training" (the
 orientation deck; when taken before signing up its last slide ends in the
@@ -56,6 +62,36 @@ smaller line under them. Nobody sees a tutorial until they've chosen a way
 in, and nobody sees it twice. Anyone setting a password gets a plain note
 that this is a beta: hashed, rate-limited, HTTPS, but no reset, no 2FA, one
 person's project, so don't reuse a password from elsewhere.
+
+## The first session
+
+The rule: a new player is told one thing at a time, by the thing itself,
+when it starts to matter. Everything is still in the game from day one; the
+page just doesn't put it all on screen at once.
+
+1. **Landing.** What it is and why it's fun, in three lines.
+2. **Training** (3 slides): fake money on real stocks; hold 24 hours for ×10;
+   wins hire lobbyists for a real charity. The tax rate, the first-buy gift
+   and TrickleTown aren't in it.
+3. **Today, before the first buy.** Just the payday card ("come back tomorrow
+   and it's $110K"; the streak rule waits for day two), the coin, and the
+   three-step first-buy guide. The trophy chip, the Ledger link and Share my
+   day appear after the first buy, when they have something in them. The
+   picker opens on six starters, one of each mood (SPY, AAPL, NVDA, TSLA,
+   BTC, DOGE: `STARTERS` in `js/app.js`); typing still searches everything.
+4. **First buy → the gift.** The achievement knocks, the receipt shows the tax
+   as arithmetic, the first-hire sheet picks the charity. This is where tax,
+   lobbyists and Lobbyfest are explained, because it's where they happen.
+5. **TrickleTown opens with Town Hall only.** The tour (2 slides) covers the
+   two scores and the cards. The construction zone shows as "opens once
+   you've played today's cards"; tapping a lot says the same. When the last
+   card is played, the agenda summary announces the lots ("See the lots"),
+   and the zone explains its three kinds of building in place until the
+   first one goes up. From day two (or with anything built) it's always open.
+   `buildOpen()` in `js/app.js`; the server doesn't gate building.
+6. **Later, on their own schedule:** the cat (day two), new cards by days
+   played, riding (offered when a position matures), the install hint (day
+   three), friends and boards (☰).
 
 ## Accounts
 
@@ -238,9 +274,10 @@ when you tap it. Pinch zoom still works.
   Office), and Payroll (lobbyists by charity, the Assign button, your rank,
   the records). Tapping a building or an advisor on the coin opens the same
   sheets.
-- Two tutorials, short: the employee training (4 slides, from the landing
-  page or the ? button) and the TrickleTown tour (3 slides, the first time
-  the town opens). The How page is a FAQ.
+- Two tutorials, short: the employee training (3 slides, from the landing
+  page or the ? button) and the TrickleTown tour (2 slides, the first time
+  the town opens). The How page is a FAQ. See "The first session" below for
+  what each one leaves to be taught later.
 - Nothing pops out of nowhere. An achievement knocks first: a small card
   rises from the bottom, no backdrop, and the sheet opens when the player
   taps it. Sheets marked `soft` (the achievement, the first-hire ceremony)

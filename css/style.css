@@ -425,6 +425,8 @@ main { max-width: var(--max); margin: 0 auto; padding: 18px var(--gutter) 40px; 
   max-height: 216px; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--card);
 }
+/* The first buy's six starters: all of them on screen, no scrolling. */
+.asset-list.starters { max-height: none; }
 .asset-list li {
   display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center;
   padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--porcelain);
@@ -671,6 +673,9 @@ input:focus { border-color: var(--water); }
 /* Welcome --------------------------------------------------------------------- */
 
 .welcome { padding-top: 10px; }
+/* What this is, before the slogan: for someone who arrived from a bare link. */
+.welcome .hero-kicker { margin: 0; font-family: var(--display); font-weight: 900; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--water); }
+.welcome .hero-kicker span { white-space: nowrap; }
 .welcome .hero { font-family: var(--display); font-weight: 900; font-size: 64px; line-height: 0.88; margin: 6px 0 16px; max-width: 9ch; }
 @media (max-width: 480px) { .welcome .hero { font-size: 52px; } }
 .welcome p { max-width: 46ch; font-size: 17px; }
@@ -1006,6 +1011,12 @@ input:focus { border-color: var(--water); }
 
 /* Construction zone */
 .zone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* Day one, before the cards are played: a promise, not a panel. */
+.zone-soon { margin: 0; font-size: 14px; color: var(--mud); }
+/* Just opened, nothing built: what the lots are, said where the lots are. */
+.zone-intro { margin: 0 0 12px; font-size: 14px; padding: 8px 12px; border-left: 3px solid var(--water); background: var(--shallow); border-radius: 0 6px 6px 0; }
+/* The card summary that opens the lots. */
+.adv-unlock { font-size: 14px; margin: 0; padding: 8px 12px; border-left: 3px solid var(--water); background: var(--shallow); border-radius: 0 6px 6px 0; }
 .zone-tile {
   position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: hidden;
   border: 1.5px solid var(--line); border-radius: 8px; background: var(--card); cursor: pointer; text-align: left; font: inherit; color: inherit;
@@ -1139,6 +1150,9 @@ h3 .price-tag { margin-left: 8px; font-size: 18px; vertical-align: middle; displ
 body.landing { min-height: 100vh; }
 .landing-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
 body.landing .masthead, body.landing main, body.landing .tabs, body.landing .foot { position: relative; z-index: 1; }
+/* Main's dropdowns (the asset picker) hang over the footer; at the same
+   z-index the footer, later in the page, painted over them and took the taps. */
+body.landing main { z-index: 2; }
 .landing-bg.game .bg-ground { bottom: 4vh; right: 2vw; width: clamp(240px, 24vw, 420px); }
 .landing-bg.game .bg-cap { margin-top: 6px; font-size: 12px; }
 .bg-rain {
